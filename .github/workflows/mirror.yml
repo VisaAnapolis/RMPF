@@ -16,4 +16,4 @@ jobs:
 
       - name: Mirror to visaanapolis/RMPF
         run: |
-          git push --mirror "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/visaanapolis/RMPF.git"
+          git push --mirror "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/VisaAnapolis/RMPF.git"
