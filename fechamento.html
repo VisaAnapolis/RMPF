@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fechamento — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+  <style>
+    /* Print-only report styles */
+    .area-relatorio { display: none; }
+    @media print {
+      .area-relatorio { display: block !important; }
+      .nao-imprimir   { display: none !important; }
+    }
+    .rel-header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid var(--verde); padding-bottom: 14px; }
+    .rel-header h1 { font-size: 1.1rem; color: var(--verde); }
+    .rel-header h2 { font-size: .95rem; font-weight: 500; }
+    .rel-section { margin-bottom: 20px; }
+    .rel-section h3 { font-size: .9rem; font-weight: 700; color: var(--verde); border-bottom: 1px solid var(--cinzaL); padding-bottom: 4px; margin-bottom: 10px; }
+    .signature-block { margin-top: 48px; display: flex; justify-content: space-around; }
+    .signature-line { border-top: 1px solid #000; width: 220px; text-align: center; padding-top: 4px; font-size: .8rem; }
+  </style>
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<div class="app-layout" id="app" style="display:none">
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger">☰</button>
+    <div><div class="logo-text">🏛️ RMPF</div><div class="logo-sub">Produtividade Fiscal</div></div>
+    <div class="header-right">
+      <span class="user-name" id="header-nome">—</span>
+      <button class="btn-logout" id="btn-logout">Sair</button>
+    </div>
+  </header>
+  <nav class="app-sidebar nao-imprimir" id="sidebar">
+    <a href="dashboard.html"  class="sidebar-link"><span class="icon">📊</span>Dashboard</a>
+    <a href="conferencia.html"class="sidebar-link"><span class="icon">🔍</span>Conferência</a>
+    <a href="ocorrencias.html"class="sidebar-link"><span class="icon">📌</span>Ocorrências</a>
+    <a href="fechamento.html" class="sidebar-link active"><span class="icon">🔒</span>Fechamento</a>
+  </nav>
+
+  <main class="app-main">
+    <div class="page-title nao-imprimir">🔒 Fechamento Mensal</div>
+    <div id="alert-area" class="nao-imprimir"></div>
+
+    <!-- Selector -->
+    <div class="comp-selector nao-imprimir">
+      <label>Fiscal:</label>
+      <select class="form-control" id="sel-fiscal" style="max-width:200px">
+        <option value="">— selecione —</option>
+      </select>
+      <label>Competência:</label>
+      <select class="form-control" id="sel-mes" style="max-width:140px"></select>
+      <select class="form-control" id="sel-ano" style="max-width:90px"></select>
+      <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
+    </div>
+
+    <!-- Summary -->
+    <div id="summary-wrap" style="display:none">
+      <div class="metrics-grid nao-imprimir">
+        <div class="metric-card azul"><div class="metric-label">PP</div><div class="metric-value" id="m-pp">—</div></div>
+        <div class="metric-card verm"><div class="metric-label">PN</div><div class="metric-value" id="m-pn">—</div></div>
+        <div class="metric-card amar"><div class="metric-label">PV</div><div class="metric-value" id="m-pv">—</div></div>
+        <div class="metric-card verde"><div class="metric-label">PV Limitado</div><div class="metric-value" id="m-pvlim">—</div></div>
+        <div class="metric-card verde"><div class="metric-label">Apuração Final</div><div class="metric-value" id="m-apur">—</div></div>
+      </div>
+
+      <!-- Glosas override -->
+      <div class="card nao-imprimir" id="admin-controls" style="display:none">
+        <div class="card-title">⚙️ Configurações de Fechamento</div>
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label" for="pn-extra">Glosas / PN Extra</label>
+            <input type="number" class="form-control" id="pn-extra" min="0" value="0">
+            <div class="form-hint">Pontos negativos adicionais a deduzir do PV.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-obs">Observações do Chefe</label>
+            <textarea class="form-control" id="f-obs" rows="3" placeholder="Observações que constarão no relatório…"></textarea>
+          </div>
+        </div>
+        <div id="pn-alert"></div>
+        <div class="btn-group mt-2">
+          <button class="btn btn-warn" id="btn-recalc">🔄 Recalcular</button>
+          <button class="btn btn-primary" id="btn-fechar">🔒 Fechar Competência e Gerar Relatório</button>
+        </div>
+      </div>
+
+      <!-- Preview atividades -->
+      <div class="card nao-imprimir">
+        <div class="card-title">📋 Atividades Aceitas</div>
+        <div class="table-wrap">
+          <table class="rmpf-table" id="tbl-atividades">
+            <thead>
+              <tr>
+                <th>Controle</th><th>Data</th><th>Tipo</th><th>Descrição</th><th class="td-num">Pontos</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-ativ"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== PRINT REPORT ===== -->
+      <div class="area-relatorio" id="relatorio">
+        <div class="rel-header">
+          <h1>Prefeitura Municipal de Anápolis</h1>
+          <h2>Vigilância Sanitária — Divisão de Fiscalização</h2>
+          <h2>Relatório Mensal de Produtividade Fiscal (RMPF)</h2>
+          <p id="rel-comp" style="margin-top:6px;font-weight:600"></p>
+          <p id="rel-fiscal-nome" style="font-size:.9rem"></p>
+        </div>
+
+        <div class="rel-section">
+          <h3>1. Atividades Homologadas</h3>
+          <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+            <thead>
+              <tr style="background:#f4f5f7">
+                <th style="border:1px solid #ccc;padding:5px 8px">Controle</th>
+                <th style="border:1px solid #ccc;padding:5px 8px">Data</th>
+                <th style="border:1px solid #ccc;padding:5px 8px">Tipo</th>
+                <th style="border:1px solid #ccc;padding:5px 8px">Descrição</th>
+                <th style="border:1px solid #ccc;padding:5px 8px;text-align:right">Pontos</th>
+              </tr>
+            </thead>
+            <tbody id="rel-tbody-ativ"></tbody>
+          </table>
+        </div>
+
+        <div class="rel-section">
+          <h3>2. Apuração</h3>
+          <div class="calc-box">
+            <div class="calc-row"><span class="calc-label">PP — Pontos Positivos</span><span class="calc-val" id="rel-pp">—</span></div>
+            <div class="calc-row"><span class="calc-label">PN — Glosas</span><span class="calc-val" id="rel-pn">—</span></div>
+            <div class="calc-row"><span class="calc-label">PV = PP − PN (mín. 0)</span><span class="calc-val" id="rel-pv">—</span></div>
+            <div class="calc-row"><span class="calc-label">PV Limitado (máx. 1.000)</span><span class="calc-val" id="rel-pvlim">—</span></div>
+            <div class="calc-row"><span class="calc-label">Bruto = (PV Lim − 250) × 0,2666</span><span class="calc-val" id="rel-bruto">—</span></div>
+            <div class="calc-row total"><span class="calc-label">Apuração Final = máx(0, teto(R$ 200))</span><span class="calc-val" id="rel-apur">—</span></div>
+          </div>
+        </div>
+
+        <div class="rel-section" id="rel-ocorrs-section" style="display:none">
+          <h3>3. Ocorrências</h3>
+          <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+            <thead>
+              <tr style="background:#f4f5f7">
+                <th style="border:1px solid #ccc;padding:5px 8px">Tipo</th>
+                <th style="border:1px solid #ccc;padding:5px 8px">Período</th>
+                <th style="border:1px solid #ccc;padding:5px 8px">Observação</th>
+              </tr>
+            </thead>
+            <tbody id="rel-tbody-ocorrs"></tbody>
+          </table>
+        </div>
+
+        <div class="rel-section" id="rel-obs-section" style="display:none">
+          <h3>Observações</h3>
+          <p id="rel-obs-text" style="font-size:.85rem;line-height:1.7"></p>
+        </div>
+
+        <div class="signature-block" style="margin-top:48px">
+          <div>
+            <div class="signature-line" id="rel-fiscal-assin">Fiscal</div>
+          </div>
+          <div>
+            <div class="signature-line">Chefe da Divisão de Fiscalização</div>
+          </div>
+        </div>
+        <p style="font-size:.72rem;color:#999;margin-top:32px;text-align:center">
+          Relatório gerado em <span id="rel-dt-geracao"></span> — RMPF / VISA Anápolis
+        </p>
+      </div>
+
+      <div class="btn-group mt-3 nao-imprimir" id="print-btn-wrap" style="display:none">
+        <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/guard.js"></script>
+<script>
+  let _user    = null;
+  let _manuais = [];
+  let _ocorrs  = [];
+  let _result  = null;
+  let _fiscalSel = null;
+
+  const TIPO_LABELS = { ferias:'Férias', licenca_medica:'Lic. Médica', licenca_gestante:'Lic. Gestante', afastamento_legal:'Afastamento Legal', outros:'Outros' };
+
+  function buildSels(mesId, anoId) {
+    const selM = document.getElementById(mesId);
+    MESES.forEach((m,i)=>{
+      const o=document.createElement('option');o.value=i+1;o.textContent=m;
+      if(i===new Date().getMonth())o.selected=true;selM.appendChild(o);
+    });
+    const selA = document.getElementById(anoId);
+    const y = new Date().getFullYear();
+    for(let i=y-1;i<=y+1;i++){
+      const o=document.createElement('option');o.value=i;o.textContent=i;
+      if(i===y)o.selected=true;selA.appendChild(o);
+    }
+  }
+
+  async function loadFechamento() {
+    const fiscalEmail = document.getElementById('sel-fiscal').value;
+    const mes  = Number(document.getElementById('sel-mes').value);
+    const ano  = Number(document.getElementById('sel-ano').value);
+    if (!fiscalEmail) { document.getElementById('alert-area').innerHTML = alerta('warn','Selecione um fiscal.'); return; }
+
+    document.getElementById('alert-area').innerHTML = '';
+    document.getElementById('summary-wrap').style.display = 'none';
+
+    const fiscais = await db_getTodosFiscais();
+    _fiscalSel = fiscais.find(f => (f.email||f.id) === fiscalEmail);
+
+    const pnExtra = Number(document.getElementById('pn-extra')?.value||0);
+    [_manuais, _ocorrs] = await Promise.all([
+      db_getManuais(fiscalEmail, mes, ano),
+      db_getOcorrencias(fiscalEmail, mes, ano),
+    ]);
+
+    renderSummary(pnExtra, mes, ano);
+  }
+
+  function renderSummary(pnExtra, mes, ano) {
+    _result = calcular([], _manuais, pnExtra);
+
+    document.getElementById('m-pp').textContent    = _result.pp;
+    document.getElementById('m-pn').textContent    = _result.pn;
+    document.getElementById('m-pv').textContent    = _result.pv;
+    document.getElementById('m-pvlim').textContent = _result.pvLim;
+    document.getElementById('m-apur').textContent  = _result.apuracao;
+
+    const aceitas = _manuais.filter(m => m.status === 'aceito');
+    const tbodyAtiv = document.getElementById('tbody-ativ');
+    tbodyAtiv.innerHTML = aceitas.length ? aceitas.map(m =>
+      `<tr><td><span class="ctrl-num">${m.controle||'—'}</span></td><td>${fmtData(m.data)}</td>
+       <td>${m.tipo_nome||m.tipo_codigo||'—'}</td><td>${m.descricao||'—'}</td>
+       <td class="td-num">${m.pontos_homologado??m.pontos}</td></tr>`
+    ).join('') : '<tr class="empty-row"><td colspan="5">Nenhuma atividade aceita</td></tr>';
+
+    document.getElementById('summary-wrap').style.display = '';
+    if (_user.grupo === 'Administrador') {
+      document.getElementById('admin-controls').style.display = '';
+    }
+
+    // Fill print report
+    const nomeFiscal = _fiscalSel?.nome || document.getElementById('sel-fiscal').value;
+    document.getElementById('rel-comp').textContent = `Competência: ${MESES[mes-1]} / ${ano}`;
+    document.getElementById('rel-fiscal-nome').textContent = `Fiscal: ${nomeFiscal}`;
+    document.getElementById('rel-fiscal-assin').textContent = nomeFiscal;
+
+    document.getElementById('rel-pp').textContent    = _result.pp;
+    document.getElementById('rel-pn').textContent    = _result.pn;
+    document.getElementById('rel-pv').textContent    = _result.pv;
+    document.getElementById('rel-pvlim').textContent = _result.pvLim;
+    document.getElementById('rel-bruto').textContent = _result.bruto.toFixed(2);
+    document.getElementById('rel-apur').textContent  = `R$ ${_result.apuracao},00`;
+
+    document.getElementById('rel-tbody-ativ').innerHTML = aceitas.length ? aceitas.map(m =>
+      `<tr><td style="border:1px solid #ccc;padding:4px 7px">${m.controle||'—'}</td>
+       <td style="border:1px solid #ccc;padding:4px 7px">${fmtData(m.data)}</td>
+       <td style="border:1px solid #ccc;padding:4px 7px">${m.tipo_nome||m.tipo_codigo||'—'}</td>
+       <td style="border:1px solid #ccc;padding:4px 7px">${m.descricao||'—'}</td>
+       <td style="border:1px solid #ccc;padding:4px 7px;text-align:right">${m.pontos_homologado??m.pontos}</td></tr>`
+    ).join('') : '<tr><td colspan="5" style="padding:8px;text-align:center;color:#999">Sem atividades</td></tr>';
+
+    if (_ocorrs.length) {
+      document.getElementById('rel-ocorrs-section').style.display = '';
+      document.getElementById('rel-tbody-ocorrs').innerHTML = _ocorrs.map(o =>
+        `<tr><td style="border:1px solid #ccc;padding:4px 7px">${TIPO_LABELS[o.tipo]||o.tipo}</td>
+         <td style="border:1px solid #ccc;padding:4px 7px">${fmtData(o.data_inicio)}${o.data_fim?' — '+fmtData(o.data_fim):''}</td>
+         <td style="border:1px solid #ccc;padding:4px 7px">${o.obs_admin||o.descricao||'—'}</td></tr>`
+      ).join('');
+    }
+
+    document.getElementById('rel-dt-geracao').textContent = new Date().toLocaleString('pt-BR');
+  }
+
+  async function fecharCompetencia() {
+    const fiscalEmail = document.getElementById('sel-fiscal').value;
+    const mes  = Number(document.getElementById('sel-mes').value);
+    const ano  = Number(document.getElementById('sel-ano').value);
+    const obs  = document.getElementById('f-obs').value.trim();
+
+    if (!confirm(`Fechar a competência ${MESES[mes-1]}/${ano} para ${_fiscalSel?.nome||fiscalEmail}? Esta ação não pode ser desfeita.`)) return;
+
+    try {
+      // Mark all accepted manuais as fechado
+      const updates = _manuais
+        .filter(m => m.status === 'aceito')
+        .map(m => db_updateManual(m.id, { status: 'fechado' }));
+      await Promise.all(updates);
+
+      // Show obs in report
+      if (obs) {
+        document.getElementById('rel-obs-section').style.display = '';
+        document.getElementById('rel-obs-text').textContent = obs;
+      }
+
+      document.getElementById('print-btn-wrap').style.display = 'flex';
+      document.getElementById('btn-fechar').disabled = true;
+      document.getElementById('alert-area').innerHTML = alerta('ok', `Competência fechada! <strong>Apuração: R$ ${_result.apuracao},00</strong>. Clique em "Imprimir" para salvar o relatório.`);
+      window.scrollTo(0, 0);
+    } catch(e) {
+      document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao fechar: ' + e.message);
+    }
+  }
+
+  requireAuth(async user => {
+    _user = user;
+    if (user.grupo !== 'Administrador' && user.grupo !== 'Administrativo') {
+      window.location.href = 'dashboard.html'; return;
+    }
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
+
+    buildSels('sel-mes','sel-ano');
+
+    const fiscais = await db_getTodosFiscais();
+    const selF = document.getElementById('sel-fiscal');
+    fiscais.forEach(f => {
+      const o=document.createElement('option');o.value=f.email||f.id;o.textContent=f.nome||f.id;selF.appendChild(o);
+    });
+
+    document.getElementById('btn-carregar').addEventListener('click', loadFechamento);
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+    });
+    document.getElementById('hamburger').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+
+    if (user.grupo === 'Administrador') {
+      document.getElementById('btn-fechar').addEventListener('click', fecharCompetencia);
+      document.getElementById('btn-recalc').addEventListener('click', () => {
+        const pn = Number(document.getElementById('pn-extra').value || 0);
+        const mes = Number(document.getElementById('sel-mes').value);
+        const ano = Number(document.getElementById('sel-ano').value);
+        renderSummary(pn, mes, ano);
+      });
+    }
+  });
+</script>
+</body>
+</html>

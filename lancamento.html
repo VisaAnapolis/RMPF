@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lançar Atividade — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<div class="app-layout" id="app" style="display:none">
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger">☰</button>
+    <div><div class="logo-text">🏛️ RMPF</div><div class="logo-sub">Produtividade Fiscal</div></div>
+    <div class="header-right">
+      <span class="user-name" id="header-nome">—</span>
+      <button class="btn-logout" id="btn-logout">Sair</button>
+    </div>
+  </header>
+  <nav class="app-sidebar nao-imprimir" id="sidebar">
+    <a href="dashboard.html"       class="sidebar-link"><span class="icon">📊</span>Dashboard</a>
+    <a href="lancamento.html"      class="sidebar-link active"><span class="icon">✏️</span>Lançar Atividade</a>
+    <a href="meus-lancamentos.html"class="sidebar-link"><span class="icon">📋</span>Meus Lançamentos</a>
+    <a href="conferencia.html"     class="sidebar-link"><span class="icon">🔍</span>Conferência</a>
+    <a href="ocorrencias.html"     class="sidebar-link"><span class="icon">📌</span>Ocorrências</a>
+  </nav>
+
+  <main class="app-main">
+    <div class="page-title">✏️ Lançar Nova Atividade</div>
+    <div id="alert-area"></div>
+
+    <div class="card" style="max-width:680px">
+      <div class="card-title">📄 Dados da Atividade</div>
+
+      <form id="form-lancamento" novalidate>
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label required" for="f-mes">Competência — Mês</label>
+            <select class="form-control" id="f-mes" required></select>
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="f-ano">Ano</label>
+            <select class="form-control" id="f-ano" required></select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required" for="f-tipo">Tipo de Atividade</label>
+          <select class="form-control" id="f-tipo" required>
+            <option value="">— selecione —</option>
+          </select>
+        </div>
+
+        <div class="form-group" id="item-group" style="display:none">
+          <label class="form-label required" for="f-item">Item de Pontuação</label>
+          <select class="form-control" id="f-item" required>
+            <option value="">— selecione —</option>
+          </select>
+        </div>
+
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label required" for="f-data">Data da Atividade</label>
+            <input type="date" class="form-control" id="f-data" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-horas">Horas (opcional)</label>
+            <input type="number" class="form-control" id="f-horas" min="0" max="24" step="0.5" placeholder="Ex: 4">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label required" for="f-desc">Descrição</label>
+          <textarea class="form-control" id="f-desc" rows="3" required
+            placeholder="Descreva a atividade realizada, endereço ou estabelecimento…"></textarea>
+        </div>
+
+        <div class="form-row cols-2">
+          <div class="form-group">
+            <label class="form-label required" for="f-pontos">Pontos Solicitados</label>
+            <input type="number" class="form-control" id="f-pontos" min="0" required>
+            <div class="form-hint">Pré-preenchido conforme item — pode ser ajustado.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="f-complex">Complexidade</label>
+            <input type="text" class="form-control" id="f-complex" disabled>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="f-obs">Observações (opcional)</label>
+          <textarea class="form-control" id="f-obs" rows="2"
+            placeholder="Informações adicionais relevantes para a supervisão…"></textarea>
+        </div>
+
+        <div class="btn-group mt-3">
+          <button type="button" class="btn btn-default" id="btn-rascunho">💾 Salvar Rascunho</button>
+          <button type="button" class="btn btn-primary" id="btn-enviar">📤 Enviar para Supervisão</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/guard.js"></script>
+<script>
+  function showAlert(type, msg) {
+    document.getElementById('alert-area').innerHTML = alerta(type, msg);
+    window.scrollTo(0, 0);
+  }
+
+  // Fill month/year selects
+  function buildMesSelect() {
+    const sel = document.getElementById('f-mes');
+    MESES.forEach((m, i) => {
+      const o = document.createElement('option');
+      o.value = i + 1; o.textContent = m;
+      if (i === new Date().getMonth()) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  function buildAnoSelect() {
+    const sel = document.getElementById('f-ano');
+    const y = new Date().getFullYear();
+    for (let i = y - 1; i <= y + 1; i++) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = i;
+      if (i === y) o.selected = true;
+      sel.appendChild(o);
+    }
+  }
+
+  // Populate tipo select
+  function buildTipoSelect() {
+    const sel = document.getElementById('f-tipo');
+    TIPOS_ATIVIDADE.forEach(t => {
+      const o = document.createElement('option');
+      o.value = t.id; o.textContent = `[${t.codigo}] ${t.nome}`;
+      sel.appendChild(o);
+    });
+  }
+
+  // When tipo changes, populate items
+  document.getElementById('f-tipo').addEventListener('change', function () {
+    const tipoId = Number(this.value);
+    const tipo   = TIPOS_ATIVIDADE.find(t => t.id === tipoId);
+    const itemSel = document.getElementById('f-item');
+    const itemGrp = document.getElementById('item-group');
+
+    itemSel.innerHTML = '<option value="">— selecione —</option>';
+    document.getElementById('f-pontos').value   = '';
+    document.getElementById('f-complex').value  = '';
+
+    if (!tipo) { itemGrp.style.display = 'none'; return; }
+    itemGrp.style.display = '';
+
+    tipo.itensPontuacao.forEach(itemNum => {
+      const row = TABELA_PONTUACAO.find(r => r.item === itemNum);
+      if (!row) return;
+      const o = document.createElement('option');
+      o.value = itemNum;
+      o.textContent = `Item ${row.item} — ${row.complexidade !== '—' ? row.complexidade + ' — ' : ''}${row.pontos} pts`;
+      o.dataset.pontos = row.pontos;
+      o.dataset.complexidade = row.complexidade;
+      itemSel.appendChild(o);
+    });
+
+    // Auto-select if only one item
+    if (tipo.itensPontuacao.length === 1) {
+      itemSel.value = tipo.itensPontuacao[0];
+      itemSel.dispatchEvent(new Event('change'));
+    }
+  });
+
+  document.getElementById('f-item').addEventListener('change', function () {
+    const opt = this.options[this.selectedIndex];
+    document.getElementById('f-pontos').value  = opt.dataset.pontos  || '';
+    document.getElementById('f-complex').value = opt.dataset.complexidade || '';
+  });
+
+  // Control number generator
+  async function gerarControle(codigo, mes, ano, fiscalEmail) {
+    try {
+      const mesP = String(mes).padStart(2, '0');
+      const snap = await window.db.collection('manuais')
+        .where('fiscal_email', '==', fiscalEmail)
+        .where('mes', '==', mes)
+        .where('ano', '==', ano)
+        .where('tipo_codigo', '==', codigo)
+        .get();
+      const seq = String(snap.size + 1).padStart(3, '0');
+      return `${codigo}-${ano}-${mesP}-${seq}`;
+    } catch (_) {
+      return `${codigo}-${ano}-${String(mes).padStart(2,'0')}-001`;
+    }
+  }
+
+  // Save
+  async function salvar(status) {
+    const tipoId  = Number(document.getElementById('f-tipo').value);
+    const itemNum = Number(document.getElementById('f-item').value);
+    const data    = document.getElementById('f-data').value;
+    const desc    = document.getElementById('f-desc').value.trim();
+    const pontos  = document.getElementById('f-pontos').value;
+    const mes     = Number(document.getElementById('f-mes').value);
+    const ano     = Number(document.getElementById('f-ano').value);
+
+    if (!tipoId)  { showAlert('warn', 'Selecione o tipo de atividade.'); return; }
+    if (!itemNum) { showAlert('warn', 'Selecione o item de pontuação.'); return; }
+    if (!data)    { showAlert('warn', 'Informe a data da atividade.'); return; }
+    if (!desc)    { showAlert('warn', 'Informe uma descrição.'); return; }
+    if (pontos === '') { showAlert('warn', 'Informe os pontos.'); return; }
+
+    const tipo    = TIPOS_ATIVIDADE.find(t => t.id === tipoId);
+    const tabRow  = TABELA_PONTUACAO.find(r => r.item === itemNum);
+    const user    = window.currentUser;
+
+    const controle = await gerarControle(tipo.codigo, mes, ano, user.email);
+
+    const doc = {
+      controle,
+      fiscal_email: user.email,
+      fiscal_nome:  user.nome || user.email,
+      mes,
+      ano,
+      tipo_id:      tipoId,
+      tipo_codigo:  tipo.codigo,
+      tipo_nome:    tipo.nome,
+      item_pontuacao: itemNum,
+      complexidade: tabRow ? tabRow.complexidade : '—',
+      data,
+      horas:        document.getElementById('f-horas').value || null,
+      descricao:    desc,
+      pontos:       Number(pontos),
+      obs:          document.getElementById('f-obs').value.trim() || null,
+      status,
+    };
+
+    const btns = document.querySelectorAll('#btn-rascunho, #btn-enviar');
+    btns.forEach(b => { b.disabled = true; });
+
+    try {
+      await db_createManual(doc);
+      showAlert('ok', `Atividade <strong>${controle}</strong> salva com status <em>${status}</em>! <a href="meus-lancamentos.html">Ver meus lançamentos</a>`);
+      document.getElementById('form-lancamento').reset();
+      document.getElementById('item-group').style.display = 'none';
+    } catch (e) {
+      showAlert('danger', 'Erro ao salvar: ' + e.message);
+    } finally {
+      btns.forEach(b => { b.disabled = false; });
+    }
+  }
+
+  requireAuth(user => {
+    if (user.grupo !== 'Fiscal') {
+      window.location.href = 'dashboard.html';
+      return;
+    }
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
+
+    buildMesSelect();
+    buildAnoSelect();
+    buildTipoSelect();
+
+    // Default today
+    document.getElementById('f-data').value = new Date().toISOString().split('T')[0];
+
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+    });
+    document.getElementById('hamburger').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+    document.getElementById('btn-rascunho').addEventListener('click', () => salvar('rascunho'));
+    document.getElementById('btn-enviar').addEventListener('click',   () => salvar('enviado'));
+  });
+</script>
+</body>
+</html>
