@@ -1,0 +1,21 @@
+name: Mirror → visaanapolis/RMPF
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Mirror to visaanapolis/RMPF
+        uses: kai-tub/git-sync@v1
+        with:
+          source-repo: "https://github.com/garrado/RMPF.git"
+          destination-repo: "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/visaanapolis/RMPF.git"
