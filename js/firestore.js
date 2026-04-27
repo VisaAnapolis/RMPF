@@ -8,18 +8,18 @@ async function getManuais(fiscalEmail, mes, ano) {
     .where('fiscal_email', '==', fiscalEmail)
     .where('mes', '==', Number(mes))
     .where('ano', '==', Number(ano))
-    .orderBy('created_at', 'asc')
     .get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
 }
 
 async function getManuaisTodos(mes, ano) {
   const snap = await window.db.collection('manuais')
     .where('mes', '==', Number(mes))
     .where('ano', '==', Number(ano))
-    .orderBy('created_at', 'asc')
     .get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
 }
 
 async function createManual(data) {
@@ -49,18 +49,18 @@ async function getOcorrencias(fiscalEmail, mes, ano) {
     .where('fiscal_email', '==', fiscalEmail)
     .where('mes', '==', Number(mes))
     .where('ano', '==', Number(ano))
-    .orderBy('created_at', 'asc')
     .get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
 }
 
 async function getOcorrenciasTodas(mes, ano) {
   const snap = await window.db.collection('ocorrencias')
     .where('mes', '==', Number(mes))
     .where('ano', '==', Number(ano))
-    .orderBy('created_at', 'asc')
     .get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
 }
 
 async function createOcorrencia(data) {
@@ -103,9 +103,9 @@ async function getUsuario(email) {
 async function getTodosFiscais() {
   const snap = await window.db.collection('usuarios')
     .where('grupo', '==', 'Fiscal')
-    .orderBy('nome', 'asc')
     .get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
 }
 
 // ── Exports ──────────────────────────────────────────────
