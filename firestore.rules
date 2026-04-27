@@ -14,10 +14,11 @@ service cloud.firestore {
         (request.auth.token.email == email ||
          get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador');
 
-      // Update restrito a photoURL e ultimoAcesso para o próprio usuário
+      // Update pelo próprio usuário: apenas campos de perfil público e dados de acesso
       allow update: if request.auth != null &&
         request.auth.token.email == email &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoURL', 'ultimoAcesso']);
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['photoURL', 'ultimoAcesso', 'appVersionLast', 'dispositivos']);
     }
 
     // Manuais: fiscal cria/lê os seus; Administrativo/Administrador lê todos

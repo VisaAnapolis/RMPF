@@ -158,6 +158,9 @@
       { href: 'ocorrencias.html',        icon: '📌', label: 'Ocorrências'        },
       { href: 'fechamento.html',         icon: '🔒', label: 'Fechamento'         },
     ];
+    if (grupo === 'Administrador') {
+      links.push({ href: 'admin.html', icon: '⚙️', label: 'Admin' });
+    }
     const current = location.pathname.split('/').pop();
     return links.map(l => {
       const active = current === l.href.split('/').pop() ? ' active' : '';
