@@ -1,13 +1,26 @@
 rules_version = '2';
 // INSTRUÇÕES: Copie este arquivo no Firebase Console → Firestore → Rules
-// Projeto: visam-3a30b
+// Projeto: visam-3a30b (compartilhado com garrado/VISA)
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /usuarios/{docId} {
+
+    // Coleção de usuários — compartilhada com garrado/VISA
+    match /usuarios/{email} {
+      // Qualquer usuário autenticado pode ler
       allow read: if request.auth != null;
+
+      // Escrita: o próprio usuário OU um Administrador
       allow write: if request.auth != null &&
-        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+        (request.auth.token.email == email ||
+         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador');
+
+      // Update restrito a photoURL e ultimoAcesso para o próprio usuário
+      allow update: if request.auth != null &&
+        request.auth.token.email == email &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['photoURL', 'ultimoAcesso']);
     }
+
+    // Manuais: fiscal cria/lê os seus; Administrativo/Administrador lê todos
     match /manuais/{docId} {
       allow read: if request.auth != null && (
         resource.data.fiscal_email == request.auth.token.email ||
@@ -23,6 +36,8 @@ service cloud.firestore {
       allow delete: if request.auth != null &&
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
     }
+
+    // Ocorrências: fiscal cria/lê as suas; Administrativo/Administrador analisa todas
     match /ocorrencias/{docId} {
       allow read: if request.auth != null && (
         resource.data.fiscal_email == request.auth.token.email ||
@@ -36,10 +51,17 @@ service cloud.firestore {
       allow delete: if request.auth != null &&
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
     }
+
+    // CVS overrides: somente Administrador escreve; todos os autenticados leem
     match /cvs_override/{docId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null &&
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+    }
+
+    // Qualquer outra coleção: bloqueado por padrão
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
