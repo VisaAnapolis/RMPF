@@ -1,0 +1,45 @@
+rules_version = '2';
+// INSTRUÇÕES: Copie este arquivo no Firebase Console → Firestore → Rules
+// Projeto: visam-3a30b
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /usuarios/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+    }
+    match /manuais/{docId} {
+      allow read: if request.auth != null && (
+        resource.data.fiscal_email == request.auth.token.email ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador' ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrativo'
+      );
+      allow create: if request.auth != null
+        && request.resource.data.fiscal_email == request.auth.token.email;
+      allow update: if request.auth != null && (
+        (resource.data.fiscal_email == request.auth.token.email && resource.data.status == 'rascunho') ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador'
+      );
+      allow delete: if request.auth != null &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+    }
+    match /ocorrencias/{docId} {
+      allow read: if request.auth != null && (
+        resource.data.fiscal_email == request.auth.token.email ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador' ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrativo'
+      );
+      allow create: if request.auth != null
+        && request.resource.data.fiscal_email == request.auth.token.email;
+      allow update: if request.auth != null &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+      allow delete: if request.auth != null &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+    }
+    match /cvs_override/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+    }
+  }
+}

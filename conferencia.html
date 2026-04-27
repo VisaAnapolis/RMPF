@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conferência — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<div class="app-layout" id="app" style="display:none">
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger">☰</button>
+    <div><div class="logo-text">🏛️ RMPF</div><div class="logo-sub">Produtividade Fiscal</div></div>
+    <div class="header-right">
+      <span class="user-name" id="header-nome">—</span>
+      <button class="btn-logout" id="btn-logout">Sair</button>
+    </div>
+  </header>
+  <nav class="app-sidebar nao-imprimir" id="sidebar"></nav>
+
+  <main class="app-main">
+    <div class="page-title">🔍 Conferência de Atividades</div>
+    <div id="alert-area"></div>
+
+    <div class="comp-selector">
+      <label>Fiscal:</label>
+      <select class="form-control" id="sel-fiscal" style="max-width:200px">
+        <option value="">— selecione —</option>
+      </select>
+      <label>Competência:</label>
+      <select class="form-control" id="sel-mes" style="max-width:140px"></select>
+      <select class="form-control" id="sel-ano" style="max-width:90px"></select>
+      <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
+    </div>
+
+    <!-- Metric summary -->
+    <div class="metrics-grid" id="metrics-wrap" style="display:none">
+      <div class="metric-card azul"><div class="metric-label">PP</div><div class="metric-value" id="m-pp">—</div></div>
+      <div class="metric-card verm"><div class="metric-label">PN</div><div class="metric-value" id="m-pn">—</div></div>
+      <div class="metric-card amar"><div class="metric-label">PV</div><div class="metric-value" id="m-pv">—</div></div>
+      <div class="metric-card verde"><div class="metric-label">Apuração</div><div class="metric-value" id="m-apur">—</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Lançamentos Manuais</div>
+      <div class="table-wrap">
+        <table class="rmpf-table">
+          <thead>
+            <tr>
+              <th>Controle</th>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Descrição</th>
+              <th class="td-num">Pts Req.</th>
+              <th class="td-num">Pts Hom.</th>
+              <th>Status</th>
+              <th class="nao-imprimir" id="th-acoes">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-conferencia">
+            <tr class="empty-row"><td colspan="8">Selecione um fiscal e competência</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Homologação modal (Administrador) -->
+    <div id="modal-hom" class="modal-backdrop" style="display:none">
+      <div class="modal">
+        <div class="modal-header">
+          <span id="modal-title">Homologar Lançamento</span>
+          <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="hom-id">
+          <div class="form-group">
+            <label class="form-label">Tipo / Controle</label>
+            <input class="form-control" id="hom-info" disabled>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Descrição</label>
+            <textarea class="form-control" id="hom-desc" rows="2" disabled></textarea>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label">Pts Solicitados</label>
+              <input class="form-control" id="hom-pts-req" disabled>
+            </div>
+            <div class="form-group">
+              <label class="form-label required" for="hom-pts-hom">Pts Homologados</label>
+              <input type="number" class="form-control" id="hom-pts-hom" min="0">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="hom-motivo">Motivo (obrigatório para Recusar)</label>
+            <input type="text" class="form-control" id="hom-motivo" placeholder="Ex: Documento insuficiente…">
+          </div>
+          <div id="hom-alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" id="modal-close2">Cancelar</button>
+          <button class="btn btn-danger" id="btn-recusar">✗ Recusar</button>
+          <button class="btn btn-primary" id="btn-aceitar">✓ Aceitar</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/guard.js"></script>
+<script>
+  let _user    = null;
+  let _manuais = [];
+  let _grupo   = '';
+
+  function buildSidebar(grupo) {
+    const links = grupo === 'Fiscal' ? [
+      ['dashboard.html','📊','Dashboard'],
+      ['lancamento.html','✏️','Lançar Atividade'],
+      ['meus-lancamentos.html','📋','Meus Lançamentos'],
+      ['conferencia.html','🔍','Conferência'],
+      ['ocorrencias.html','📌','Ocorrências'],
+    ] : [
+      ['dashboard.html','📊','Dashboard'],
+      ['conferencia.html','🔍','Conferência'],
+      ['ocorrencias.html','📌','Ocorrências'],
+      ['fechamento.html','🔒','Fechamento'],
+    ];
+    const cur = location.pathname.split('/').pop();
+    return links.map(([href,icon,label]) =>
+      `<a href="${href}" class="sidebar-link${cur===href?' active':''}"><span class="icon">${icon}</span>${label}</a>`
+    ).join('');
+  }
+
+  function buildMesSelect(id) {
+    const sel = document.getElementById(id);
+    MESES.forEach((m, i) => {
+      const o = document.createElement('option');
+      o.value = i+1; o.textContent = m;
+      if (i === new Date().getMonth()) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  function buildAnoSelect(id) {
+    const sel = document.getElementById(id);
+    const y = new Date().getFullYear();
+    for (let i = y-1; i <= y+1; i++) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = i;
+      if (i===y) o.selected = true;
+      sel.appendChild(o);
+    }
+  }
+
+  async function loadFiscais() {
+    const fiscais = await db_getTodosFiscais();
+    const sel = document.getElementById('sel-fiscal');
+    fiscais.forEach(f => {
+      const o = document.createElement('option');
+      o.value = f.email || f.id;
+      o.textContent = f.nome || f.id;
+      sel.appendChild(o);
+    });
+  }
+
+  async function loadConferencia() {
+    const fiscalEmail = document.getElementById('sel-fiscal').value;
+    const mes  = Number(document.getElementById('sel-mes').value);
+    const ano  = Number(document.getElementById('sel-ano').value);
+
+    if (!fiscalEmail) {
+      document.getElementById('alert-area').innerHTML = alerta('warn','Selecione um fiscal.');
+      return;
+    }
+    document.getElementById('alert-area').innerHTML = '';
+    const tbody = document.getElementById('tbody-conferencia');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="spinner"></div></td></tr>';
+
+    try {
+      _manuais = await db_getManuais(fiscalEmail, mes, ano);
+      const result = calcular([], _manuais, 0);
+      document.getElementById('m-pp').textContent   = result.pp;
+      document.getElementById('m-pn').textContent   = result.pn;
+      document.getElementById('m-pv').textContent   = result.pv;
+      document.getElementById('m-apur').textContent = result.apuracao;
+      document.getElementById('metrics-wrap').style.display = '';
+      renderTabela();
+    } catch(e) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
+    }
+  }
+
+  function renderTabela() {
+    const tbody = document.getElementById('tbody-conferencia');
+    const isAdmin = _grupo === 'Administrador';
+
+    if (!_manuais.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Nenhum lançamento nesta competência</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = _manuais.map(m => {
+      const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
+      let acoes = '—';
+      if (isAdmin) {
+        if (m.status === 'enviado') {
+          acoes = `<button class="btn btn-outline btn-sm" onclick="abrirHom('${m.id}')">📝 Homologar</button>`;
+        } else if (m.status === 'aceito' || m.status === 'recusado') {
+          acoes = `<button class="btn btn-default btn-sm" onclick="abrirHom('${m.id}')">✏️ Rever</button>`;
+        }
+      }
+      return `<tr>
+        <td><span class="ctrl-num">${m.controle||'—'}</span></td>
+        <td>${fmtData(m.data)}</td>
+        <td>${tipo.nome||m.tipo_codigo||'—'}</td>
+        <td>${m.descricao||'—'}</td>
+        <td class="td-num">${m.pontos??'—'}</td>
+        <td class="td-num">${m.pontos_homologado!=null?m.pontos_homologado:'—'}</td>
+        <td>${badge(m.status)}</td>
+        <td class="nao-imprimir" style="white-space:nowrap">${acoes}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function abrirHom(id) {
+    const m = _manuais.find(x => x.id === id);
+    if (!m) return;
+    document.getElementById('hom-id').value        = id;
+    document.getElementById('hom-info').value      = `${m.controle||id} — ${m.tipo_nome||m.tipo_codigo}`;
+    document.getElementById('hom-desc').value      = m.descricao || '';
+    document.getElementById('hom-pts-req').value   = m.pontos ?? '';
+    document.getElementById('hom-pts-hom').value   = m.pontos_homologado ?? m.pontos ?? '';
+    document.getElementById('hom-motivo').value    = m.motivo_recusa || '';
+    document.getElementById('hom-alert').innerHTML = '';
+    document.getElementById('modal-hom').style.display = 'flex';
+  }
+
+  async function homologar(status) {
+    const id     = document.getElementById('hom-id').value;
+    const ponHom = document.getElementById('hom-pts-hom').value;
+    const motivo = document.getElementById('hom-motivo').value.trim();
+    if (status === 'recusado' && !motivo) {
+      document.getElementById('hom-alert').innerHTML = alerta('warn','Informe o motivo da recusa.');
+      return;
+    }
+    try {
+      await db_updateManual(id, {
+        status,
+        pontos_homologado: status === 'aceito' ? Number(ponHom) : null,
+        motivo_recusa: status === 'recusado' ? motivo : null,
+      });
+      document.getElementById('modal-hom').style.display = 'none';
+      document.getElementById('alert-area').innerHTML = alerta('ok', `Lançamento <strong>${status}</strong>.`);
+      loadConferencia();
+    } catch(e) {
+      document.getElementById('hom-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
+    }
+  }
+
+  window.abrirHom = abrirHom;
+
+  document.getElementById('btn-aceitar').addEventListener('click', () => homologar('aceito'));
+  document.getElementById('btn-recusar').addEventListener('click', () => homologar('recusado'));
+  ['modal-close','modal-close2'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      document.getElementById('modal-hom').style.display = 'none';
+    });
+  });
+
+  requireAuth(async user => {
+    _user  = user;
+    _grupo = user.grupo;
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
+    document.getElementById('sidebar').innerHTML = buildSidebar(user.grupo);
+
+    // Fiscal only sees own data
+    if (user.grupo === 'Fiscal') {
+      const sel = document.getElementById('sel-fiscal');
+      sel.innerHTML = `<option value="${user.email}">${user.nome||user.email}</option>`;
+      sel.disabled = true;
+      // Hide actions column
+      document.getElementById('th-acoes').style.display = 'none';
+    } else {
+      await loadFiscais();
+    }
+
+    buildMesSelect('sel-mes');
+    buildAnoSelect('sel-ano');
+
+    // Pre-fill from URL params
+    const params = new URLSearchParams(location.search);
+    if (params.get('fiscal')) document.getElementById('sel-fiscal').value = params.get('fiscal');
+    if (params.get('mes'))    document.getElementById('sel-mes').value    = params.get('mes');
+    if (params.get('ano'))    document.getElementById('sel-ano').value    = params.get('ano');
+    if (params.get('fiscal')) loadConferencia();
+
+    document.getElementById('btn-carregar').addEventListener('click', loadConferencia);
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+    });
+    document.getElementById('hamburger').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<div class="app-layout" id="app" style="display:none">
+  <!-- Header -->
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="sidebar">☰</button>
+    <div>
+      <div class="logo-text">🏛️ RMPF</div>
+      <div class="logo-sub">Produtividade Fiscal</div>
+    </div>
+    <div class="header-right">
+      <span class="user-name" id="header-nome">—</span>
+      <button class="btn-logout" id="btn-logout">Sair</button>
+    </div>
+  </header>
+
+  <!-- Sidebar -->
+  <nav class="app-sidebar nao-imprimir" id="sidebar">
+    <div id="sidebar-links"></div>
+  </nav>
+
+  <!-- Main -->
+  <main class="app-main">
+    <div class="page-title">📊 Dashboard <span class="sub" id="dash-sub"></span></div>
+
+    <!-- Competência selector (Fiscal only) -->
+    <div id="comp-selector-wrap" style="display:none">
+      <div class="comp-selector">
+        <label for="sel-mes">Competência:</label>
+        <select class="form-control" id="sel-mes" style="max-width:140px"></select>
+        <select class="form-control" id="sel-ano" style="max-width:90px"></select>
+        <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
+      </div>
+    </div>
+
+    <!-- Fiscal view -->
+    <div id="view-fiscal" style="display:none">
+      <div class="metrics-grid">
+        <div class="metric-card azul">
+          <div class="metric-label">PP — Pontos Positivos</div>
+          <div class="metric-value" id="m-pp">—</div>
+          <div class="metric-desc">Total apurado no período</div>
+        </div>
+        <div class="metric-card verm">
+          <div class="metric-label">PN — Glosas</div>
+          <div class="metric-value" id="m-pn">—</div>
+          <div class="metric-desc">Pontos negativos</div>
+        </div>
+        <div class="metric-card amar">
+          <div class="metric-label">PV — Pontos Válidos</div>
+          <div class="metric-value" id="m-pv">—</div>
+          <div class="metric-desc" id="m-pv-desc">PP − PN</div>
+        </div>
+        <div class="metric-card verde">
+          <div class="metric-label">Apuração Final</div>
+          <div class="metric-value" id="m-apur">—</div>
+          <div class="metric-desc">R$ da produtividade</div>
+        </div>
+      </div>
+
+      <div id="alert-fiscal"></div>
+
+      <div class="card">
+        <div class="card-title d-flex justify-between align-center">
+          <span>🗒️ Minhas Atividades</span>
+          <a href="lancamento.html" class="btn btn-primary btn-sm nao-imprimir">+ Nova Atividade</a>
+        </div>
+        <div class="table-wrap">
+          <table class="rmpf-table">
+            <thead>
+              <tr>
+                <th>Controle</th>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th class="td-num">Pts Req.</th>
+                <th class="td-num">Pts Hom.</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-fiscal">
+              <tr class="empty-row"><td colspan="7">Selecione uma competência e clique em Carregar</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin / Administrativo view -->
+    <div id="view-admin" style="display:none">
+      <div id="alert-admin"></div>
+
+      <!-- Competência selector for admin -->
+      <div class="comp-selector" id="comp-admin">
+        <label for="admin-sel-mes">Competência:</label>
+        <select class="form-control" id="admin-sel-mes" style="max-width:140px"></select>
+        <select class="form-control" id="admin-sel-ano" style="max-width:90px"></select>
+        <button class="btn btn-outline btn-sm" id="btn-admin-carregar">Carregar</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">👥 Resumo por Fiscal</div>
+        <div class="table-wrap">
+          <table class="rmpf-table">
+            <thead>
+              <tr>
+                <th>Fiscal</th>
+                <th class="td-num">PP</th>
+                <th class="td-num">PN</th>
+                <th class="td-num">PV</th>
+                <th class="td-num">Apuração</th>
+                <th class="td-num">Pendentes</th>
+                <th class="nao-imprimir">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbody-admin">
+              <tr class="empty-row"><td colspan="7">Selecione uma competência e clique em Carregar</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/guard.js"></script>
+<script>
+  // ── Sidebar helper ────────────────────────────────────────
+  function buildSidebar(grupo) {
+    const links = grupo === 'Fiscal' ? [
+      { href: 'dashboard.html',        icon: '📊', label: 'Dashboard'          },
+      { href: 'lancamento.html',        icon: '✏️',  label: 'Lançar Atividade'   },
+      { href: 'meus-lancamentos.html',  icon: '📋', label: 'Meus Lançamentos'   },
+      { href: 'conferencia.html',       icon: '🔍', label: 'Conferência'        },
+      { href: 'ocorrencias.html',       icon: '📌', label: 'Ocorrências'        },
+    ] : [
+      { href: 'dashboard.html',         icon: '📊', label: 'Dashboard'          },
+      { href: 'conferencia.html',        icon: '🔍', label: 'Conferência'        },
+      { href: 'ocorrencias.html',        icon: '📌', label: 'Ocorrências'        },
+      { href: 'fechamento.html',         icon: '🔒', label: 'Fechamento'         },
+    ];
+    const current = location.pathname.split('/').pop();
+    return links.map(l => {
+      const active = current === l.href.split('/').pop() ? ' active' : '';
+      return `<a href="${l.href}" class="sidebar-link${active}"><span class="icon">${l.icon}</span>${l.label}</a>`;
+    }).join('');
+  }
+
+  // ── Competência helpers ───────────────────────────────────
+  function buildMesSelect(selId) {
+    const sel = document.getElementById(selId);
+    MESES.forEach((m, i) => {
+      const o = document.createElement('option');
+      o.value = i + 1;
+      o.textContent = m;
+      sel.appendChild(o);
+    });
+    sel.value = new Date().getMonth() + 1;
+  }
+  function buildAnoSelect(selId) {
+    const sel = document.getElementById(selId);
+    const y = new Date().getFullYear();
+    for (let i = y - 1; i <= y + 1; i++) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = i;
+      if (i === y) o.selected = true;
+      sel.appendChild(o);
+    }
+  }
+
+  // ── Fiscal view ───────────────────────────────────────────
+  async function loadFiscal(user) {
+    const mes = Number(document.getElementById('sel-mes').value);
+    const ano = Number(document.getElementById('sel-ano').value);
+    const tbody = document.getElementById('tbody-fiscal');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="spinner"></div></td></tr>';
+
+    try {
+      const manuais = await db_getManuais(user.email, mes, ano);
+      const result  = calcular([], manuais, 0);
+
+      document.getElementById('m-pp').textContent   = result.pp;
+      document.getElementById('m-pn').textContent   = result.pn;
+      document.getElementById('m-pv').textContent   = result.pv;
+      document.getElementById('m-apur').textContent = result.apuracao;
+
+      let alerts = '';
+      if (result.atingiuTetoPV)    alerts += alerta('info',  'PV atingiu o teto de 1.000 pontos — excedente descartado.');
+      if (result.atingiuTetoFinal) alerts += alerta('info',  'Apuração atingiu o teto de R$ 200,00.');
+      const pendentes = manuais.filter(m => m.status === 'enviado').length;
+      if (pendentes > 0)           alerts += alerta('warn',  `Você tem <strong>${pendentes}</strong> lançamento(s) aguardando homologação.`);
+      document.getElementById('alert-fiscal').innerHTML = alerts;
+
+      if (!manuais.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Nenhuma atividade lançada nesta competência</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = manuais.map(m => {
+        const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
+        return `<tr>
+          <td><span class="ctrl-num">${m.controle || '—'}</span></td>
+          <td>${fmtData(m.data)}</td>
+          <td>${tipo.nome || m.tipo_codigo || '—'}</td>
+          <td>${m.descricao || '—'}</td>
+          <td class="td-num">${m.pontos ?? '—'}</td>
+          <td class="td-num">${m.pontos_homologado != null ? m.pontos_homologado : '—'}</td>
+          <td>${badge(m.status)}</td>
+        </tr>`;
+      }).join('');
+    } catch (e) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${alerta('danger','Erro ao carregar dados: ' + e.message)}</td></tr>`;
+    }
+  }
+
+  // ── Admin view ────────────────────────────────────────────
+  async function loadAdmin() {
+    const mes = Number(document.getElementById('admin-sel-mes').value);
+    const ano = Number(document.getElementById('admin-sel-ano').value);
+    const tbody = document.getElementById('tbody-admin');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7"><div class="spinner"></div></td></tr>';
+
+    try {
+      const [fiscais, todosManuais] = await Promise.all([
+        db_getTodosFiscais(),
+        db_getManuaisTodos(mes, ano),
+      ]);
+
+      if (!fiscais.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="7">Nenhum fiscal cadastrado</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = fiscais.map(f => {
+        const manuais   = todosManuais.filter(m => m.fiscal_email === f.email || m.fiscal_email === f.id);
+        const result    = calcular([], manuais, 0);
+        const pendentes = manuais.filter(m => m.status === 'enviado').length;
+        return `<tr>
+          <td>${f.nome || f.id}</td>
+          <td class="td-num">${result.pp}</td>
+          <td class="td-num">${result.pn}</td>
+          <td class="td-num">${result.pv}</td>
+          <td class="td-num fw-bold ${result.apuracao > 0 ? 'text-verde' : ''}">${result.apuracao}</td>
+          <td class="td-num">${pendentes > 0 ? `<span class="badge badge-pendente">${pendentes}</span>` : '—'}</td>
+          <td class="nao-imprimir">
+            <a href="conferencia.html?fiscal=${encodeURIComponent(f.email || f.id)}&mes=${mes}&ano=${ano}" class="btn btn-outline btn-sm">Conferir</a>
+          </td>
+        </tr>`;
+      }).join('');
+    } catch (e) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="7">${alerta('danger','Erro: ' + e.message)}</td></tr>`;
+    }
+  }
+
+  // ── Init ──────────────────────────────────────────────────
+  requireAuth(user => {
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
+    document.getElementById('sidebar-links').innerHTML = buildSidebar(user.grupo);
+    document.getElementById('dash-sub').textContent = '— ' + (user.nome || user.email);
+
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+    });
+    document.getElementById('hamburger').addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      const hamburger = document.getElementById('hamburger');
+      sidebar.classList.toggle('open');
+      hamburger.setAttribute('aria-expanded', sidebar.classList.contains('open') ? 'true' : 'false');
+    });
+
+    if (user.grupo === 'Fiscal') {
+      document.getElementById('comp-selector-wrap').style.display = '';
+      document.getElementById('view-fiscal').style.display = '';
+      buildMesSelect('sel-mes');
+      buildAnoSelect('sel-ano');
+      loadFiscal(user);
+      document.getElementById('btn-carregar').addEventListener('click', () => loadFiscal(user));
+    } else {
+      document.getElementById('view-admin').style.display = '';
+      buildMesSelect('admin-sel-mes');
+      buildAnoSelect('admin-sel-ano');
+      loadAdmin();
+      document.getElementById('btn-admin-carregar').addEventListener('click', loadAdmin);
+    }
+  });
+</script>
+</body>
+</html>

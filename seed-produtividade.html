@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seed de Dados — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+  <style>
+    body { background: var(--cinzaB); }
+    .seed-wrap { max-width: 700px; margin: 40px auto; padding: 20px; }
+    .log-box { background: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: .82rem;
+               padding: 14px; border-radius: 8px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+    .log-ok   { color: #4ec94e; }
+    .log-err  { color: #f44747; }
+    .log-info { color: #9cdcfe; }
+  </style>
+</head>
+<body>
+<div class="seed-wrap">
+  <div style="font-size:1.4rem;font-weight:700;color:var(--verde);margin-bottom:4px">🌱 Seed de Dados — RMPF</div>
+  <p style="color:var(--cinzaT);margin-bottom:20px">Popula o Firestore com dados de exemplo para testes.</p>
+
+  <div id="login-section">
+    <div id="login-alert" class="mb-2"></div>
+    <button class="btn btn-primary" id="btn-login">🔐 Autenticar com Google</button>
+  </div>
+
+  <div id="seed-section" style="display:none">
+    <div class="alert alert-info mb-2">
+      <span class="alert-icon">ℹ️</span>
+      <div>Logado como <strong id="user-email">—</strong>. Selecione o que deseja criar:</div>
+    </div>
+
+    <div class="btn-group mb-3">
+      <button class="btn btn-primary" id="btn-seed-usuarios">👥 Seed Usuários</button>
+      <button class="btn btn-outline" id="btn-seed-manuais">📋 Seed Manuais</button>
+      <button class="btn btn-outline" id="btn-seed-ocorrencias">📌 Seed Ocorrências</button>
+      <button class="btn btn-warn"    id="btn-seed-all">🚀 Seed Tudo</button>
+    </div>
+
+    <div class="log-box" id="log"></div>
+
+    <div class="mt-3">
+      <button class="btn btn-default btn-sm" id="btn-logout">Sair</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/utils.js"></script>
+<script>
+  const logEl = document.getElementById('log');
+
+  function log(msg, cls='') {
+    const span = document.createElement('span');
+    span.className = cls;
+    span.textContent = msg + '\n';
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  // ── Auth ──────────────────────────────────────────────
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('seed-section').style.display  = '';
+      document.getElementById('user-email').textContent = user.email;
+    } else {
+      document.getElementById('login-section').style.display = '';
+      document.getElementById('seed-section').style.display  = 'none';
+    }
+  });
+
+  document.getElementById('btn-login').addEventListener('click', async () => {
+    try {
+      await firebase.auth().signInWithPopup(window.googleProvider);
+    } catch(e) {
+      document.getElementById('login-alert').innerHTML =
+        `<div class="alert alert-danger"><span class="alert-icon">🚨</span><div>${e.message}</div></div>`;
+    }
+  });
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    firebase.auth().signOut();
+  });
+
+  // ── Seed data ─────────────────────────────────────────
+  const USUARIOS_SEED = [
+    { email: 'fiscal01@anapolis.go.gov.br', nome: 'Ana Clara Rodrigues', grupo: 'Fiscal', status: 'Ativo' },
+    { email: 'fiscal02@anapolis.go.gov.br', nome: 'Bruno Henrique Silva', grupo: 'Fiscal', status: 'Ativo' },
+    { email: 'fiscal03@anapolis.go.gov.br', nome: 'Camila Souza Lima', grupo: 'Fiscal', status: 'Ativo' },
+    { email: 'admin@anapolis.go.gov.br',    nome: 'Dra. Fernanda Meireles', grupo: 'Administrador', status: 'Ativo' },
+    { email: 'administrativo@anapolis.go.gov.br', nome: 'Gustavo Mendes', grupo: 'Administrativo', status: 'Ativo' },
+  ];
+
+  const MANUAIS_SEED = [
+    // fiscal01 — Junho 2025
+    { fiscal_email:'fiscal01@anapolis.go.gov.br', fiscal_nome:'Ana Clara Rodrigues', mes:6, ano:2025,
+      controle:'VIS-2025-06-001', tipo_codigo:'VIS', tipo_id:1, tipo_nome:'Vistoria ou atendimento a denúncia',
+      item_pontuacao:1, complexidade:'Alta', data:'2025-06-02', descricao:'Vistoria em farmácia — Rua 7 nº 120', pontos:48, status:'aceito', pontos_homologado:48 },
+    { fiscal_email:'fiscal01@anapolis.go.gov.br', fiscal_nome:'Ana Clara Rodrigues', mes:6, ano:2025,
+      controle:'VIS-2025-06-002', tipo_codigo:'VIS', tipo_id:1, tipo_nome:'Vistoria ou atendimento a denúncia',
+      item_pontuacao:2, complexidade:'Média', data:'2025-06-05', descricao:'Vistoria em restaurante — Av. Brasil 450', pontos:12, status:'aceito', pontos_homologado:12 },
+    { fiscal_email:'fiscal01@anapolis.go.gov.br', fiscal_nome:'Ana Clara Rodrigues', mes:6, ano:2025,
+      controle:'REL-2025-06-001', tipo_codigo:'REL', tipo_id:7, tipo_nome:'Relatório técnico de inspeção',
+      item_pontuacao:10, complexidade:'Alta', data:'2025-06-10', descricao:'Relatório de inspeção — farmácia Rua 7', pontos:48, status:'enviado' },
+    { fiscal_email:'fiscal01@anapolis.go.gov.br', fiscal_nome:'Ana Clara Rodrigues', mes:6, ano:2025,
+      controle:'CUR-2025-06-001', tipo_codigo:'CUR', tipo_id:6, tipo_nome:'Curso, palestra ou evento VISA',
+      item_pontuacao:9, complexidade:'—', data:'2025-06-15', descricao:'Participação em encontro estadual VISA GO', pontos:24, status:'rascunho' },
+    // fiscal02 — Junho 2025
+    { fiscal_email:'fiscal02@anapolis.go.gov.br', fiscal_nome:'Bruno Henrique Silva', mes:6, ano:2025,
+      controle:'VIS-2025-06-001', tipo_codigo:'VIS', tipo_id:1, tipo_nome:'Vistoria ou atendimento a denúncia',
+      item_pontuacao:1, complexidade:'Alta', data:'2025-06-03', descricao:'Vistoria em clínica odontológica — Centro', pontos:48, status:'aceito', pontos_homologado:48 },
+    { fiscal_email:'fiscal02@anapolis.go.gov.br', fiscal_nome:'Bruno Henrique Silva', mes:6, ano:2025,
+      controle:'PLT-2025-06-001', tipo_codigo:'PLT', tipo_id:3, tipo_nome:'Plantão fiscal',
+      item_pontuacao:6, complexidade:'—', data:'2025-06-08', descricao:'Plantão de sobreaviso 08h–18h', pontos:48, status:'aceito', pontos_homologado:48 },
+    // fiscal03 — Junho 2025
+    { fiscal_email:'fiscal03@anapolis.go.gov.br', fiscal_nome:'Camila Souza Lima', mes:6, ano:2025,
+      controle:'VIS-2025-06-001', tipo_codigo:'VIS', tipo_id:1, tipo_nome:'Vistoria ou atendimento a denúncia',
+      item_pontuacao:3, complexidade:'Baixa', data:'2025-06-04', descricao:'Atendimento a denúncia — bar Setor Norte', pontos:6, status:'aceito', pontos_homologado:6 },
+    { fiscal_email:'fiscal03@anapolis.go.gov.br', fiscal_nome:'Camila Souza Lima', mes:6, ano:2025,
+      controle:'COL-2025-06-001', tipo_codigo:'COL', tipo_id:4, tipo_nome:'Coleta de amostra para laboratório',
+      item_pontuacao:7, complexidade:'—', data:'2025-06-12', descricao:'Coleta de alimento suspeito — supermercado', pontos:12, status:'enviado' },
+  ];
+
+  const OCORRENCIAS_SEED = [
+    { fiscal_email:'fiscal01@anapolis.go.gov.br', fiscal_nome:'Ana Clara Rodrigues',
+      mes:6, ano:2025, tipo:'ferias', data_inicio:'2025-06-20', data_fim:'2025-07-05',
+      descricao:'Férias regulamentares', status:'aceito', obs_admin:'Aprovado conforme escala' },
+    { fiscal_email:'fiscal03@anapolis.go.gov.br', fiscal_nome:'Camila Souza Lima',
+      mes:6, ano:2025, tipo:'licenca_medica', data_inicio:'2025-06-17', data_fim:'2025-06-19',
+      descricao:'Atestado médico 3 dias', status:'pendente' },
+  ];
+
+  async function seedUsuarios() {
+    log('\n── Criando Usuários ──', 'log-info');
+    for (const u of USUARIOS_SEED) {
+      try {
+        await window.db.collection('usuarios').doc(u.email).set({
+          ...u,
+          created_at: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        log(`✔ ${u.email} (${u.grupo})`, 'log-ok');
+      } catch(e) { log(`✘ ${u.email}: ${e.message}`, 'log-err'); }
+    }
+  }
+
+  async function seedManuais() {
+    log('\n── Criando Manuais ──', 'log-info');
+    for (const m of MANUAIS_SEED) {
+      try {
+        await window.db.collection('manuais').add({
+          ...m,
+          created_at: firebase.firestore.FieldValue.serverTimestamp(),
+          updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        log(`✔ ${m.controle} — ${m.fiscal_nome}`, 'log-ok');
+      } catch(e) { log(`✘ ${m.controle}: ${e.message}`, 'log-err'); }
+    }
+  }
+
+  async function seedOcorrencias() {
+    log('\n── Criando Ocorrências ──', 'log-info');
+    for (const o of OCORRENCIAS_SEED) {
+      try {
+        await window.db.collection('ocorrencias').add({
+          ...o,
+          created_at: firebase.firestore.FieldValue.serverTimestamp(),
+          updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+        log(`✔ ${o.tipo} — ${o.fiscal_nome}`, 'log-ok');
+      } catch(e) { log(`✘ ${o.tipo}: ${e.message}`, 'log-err'); }
+    }
+  }
+
+  document.getElementById('btn-seed-usuarios').addEventListener('click', async () => {
+    await seedUsuarios();
+    log('\nDone ✓', 'log-ok');
+  });
+  document.getElementById('btn-seed-manuais').addEventListener('click', async () => {
+    await seedManuais();
+    log('\nDone ✓', 'log-ok');
+  });
+  document.getElementById('btn-seed-ocorrencias').addEventListener('click', async () => {
+    await seedOcorrencias();
+    log('\nDone ✓', 'log-ok');
+  });
+  document.getElementById('btn-seed-all').addEventListener('click', async () => {
+    log('=== Seed Completo ===', 'log-info');
+    await seedUsuarios();
+    await seedManuais();
+    await seedOcorrencias();
+    log('\n=== Concluído! ===', 'log-ok');
+  });
+</script>
+</body>
+</html>

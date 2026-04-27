@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ocorrências — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<div class="app-layout" id="app" style="display:none">
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger">☰</button>
+    <div><div class="logo-text">🏛️ RMPF</div><div class="logo-sub">Produtividade Fiscal</div></div>
+    <div class="header-right">
+      <span class="user-name" id="header-nome">—</span>
+      <button class="btn-logout" id="btn-logout">Sair</button>
+    </div>
+  </header>
+  <nav class="app-sidebar nao-imprimir" id="sidebar"></nav>
+
+  <main class="app-main">
+    <div class="page-title">📌 Ocorrências</div>
+    <div id="alert-area"></div>
+
+    <!-- Fiscal: form to register -->
+    <div id="form-wrap" style="display:none">
+      <div class="card" style="max-width:560px">
+        <div class="card-title">Registrar Ocorrência</div>
+        <form id="form-ocorrencia" novalidate>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label required" for="o-mes">Mês</label>
+              <select class="form-control" id="o-mes" required></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label required" for="o-ano">Ano</label>
+              <select class="form-control" id="o-ano" required></select>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="o-tipo">Tipo de Ocorrência</label>
+            <select class="form-control" id="o-tipo" required>
+              <option value="">— selecione —</option>
+              <option value="ferias">Férias</option>
+              <option value="licenca_medica">Licença Médica</option>
+              <option value="licenca_gestante">Licença Gestante</option>
+              <option value="afastamento_legal">Afastamento Legal</option>
+              <option value="outros">Outros</option>
+            </select>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label required" for="o-inicio">Data Início</label>
+              <input type="date" class="form-control" id="o-inicio" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="o-fim">Data Fim</label>
+              <input type="date" class="form-control" id="o-fim">
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="o-desc">Descrição / Detalhes</label>
+            <textarea class="form-control" id="o-desc" rows="2" placeholder="Informações adicionais…"></textarea>
+          </div>
+          <div id="form-alert"></div>
+          <button type="button" class="btn btn-primary" id="btn-registrar">📌 Registrar Ocorrência</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- List -->
+    <div class="comp-selector">
+      <label>Competência:</label>
+      <select class="form-control" id="sel-mes" style="max-width:140px"></select>
+      <select class="form-control" id="sel-ano" style="max-width:90px"></select>
+      <select class="form-control" id="sel-fiscal" style="max-width:200px;display:none">
+        <option value="">— todos fiscais —</option>
+      </select>
+      <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📋 Ocorrências Registradas</div>
+      <div class="table-wrap">
+        <table class="rmpf-table">
+          <thead>
+            <tr>
+              <th id="th-fiscal-col" style="display:none">Fiscal</th>
+              <th>Tipo</th>
+              <th>Período</th>
+              <th>Descrição</th>
+              <th>Status</th>
+              <th class="nao-imprimir" id="th-acoes">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-ocorrencias">
+            <tr class="empty-row"><td colspan="6">Selecione uma competência e clique em Carregar</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Detalhe modal (Administrador) -->
+    <div id="modal-rev" class="modal-backdrop" style="display:none">
+      <div class="modal">
+        <div class="modal-header">
+          <span>Revisar Ocorrência</span>
+          <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="rev-id">
+          <div class="form-group">
+            <label class="form-label">Fiscal</label>
+            <input class="form-control" id="rev-fiscal" disabled>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo</label>
+            <input class="form-control" id="rev-tipo" disabled>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Descrição</label>
+            <textarea class="form-control" id="rev-desc" rows="2" disabled></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="rev-obs">Observação do Administrador</label>
+            <textarea class="form-control" id="rev-obs" rows="2"></textarea>
+          </div>
+          <div id="rev-alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" id="modal-close2">Cancelar</button>
+          <button class="btn btn-danger" id="btn-rej">✗ Rejeitar</button>
+          <button class="btn btn-primary" id="btn-aceit">✓ Aceitar</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/guard.js"></script>
+<script>
+  let _user  = null;
+  let _grupo = '';
+  let _ocorrs = [];
+
+  const TIPO_LABELS = {
+    ferias: 'Férias',
+    licenca_medica: 'Licença Médica',
+    licenca_gestante: 'Licença Gestante',
+    afastamento_legal: 'Afastamento Legal',
+    outros: 'Outros',
+  };
+
+  function buildSidebar(grupo) {
+    const links = grupo === 'Fiscal' ? [
+      ['dashboard.html','📊','Dashboard'],
+      ['lancamento.html','✏️','Lançar Atividade'],
+      ['meus-lancamentos.html','📋','Meus Lançamentos'],
+      ['conferencia.html','🔍','Conferência'],
+      ['ocorrencias.html','📌','Ocorrências'],
+    ] : [
+      ['dashboard.html','📊','Dashboard'],
+      ['conferencia.html','🔍','Conferência'],
+      ['ocorrencias.html','📌','Ocorrências'],
+      ['fechamento.html','🔒','Fechamento'],
+    ];
+    const cur = location.pathname.split('/').pop();
+    return links.map(([href,icon,label]) =>
+      `<a href="${href}" class="sidebar-link${cur===href?' active':''}"><span class="icon">${icon}</span>${label}</a>`
+    ).join('');
+  }
+
+  function buildSels(mesId, anoId) {
+    const selM = document.getElementById(mesId);
+    MESES.forEach((m,i)=>{
+      const o=document.createElement('option');o.value=i+1;o.textContent=m;
+      if(i===new Date().getMonth())o.selected=true;selM.appendChild(o);
+    });
+    const selA = document.getElementById(anoId);
+    const y = new Date().getFullYear();
+    for(let i=y-1;i<=y+1;i++){
+      const o=document.createElement('option');o.value=i;o.textContent=i;
+      if(i===y)o.selected=true;selA.appendChild(o);
+    }
+  }
+
+  async function registrarOcorrencia() {
+    const tipo  = document.getElementById('o-tipo').value;
+    const inicio= document.getElementById('o-inicio').value;
+    const fim   = document.getElementById('o-fim').value;
+    const desc  = document.getElementById('o-desc').value.trim();
+    const mes   = Number(document.getElementById('o-mes').value);
+    const ano   = Number(document.getElementById('o-ano').value);
+    if (!tipo||!inicio) {
+      document.getElementById('form-alert').innerHTML = alerta('warn','Preencha tipo e data de início.');
+      return;
+    }
+    try {
+      await db_createOcorrencia({
+        fiscal_email: _user.email,
+        fiscal_nome:  _user.nome || _user.email,
+        mes, ano,
+        tipo, data_inicio: inicio, data_fim: fim||null,
+        descricao: desc||null, status: 'pendente',
+      });
+      document.getElementById('alert-area').innerHTML = alerta('ok','Ocorrência registrada com sucesso.');
+      document.getElementById('form-ocorrencia').reset();
+      document.getElementById('form-alert').innerHTML = '';
+      loadOcorrencias();
+    } catch(e) {
+      document.getElementById('form-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
+    }
+  }
+
+  async function loadOcorrencias() {
+    const mes = Number(document.getElementById('sel-mes').value);
+    const ano = Number(document.getElementById('sel-ano').value);
+    const tbody = document.getElementById('tbody-ocorrencias');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6"><div class="spinner"></div></td></tr>';
+
+    try {
+      if (_grupo === 'Fiscal') {
+        _ocorrs = await db_getOcorrencias(_user.email, mes, ano);
+      } else {
+        const fiscalFilter = document.getElementById('sel-fiscal').value;
+        _ocorrs = await db_getOcorrenciasTodas(mes, ano);
+        if (fiscalFilter) _ocorrs = _ocorrs.filter(o => o.fiscal_email === fiscalFilter);
+      }
+      renderOcorrs();
+    } catch(e) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="6">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
+    }
+  }
+
+  function renderOcorrs() {
+    const tbody = document.getElementById('tbody-ocorrencias');
+    const isAdmin = _grupo === 'Administrador';
+    if (!_ocorrs.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma ocorrência nesta competência</td></tr>';
+      return;
+    }
+    tbody.innerHTML = _ocorrs.map(o => {
+      const periodo = o.data_fim ? `${fmtData(o.data_inicio)} — ${fmtData(o.data_fim)}` : fmtData(o.data_inicio);
+      let acoes = '—';
+      if (isAdmin && o.status === 'pendente') {
+        acoes = `<button class="btn btn-outline btn-sm" onclick="abrirRev('${o.id}')">📝 Revisar</button>`;
+      } else if (isAdmin) {
+        acoes = `<button class="btn btn-default btn-sm" onclick="abrirRev('${o.id}')">✏️ Rever</button>`;
+      }
+      const fiscalCol = (_grupo !== 'Fiscal') ? `<td>${o.fiscal_nome||o.fiscal_email}</td>` : '';
+      return `<tr>
+        ${fiscalCol}
+        <td>${TIPO_LABELS[o.tipo]||o.tipo}</td>
+        <td>${periodo}</td>
+        <td>${o.descricao||'—'}</td>
+        <td>${badge(o.status)}</td>
+        <td class="nao-imprimir">${acoes}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function abrirRev(id) {
+    const o = _ocorrs.find(x => x.id === id);
+    if (!o) return;
+    document.getElementById('rev-id').value     = id;
+    document.getElementById('rev-fiscal').value = o.fiscal_nome||o.fiscal_email;
+    document.getElementById('rev-tipo').value   = TIPO_LABELS[o.tipo]||o.tipo;
+    document.getElementById('rev-desc').value   = o.descricao||'';
+    document.getElementById('rev-obs').value    = o.obs_admin||'';
+    document.getElementById('rev-alert').innerHTML = '';
+    document.getElementById('modal-rev').style.display = 'flex';
+  }
+
+  async function revisar(status) {
+    const id  = document.getElementById('rev-id').value;
+    const obs = document.getElementById('rev-obs').value.trim();
+    try {
+      await db_updateOcorrencia(id, { status, obs_admin: obs||null });
+      document.getElementById('modal-rev').style.display = 'none';
+      document.getElementById('alert-area').innerHTML = alerta('ok',`Ocorrência <strong>${status}</strong>.`);
+      loadOcorrencias();
+    } catch(e) {
+      document.getElementById('rev-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
+    }
+  }
+
+  window.abrirRev = abrirRev;
+  document.getElementById('btn-aceit').addEventListener('click', () => revisar('aceito'));
+  document.getElementById('btn-rej').addEventListener('click',   () => revisar('recusado'));
+  ['modal-close','modal-close2'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      document.getElementById('modal-rev').style.display = 'none';
+    });
+  });
+
+  requireAuth(async user => {
+    _user  = user;
+    _grupo = user.grupo;
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
+    document.getElementById('sidebar').innerHTML = buildSidebar(user.grupo);
+
+    buildSels('sel-mes','sel-ano');
+
+    if (user.grupo === 'Fiscal') {
+      document.getElementById('form-wrap').style.display = '';
+      buildSels('o-mes','o-ano');
+      document.getElementById('btn-registrar').addEventListener('click', registrarOcorrencia);
+    } else {
+      // Admin/Administrativo: show fiscal filter
+      document.getElementById('sel-fiscal').style.display = '';
+      document.getElementById('th-fiscal-col').style.display = '';
+      const fiscais = await db_getTodosFiscais();
+      const selF = document.getElementById('sel-fiscal');
+      fiscais.forEach(f => {
+        const o = document.createElement('option');
+        o.value = f.email||f.id; o.textContent = f.nome||f.id;
+        selF.appendChild(o);
+      });
+      if (user.grupo !== 'Administrador') {
+        document.getElementById('th-acoes').style.display = 'none';
+      }
+    }
+
+    loadOcorrencias();
+    document.getElementById('btn-carregar').addEventListener('click', loadOcorrencias);
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+    });
+    document.getElementById('hamburger').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meus Lançamentos — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<div class="app-layout" id="app" style="display:none">
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger">☰</button>
+    <div><div class="logo-text">🏛️ RMPF</div><div class="logo-sub">Produtividade Fiscal</div></div>
+    <div class="header-right">
+      <span class="user-name" id="header-nome">—</span>
+      <button class="btn-logout" id="btn-logout">Sair</button>
+    </div>
+  </header>
+  <nav class="app-sidebar nao-imprimir" id="sidebar">
+    <a href="dashboard.html"       class="sidebar-link"><span class="icon">📊</span>Dashboard</a>
+    <a href="lancamento.html"      class="sidebar-link"><span class="icon">✏️</span>Lançar Atividade</a>
+    <a href="meus-lancamentos.html"class="sidebar-link active"><span class="icon">📋</span>Meus Lançamentos</a>
+    <a href="conferencia.html"     class="sidebar-link"><span class="icon">🔍</span>Conferência</a>
+    <a href="ocorrencias.html"     class="sidebar-link"><span class="icon">📌</span>Ocorrências</a>
+  </nav>
+
+  <main class="app-main">
+    <div class="page-title">📋 Meus Lançamentos</div>
+    <div id="alert-area"></div>
+
+    <div class="comp-selector">
+      <label>Competência:</label>
+      <select class="form-control" id="sel-mes" style="max-width:140px"></select>
+      <select class="form-control" id="sel-ano" style="max-width:90px"></select>
+      <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
+      <span class="toolbar-spacer"></span>
+      <a href="lancamento.html" class="btn btn-primary btn-sm">+ Nova Atividade</a>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table class="rmpf-table">
+          <thead>
+            <tr>
+              <th>Controle</th>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th>Descrição</th>
+              <th class="td-num">Pts Req.</th>
+              <th class="td-num">Pts Hom.</th>
+              <th>Status</th>
+              <th class="td-center nao-imprimir">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-lista">
+            <tr class="empty-row"><td colspan="8">Selecione uma competência e clique em Carregar</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Edit modal -->
+    <div id="modal-edit" class="modal-backdrop" style="display:none">
+      <div class="modal">
+        <div class="modal-header">
+          <span>✏️ Editar Lançamento</span>
+          <button class="modal-close" id="modal-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="edit-id">
+          <div class="form-group">
+            <label class="form-label">Tipo / Item</label>
+            <input type="text" class="form-control" id="edit-tipo-label" disabled>
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="edit-data">Data</label>
+            <input type="date" class="form-control" id="edit-data">
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="edit-desc">Descrição</label>
+            <textarea class="form-control" id="edit-desc" rows="3"></textarea>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label required" for="edit-pontos">Pontos Solicitados</label>
+              <input type="number" class="form-control" id="edit-pontos" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="edit-obs">Observações</label>
+              <input type="text" class="form-control" id="edit-obs">
+            </div>
+          </div>
+          <div id="edit-alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" id="modal-close2">Cancelar</button>
+          <button class="btn btn-primary" id="btn-save-edit">💾 Salvar</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/guard.js"></script>
+<script>
+  let _user = null;
+  let _manuais = [];
+
+  function showAlert(type, msg) {
+    document.getElementById('alert-area').innerHTML = alerta(type, msg);
+    window.scrollTo(0,0);
+  }
+
+  function buildMesSelect() {
+    const sel = document.getElementById('sel-mes');
+    MESES.forEach((m, i) => {
+      const o = document.createElement('option');
+      o.value = i + 1; o.textContent = m;
+      if (i === new Date().getMonth()) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  function buildAnoSelect() {
+    const sel = document.getElementById('sel-ano');
+    const y = new Date().getFullYear();
+    for (let i = y - 1; i <= y + 1; i++) {
+      const o = document.createElement('option');
+      o.value = i; o.textContent = i;
+      if (i === y) o.selected = true;
+      sel.appendChild(o);
+    }
+  }
+
+  async function loadManuais() {
+    const mes  = Number(document.getElementById('sel-mes').value);
+    const ano  = Number(document.getElementById('sel-ano').value);
+    const tbody = document.getElementById('tbody-lista');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="spinner"></div></td></tr>';
+    document.getElementById('alert-area').innerHTML = '';
+
+    try {
+      _manuais = await db_getManuais(_user.email, mes, ano);
+      renderTabela();
+    } catch(e) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
+    }
+  }
+
+  function renderTabela() {
+    const tbody = document.getElementById('tbody-lista');
+    if (!_manuais.length) {
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Nenhum lançamento nesta competência</td></tr>';
+      return;
+    }
+    tbody.innerHTML = _manuais.map(m => {
+      const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
+      let acoes = '';
+      if (m.status === 'rascunho') {
+        acoes = `<button class="btn btn-outline btn-sm" onclick="enviarManual('${m.id}')">📤 Enviar</button>
+                 <button class="btn btn-default btn-sm" onclick="editarManual('${m.id}')">✏️</button>
+                 <button class="btn btn-danger btn-sm" onclick="excluirManual('${m.id}')">🗑️</button>`;
+      } else if (m.status === 'enviado') {
+        acoes = `<span class="text-muted" style="font-size:.8rem">⏳ Aguardando</span>
+                 <button class="btn btn-danger btn-sm" onclick="excluirManual('${m.id}')">🗑️ Retirar</button>`;
+      } else if (m.status === 'aceito') {
+        acoes = `<span class="text-verde fw-bold">✓ Homologado</span>`;
+      } else if (m.status === 'recusado') {
+        acoes = `<span class="text-verm fw-bold">✗ Recusado</span>
+                 ${m.motivo_recusa ? `<span class="form-hint">${m.motivo_recusa}</span>` : ''}`;
+      }
+      return `<tr>
+        <td><span class="ctrl-num">${m.controle || '—'}</span></td>
+        <td>${fmtData(m.data)}</td>
+        <td>${tipo.nome || m.tipo_codigo || '—'}</td>
+        <td>${m.descricao || '—'}</td>
+        <td class="td-num">${m.pontos ?? '—'}</td>
+        <td class="td-num">${m.pontos_homologado != null ? m.pontos_homologado : '—'}</td>
+        <td>${badge(m.status)}</td>
+        <td class="td-center nao-imprimir" style="white-space:nowrap">${acoes}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  async function enviarManual(id) {
+    if (!confirm('Enviar este lançamento para homologação?')) return;
+    try {
+      await db_updateManual(id, { status: 'enviado' });
+      showAlert('ok', 'Lançamento enviado para supervisão.');
+      loadManuais();
+    } catch(e) { showAlert('danger', 'Erro: ' + escHtml(e.message)); }
+  }
+
+  async function excluirManual(id) {
+    const m = _manuais.find(x => x.id === id);
+    if (!confirm(`Excluir lançamento ${m?.controle || id}?`)) return;
+    try {
+      await db_deleteManual(id);
+      showAlert('ok', 'Lançamento excluído.');
+      loadManuais();
+    } catch(e) { showAlert('danger', 'Erro: ' + escHtml(e.message)); }
+  }
+
+  function editarManual(id) {
+    const m = _manuais.find(x => x.id === id);
+    if (!m || m.status !== 'rascunho') return;
+    document.getElementById('edit-id').value         = id;
+    document.getElementById('edit-tipo-label').value = `[${m.tipo_codigo}] ${m.tipo_nome || ''} — Item ${m.item_pontuacao}`;
+    document.getElementById('edit-data').value        = m.data || '';
+    document.getElementById('edit-desc').value        = m.descricao || '';
+    document.getElementById('edit-pontos').value      = m.pontos ?? '';
+    document.getElementById('edit-obs').value         = m.obs || '';
+    document.getElementById('edit-alert').innerHTML   = '';
+    document.getElementById('modal-edit').style.display = 'flex';
+  }
+
+  document.getElementById('btn-save-edit').addEventListener('click', async () => {
+    const id     = document.getElementById('edit-id').value;
+    const data   = document.getElementById('edit-data').value;
+    const desc   = document.getElementById('edit-desc').value.trim();
+    const pontos = document.getElementById('edit-pontos').value;
+    if (!data || !desc || pontos === '') {
+      document.getElementById('edit-alert').innerHTML = alerta('warn','Preencha todos os campos obrigatórios.');
+      return;
+    }
+    try {
+      await db_updateManual(id, { data, descricao: desc, pontos: Number(pontos), obs: document.getElementById('edit-obs').value.trim() });
+      document.getElementById('modal-edit').style.display = 'none';
+      showAlert('ok', 'Lançamento atualizado com sucesso.');
+      loadManuais();
+    } catch(e) {
+      document.getElementById('edit-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
+    }
+  });
+
+  ['modal-close','modal-close2'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      document.getElementById('modal-edit').style.display = 'none';
+    });
+  });
+
+  // Expose to onclick handlers
+  window.enviarManual = enviarManual;
+  window.excluirManual = excluirManual;
+  window.editarManual  = editarManual;
+
+  requireAuth(user => {
+    if (user.grupo !== 'Fiscal') { window.location.href = 'dashboard.html'; return; }
+    _user = user;
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
+
+    buildMesSelect(); buildAnoSelect(); loadManuais();
+
+    document.getElementById('btn-carregar').addEventListener('click', loadManuais);
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+    });
+    document.getElementById('hamburger').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+  });
+</script>
+</body>
+</html>
