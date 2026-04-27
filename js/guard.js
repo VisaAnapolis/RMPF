@@ -4,7 +4,8 @@
 
 (function () {
   let _idleTimer = null;
-  const IDLE_MS = 30 * 60 * 1000; // 30 minutes
+  // Idle timeout in milliseconds — override window.IDLE_TIMEOUT_MS before loading guard.js if needed
+  const IDLE_MS = (typeof window.IDLE_TIMEOUT_MS === 'number') ? window.IDLE_TIMEOUT_MS : 30 * 60 * 1000;
 
   function resetIdle() {
     clearTimeout(_idleTimer);

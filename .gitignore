@@ -1,0 +1,10 @@
+# Prototype reference file (JSX - not part of the deployed system)
+visa-produtividade-v2 (2).jsx
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

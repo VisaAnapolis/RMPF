@@ -15,7 +15,7 @@
 <div class="app-layout" id="app" style="display:none">
   <!-- Header -->
   <header class="app-header nao-imprimir">
-    <button class="hamburger" id="hamburger" aria-label="Menu">☰</button>
+    <button class="hamburger" id="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="sidebar">☰</button>
     <div>
       <div class="logo-text">🏛️ RMPF</div>
       <div class="logo-sub">Produtividade Fiscal</div>
@@ -283,7 +283,10 @@
       firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
     });
     document.getElementById('hamburger').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
+      const sidebar = document.getElementById('sidebar');
+      const hamburger = document.getElementById('hamburger');
+      sidebar.classList.toggle('open');
+      hamburger.setAttribute('aria-expanded', sidebar.classList.contains('open') ? 'true' : 'false');
     });
 
     if (user.grupo === 'Fiscal') {

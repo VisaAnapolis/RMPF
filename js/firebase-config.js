@@ -1,5 +1,9 @@
 // js/firebase-config.js
 // Firebase Compat SDK — initialized once, sets globals used by all pages
+//
+// NOTE: Firebase API keys are designed to be public (client-side) — access is
+// controlled entirely by Firestore Security Rules (see firestore.rules).
+// See: https://firebase.google.com/docs/projects/api-keys
 
 const firebaseConfig = {
   apiKey: "AIzaSyDo473puJesZ9rr3IBoX5AWczCIMuKBTrg",
