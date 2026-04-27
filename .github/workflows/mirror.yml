@@ -13,6 +13,13 @@ jobs:
     if: github.repository == 'garrado/RMPF'
 
     steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
       - name: Clone bare repository
         run: |
           git clone --bare https://github.com/garrado/RMPF.git repo-mirror
@@ -20,11 +27,4 @@ jobs:
       - name: Push mirror to corporate repository
         run: |
           cd repo-mirror
-          git push --mirror https://x-access-token:${{ secrets.PAT_CORPORATIVO }}@github.com/VisaAnapolis/RMPF.git
-
-      - name: Trigger Pages rebuild on VisaAnapolis/RMPF
-        run: |
-          curl -s -o /dev/null -w "%{http_code}" -X POST \
-            -H "Authorization: token ${{ secrets.PAT_CORPORATIVO }}" \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/VisaAnapolis/RMPF/pages/builds
+          git push --mirror git@github.com:VisaAnapolis/RMPF.git
