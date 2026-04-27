@@ -15,7 +15,5 @@ jobs:
           fetch-depth: 0
 
       - name: Mirror to visaanapolis/RMPF
-        uses: kai-tub/git-sync@v1
-        with:
-          source-repo: "https://github.com/garrado/RMPF.git"
-          destination-repo: "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/visaanapolis/RMPF.git"
+        run: |
+          git push --mirror "https://x-access-token:${{ secrets.MIRROR_PAT }}@github.com/visaanapolis/RMPF.git"
