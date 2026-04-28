@@ -172,6 +172,28 @@ async function seedCNAEComplexidade(rows) {
   return count;
 }
 
+// ── Delete all manuais for a month (Administrador) ───────
+
+async function deleteManuaisTodosMes(mes, ano) {
+  const snap = await window.db.collection('manuais')
+    .where('mes', '==', Number(mes))
+    .where('ano', '==', Number(ano))
+    .get();
+  const BATCH_SIZE = 499;
+  let batch = window.db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    batch.delete(doc.ref);
+    count++;
+    if (count % BATCH_SIZE === 0) {
+      await batch.commit();
+      batch = window.db.batch();
+    }
+  }
+  if (count % BATCH_SIZE !== 0 && count > 0) await batch.commit();
+  return count;
+}
+
 // ── VISA Manuais (importados do CSV) ─────────────────────
 
 function _visaDocId(visaControle, fiscalEmail) {
@@ -211,6 +233,7 @@ window.db_getManuaisTodos     = getManuaisTodos;
 window.db_createManual        = createManual;
 window.db_updateManual        = updateManual;
 window.db_deleteManual        = deleteManual;
+window.db_deleteManuaisTodosMes = deleteManuaisTodosMes;
 window.db_getOcorrencias      = getOcorrencias;
 window.db_getOcorrenciasTodas = getOcorrenciasTodas;
 window.db_createOcorrencia    = createOcorrencia;

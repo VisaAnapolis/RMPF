@@ -80,7 +80,7 @@ function visaDataToISO(dataStr) {
   return null;
 }
 
-async function importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProgress }) {
+async function importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProgress, onProgressBar }) {
   mes = Number(mes); ano = Number(ano);
 
   if (!visaMesAberto(mes, ano)) {
@@ -120,7 +120,10 @@ async function importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProg
   let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
   const cnaeCache = new Map();
 
-  for (const row of rowsFiltradas) {
+  for (let idx = 0; idx < rowsFiltradas.length; idx++) {
+    const row = rowsFiltradas[idx];
+    if (onProgressBar) onProgressBar(idx + 1, rowsFiltradas.length);
+
     const controleVisa = String(row['CONTROLE'] || '').replace(/"/g, '').trim();
     if (!controleVisa) continue;
 
@@ -135,14 +138,16 @@ async function importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProg
           cnaeCache.set(subclasse, { complexidade: 'Média', descricao: subclasse });
         }
       }
-      cnaeInfo = cnaeCache.get(subclasse);
+      cnaeInfo = cnaeCache.get(subclasse) || { complexidade: 'Média', descricao: subclasse };
     }
 
-    const { item, pontos } = complexToItem(cnaeInfo.complexidade);
+    const tipoRaw = String(row['tipo'] || row['TIPO'] || row['Tipo'] || '').replace(/"/g, '').trim();
+    const tipoInfo = resolverTipoVisa(tipoRaw, cnaeInfo.complexidade);
+
     const dataISO = visaDataToISO(String(row['DT_VISITA'] || '').replace(/"/g, '').trim());
     const os = String(row['OS'] || row['NUMERO'] || '').replace(/"/g, '').trim();
 
-    const descParts = ['Vistoria VISA'];
+    const descParts = [tipoInfo.descLabel];
     if (os) descParts.push('OS ' + os);
     if (subclasse) descParts.push('CNAE ' + subclasse);
     if (cnaeInfo.descricao && cnaeInfo.descricao !== subclasse) descParts.push(cnaeInfo.descricao);
@@ -171,11 +176,11 @@ async function importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProg
           await window.db_upsertVISAManual(controleVisa, emailFiscal, {
             fiscal_nome: nomeFiscalCsv,
             mes, ano, data: dataISO,
-            tipo_id: 1, tipo_codigo: 'VIS',
-            tipo_nome: 'Vistoria ou atendimento a denúncia',
-            item_pontuacao: item,
+            tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
+            tipo_nome: tipoInfo.tipo_nome,
+            item_pontuacao: tipoInfo.item_pontuacao,
             complexidade: cnaeInfo.complexidade,
-            pontos, descricao,
+            pontos: tipoInfo.pontos, descricao,
             origem: 'visa_csv',
             visa_controle: controleVisa,
           }, existing.id, false);
@@ -186,11 +191,11 @@ async function importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProg
             fiscal_email: emailFiscal,
             fiscal_nome: nomeFiscalCsv,
             mes, ano, data: dataISO,
-            tipo_id: 1, tipo_codigo: 'VIS',
-            tipo_nome: 'Vistoria ou atendimento a denúncia',
-            item_pontuacao: item,
+            tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
+            tipo_nome: tipoInfo.tipo_nome,
+            item_pontuacao: tipoInfo.item_pontuacao,
             complexidade: cnaeInfo.complexidade,
-            pontos, descricao,
+            pontos: tipoInfo.pontos, descricao,
             status: 'enviado',
             origem: 'visa_csv',
             visa_controle: controleVisa,
