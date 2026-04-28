@@ -48,6 +48,10 @@
               style="display:none" disabled title="">
         📥 Importar Inspeções do CSV
       </button>
+      <button class="btn btn-outline btn-sm" id="btn-import-visa-todos" type="button"
+              style="display:none" disabled title="">
+        📥 Importar Todos os Fiscais
+      </button>
     </div>
 
     <div id="import-visa-log" style="margin-bottom:8px"></div>
@@ -326,20 +330,26 @@
     }
 
     // ── Importação VISA (admin/administrativo) ───────────
-    const btnImportVisa = document.getElementById('btn-import-visa');
+    const btnImportVisa     = document.getElementById('btn-import-visa');
+    const btnImportVisaTodos = document.getElementById('btn-import-visa-todos');
     if (_grupo !== 'Fiscal') {
-      btnImportVisa.style.display = '';
+      btnImportVisa.style.display      = '';
+      btnImportVisaTodos.style.display = '';
     }
 
     function atualizarBtnImportConf() {
       const mes = Number(document.getElementById('sel-mes').value);
       const ano = Number(document.getElementById('sel-ano').value);
       if (!visaMesAberto(mes, ano)) {
-        btnImportVisa.disabled = true;
-        btnImportVisa.title = 'Mês anterior a Abril/2026 — impossível importar';
+        btnImportVisa.disabled      = true;
+        btnImportVisa.title         = 'Mês anterior a Abril/2026 — impossível importar';
+        btnImportVisaTodos.disabled = true;
+        btnImportVisaTodos.title    = 'Mês anterior a Abril/2026 — impossível importar';
       } else {
-        btnImportVisa.disabled = false;
-        btnImportVisa.title = 'Importar inspeções do VISA para o fiscal selecionado';
+        btnImportVisa.disabled      = false;
+        btnImportVisa.title         = 'Importar inspeções do VISA para o fiscal selecionado';
+        btnImportVisaTodos.disabled = false;
+        btnImportVisaTodos.title    = 'Importar inspeções do VISA para todos os fiscais';
       }
     }
     document.getElementById('sel-mes').addEventListener('change', atualizarBtnImportConf);
@@ -370,6 +380,34 @@
         logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
       } finally {
         btn.disabled = !visaMesAberto(mes, ano);
+      }
+    });
+
+    btnImportVisaTodos.addEventListener('click', async () => {
+      const mes = Number(document.getElementById('sel-mes').value);
+      const ano = Number(document.getElementById('sel-ano').value);
+      const mesNome = document.getElementById('sel-mes').options[document.getElementById('sel-mes').selectedIndex]?.text || mes;
+      if (!confirm(`Importar inspeções do VISA para TODOS os fiscais em ${mesNome}/${ano}?\n\nEsta ação pode criar ou atualizar lançamentos de múltiplos fiscais.`)) return;
+      const logEl = document.getElementById('import-visa-log');
+      const btn   = btnImportVisaTodos;
+      btn.disabled = true;
+      btnImportVisa.disabled = true;
+      logEl.innerHTML = '';
+      const msgs = [];
+      const onProgress = (msg, type) => {
+        msgs.push(alerta(type, msg));
+        logEl.innerHTML = msgs.slice(-6).join('');
+      };
+      try {
+        const allFiscais = await db_getTodosFiscais();
+        await importarInspecoesVISA({ fiscalEmail: null, mes, ano, allFiscais, onProgress });
+        loadConferencia();
+      } catch(e) {
+        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
+      } finally {
+        const aberto = visaMesAberto(mes, ano);
+        btn.disabled = !aberto;
+        btnImportVisa.disabled = !aberto;
       }
     });
 
