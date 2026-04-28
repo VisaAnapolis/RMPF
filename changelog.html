@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.2.0</span>
+            <span class="badge-date">28/04/2026 — 11:22 (UTC-3)</span>
+          </div>
+          <div class="changelog-title">Importação SIM, Card de Enviados e Correções no Dashboard Fiscal</div>
+          <ul class="changelog-changes">
+            <li>Novo módulo de importação SIM (<code>js/sim-import.js</code>): leitura do CSV <code>auditoria.csv</code> do repositório VISA, com lock distribuído próprio (<code>sim_import_locks</code>) e botões de importação em <code>lancamento.html</code>, <code>meus-lancamentos.html</code> e <code>conferencia.html</code>.</li>
+            <li>Regra Firestore adicionada para a coleção <code>sim_import_locks</code>, corrigindo erro de permissão insuficiente ao acionar a importação SIM.</li>
+            <li>Novo card amarelo no dashboard fiscal exibindo o total de pontos com status <em>enviado</em> (aguardando homologação) na competência selecionada.</li>
+            <li>Reordenação dos cards de métricas fiscais e alargamento do card de Apuração Final para melhor aproveitamento do layout em grade.</li>
+            <li>Correção no botão "Apagar Lançamentos": passa a remover apenas registros importados (prefixos <code>visa_</code> e <code>sim_</code>), preservando os lançamentos manuais dos fiscais.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.1.3</span>
             <span class="badge-date">28/04/2026</span>
           </div>
