@@ -108,6 +108,23 @@ async function getTodosFiscais() {
     .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
 }
 
+async function getTodosUsuarios() {
+  const snap = await window.db.collection('usuarios').get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+}
+
+async function updateUsuario(email, data) {
+  await window.db.collection('usuarios').doc(email).update({
+    ...data,
+    updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+async function deleteUsuario(email) {
+  await window.db.collection('usuarios').doc(email).delete();
+}
+
 // ── Exports ──────────────────────────────────────────────
 
 window.db_getManuais          = getManuais;
@@ -123,3 +140,6 @@ window.db_getCvsOverride      = getCvsOverride;
 window.db_setCvsOverride      = setCvsOverride;
 window.db_getUsuario          = getUsuario;
 window.db_getTodosFiscais     = getTodosFiscais;
+window.db_getTodosUsuarios    = getTodosUsuarios;
+window.db_updateUsuario       = updateUsuario;
+window.db_deleteUsuario       = deleteUsuario;

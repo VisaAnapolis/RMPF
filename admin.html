@@ -217,6 +217,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
 <script>
   let _currentUserEmail = '';
@@ -248,8 +249,7 @@
 
   // ── Load all users ────────────────────────────────────────────
   async function carregarUsuarios() {
-    const snap = await firebase.firestore().collection('usuarios').get();
-    _todosUsuarios = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _todosUsuarios = await db_getTodosUsuarios();
     renderEstatisticas();
     renderPills();
     renderTabela();
@@ -450,7 +450,7 @@
     if (email === _currentUserEmail) return;
 
     try {
-      await firebase.firestore().collection('usuarios').doc(email).update({ nome, grupo, status });
+      await db_updateUsuario(email, { nome, grupo, status });
       // Update local cache
       const idx = _todosUsuarios.findIndex(u => (u.email || u.id) === email);
       if (idx >= 0) Object.assign(_todosUsuarios[idx], { nome, grupo, status });
@@ -469,7 +469,7 @@
     if (email === _currentUserEmail) return;
     if (!confirm(`Confirmar exclusão do usuário "${email}"? Esta ação não pode ser desfeita.`)) return;
     try {
-      await firebase.firestore().collection('usuarios').doc(email).delete();
+      await db_deleteUsuario(email);
       _todosUsuarios = _todosUsuarios.filter(u => (u.email || u.id) !== email);
       document.getElementById('modal-edit').style.display = 'none';
       document.getElementById('alert-area').innerHTML = alerta('ok', `Usuário <strong>${escHtml(email)}</strong> excluído.`);
@@ -527,6 +527,8 @@
       await carregarUsuarios();
     } catch(e) {
       document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao carregar usuários: ' + escHtml(e.message));
+      document.getElementById('tbody-usuarios').innerHTML =
+        '<tr class="empty-row"><td colspan="8">Erro ao carregar dados. Tente recarregar a página.</td></tr>';
     }
   });
 </script>
