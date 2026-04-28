@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>RMPF — Login</title>
   <link rel="stylesheet" href="css/rmpf.css">
+  <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
   <!-- Loading overlay shown while checking auth -->
@@ -43,6 +44,79 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
   <script src="js/firebase-config.js"></script>
+  <script src="js/version.js"></script>
+  <script>
+    // ── CONTROLE DE VERSÃO E ATUALIZAÇÃO FORÇADA ──────────────────────────────
+    // APP_VERSION é definido em js/version.js
+    const VERSION_KEY = 'rmpf_app_version';
+    const savedVersion = localStorage.getItem(VERSION_KEY);
+
+    window.__rmpfVersionReloading = false;
+
+    if (savedVersion !== APP_VERSION) {
+      console.log('\uD83D\uDD04 Atualizando de ' + (savedVersion || 'antiga') + ' para ' + APP_VERSION);
+      window.__rmpfVersionReloading = true;
+
+      // Limpa localStorage (exceto chaves do Firebase e a própria chave de versão)
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (!key.startsWith('firebase:') && key !== VERSION_KEY) keysToRemove.push(key);
+      }
+      keysToRemove.forEach(function (key) { localStorage.removeItem(key); });
+      localStorage.setItem(VERSION_KEY, APP_VERSION);
+
+      // Desregistra todos os Service Workers antigos e limpa caches
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          const unregisterAll = registrations.map(function (reg) {
+            console.log('[SW] Desregistrando: ' + reg.scope);
+            return reg.unregister();
+          });
+          Promise.all(unregisterAll).then(function () {
+            console.log('[SW] Todos os Service Workers desregistrados. Recarregando...');
+            if ('caches' in window) {
+              caches.keys().then(function (cacheNames) {
+                return Promise.all(cacheNames.map(function (name) { return caches.delete(name); }));
+              }).then(function () { location.reload(true); });
+            } else {
+              location.reload(true);
+            }
+          });
+        });
+      } else {
+        location.reload(true);
+      }
+    }
+
+    // ── VERIFICAÇÃO PERIÓDICA DE ATUALIZAÇÃO ──────────────────────────────────
+    async function checkVersionUpdate() {
+      try {
+        const resp = await fetch('./index.html?t=' + Date.now());
+        if (!resp.ok) return;
+        const html = await resp.text();
+        const match = html.match(/APP_VERSION\s*=\s*['"]?([\d.]+)['"]?/);
+        if (match && match[1] !== APP_VERSION) {
+          console.log('\uD83D\uDD04 [VersionCheck] Nova versão detectada: ' + match[1] + '. Forçando atualização...');
+          localStorage.setItem(VERSION_KEY, match[1]);
+          location.reload(true);
+        }
+      } catch (e) {
+        console.warn('[VersionCheck] Falha ao verificar versão:', e);
+      }
+    }
+    setInterval(checkVersionUpdate, 900000); // verifica a cada 15 min
+    setTimeout(checkVersionUpdate, 300000);  // verifica 5 min após abrir
+
+    // ── REGISTRO DO SERVICE WORKER ─────────────────────────────────────────────
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(function (reg) { console.log('[SW] Registrado:', reg.scope); })
+          .catch(function (err) { console.warn('[SW] Falha no registro:', err); });
+      });
+    }
+  </script>
   <script>
     const overlay    = document.getElementById('loading-overlay');
     const loginPage  = document.getElementById('login-page');

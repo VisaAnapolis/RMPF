@@ -1,0 +1,13 @@
+{
+  "name": "RMPF — Produtividade Fiscal",
+  "short_name": "RMPF",
+  "start_url": "/RMPF/",
+  "scope": "/RMPF/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#004aad",
+  "icons": [
+    { "src": "icons/rmpf-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/rmpf-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

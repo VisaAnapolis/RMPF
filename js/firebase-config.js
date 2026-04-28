@@ -22,5 +22,3 @@ window.db           = firebase.firestore();
 window.auth         = firebase.auth();
 window.googleProvider = new firebase.auth.GoogleAuthProvider();
 window.googleProvider.setCustomParameters({ prompt: 'select_account' });
-
-window.APP_VERSION = '1.1.0';
