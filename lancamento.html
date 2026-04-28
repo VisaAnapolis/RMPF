@@ -56,6 +56,15 @@
         </button>
       </div>
       <div id="import-visa-log" style="margin-top:10px"></div>
+      <div id="import-progress-wrap" class="progress-wrap" style="display:none">
+        <div class="progress-header">
+          <span class="progress-label" id="import-progress-label">Processando…</span>
+          <span class="progress-pct" id="import-progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="import-progress-fill"></div>
+        </div>
+      </div>
     </div>
 
     <div class="card" style="max-width:680px">
@@ -329,6 +338,24 @@
     document.getElementById('f-ano').addEventListener('change', atualizarBtnImportVisa);
     atualizarBtnImportVisa();
 
+    const progressWrap  = document.getElementById('import-progress-wrap');
+    const progressLabel = document.getElementById('import-progress-label');
+    const progressPct   = document.getElementById('import-progress-pct');
+    const progressFill  = document.getElementById('import-progress-fill');
+
+    function mostrarProgresso(atual, total) {
+      if (!total) return;
+      progressWrap.style.display = '';
+      const pct = Math.round((atual / total) * 100);
+      progressFill.style.width  = pct + '%';
+      progressPct.textContent   = pct + '%';
+      progressLabel.textContent = `Processando inspeção ${atual} de ${total}…`;
+    }
+    function ocultarProgresso() {
+      progressWrap.style.display = 'none';
+      progressFill.style.width   = '0%';
+    }
+
     document.getElementById('btn-import-visa').addEventListener('click', async () => {
       const mes    = Number(document.getElementById('f-mes').value);
       const ano    = Number(document.getElementById('f-ano').value);
@@ -336,6 +363,7 @@
       const btn    = document.getElementById('btn-import-visa');
       btn.disabled = true;
       logEl.innerHTML = '';
+      ocultarProgresso();
       const msgs = [];
       const onProgress = (msg, type) => {
         msgs.push(alerta(type, msg));
@@ -343,11 +371,12 @@
       };
       try {
         const allFiscais = await db_getTodosFiscais();
-        await importarInspecoesVISA({ fiscalEmail: user.email, mes, ano, allFiscais, onProgress });
+        await importarInspecoesVISA({ fiscalEmail: user.email, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
       } catch(e) {
         logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
       } finally {
         btn.disabled = !visaMesAberto(mes, ano);
+        ocultarProgresso();
       }
     });
 
