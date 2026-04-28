@@ -171,10 +171,10 @@
     }
   }
 
-  // Populate tipo select
+  // Populate tipo select (excludes VISA-CSV-only types)
   function buildTipoSelect() {
     const sel = document.getElementById('f-tipo');
-    TIPOS_ATIVIDADE.forEach(t => {
+    TIPOS_ATIVIDADE.filter(t => !t.somenteCsv).forEach(t => {
       const o = document.createElement('option');
       o.value = t.id; o.textContent = `[${t.codigo}] ${t.nome}`;
       sel.appendChild(o);
@@ -247,12 +247,18 @@
     const ano     = Number(document.getElementById('f-ano').value);
 
     if (!tipoId)  { showAlert('warn', 'Selecione o tipo de atividade.'); return; }
+
+    const tipo    = TIPOS_ATIVIDADE.find(t => t.id === tipoId);
+    if (tipo && tipo.somenteCsv) {
+      showAlert('warn', `O tipo <strong>[${tipo.codigo}] ${tipo.nome}</strong> só pode ser importado via CSV do VISA e não pode ser lançado manualmente.`);
+      return;
+    }
+
     if (!itemNum) { showAlert('warn', 'Selecione o item de pontuação.'); return; }
     if (!data)    { showAlert('warn', 'Informe a data da atividade.'); return; }
     if (!desc)    { showAlert('warn', 'Informe uma descrição.'); return; }
     if (pontos === '') { showAlert('warn', 'Informe os pontos.'); return; }
 
-    const tipo    = TIPOS_ATIVIDADE.find(t => t.id === tipoId);
     const tabRow  = TABELA_PONTUACAO.find(r => r.item === itemNum);
     const user    = window.currentUser;
 
