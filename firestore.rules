@@ -60,6 +60,13 @@ service cloud.firestore {
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
     }
 
+    // CNAE Complexidade: qualquer autenticado lê; somente Administrador escreve (seed)
+    match /cnae_complexidade/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+    }
+
     // Qualquer outra coleção: bloqueado por padrão
     match /{document=**} {
       allow read, write: if false;

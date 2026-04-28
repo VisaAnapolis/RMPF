@@ -127,8 +127,14 @@ async function deleteUsuario(email) {
 
 // ── CNAE Complexidade ─────────────────────────────────────
 
+// Sanitiza o código CNAE para uso como ID de documento no Firestore.
+// A barra '/' é interpretada como separador de caminho — substituímos por '_'.
+function _cnaeDocId(subclasse) {
+  return String(subclasse).replace(/\//g, '_');
+}
+
 async function getCNAEComplexidade(subclasse) {
-  const snap = await window.db.collection('cnae_complexidade').doc(subclasse).get();
+  const snap = await window.db.collection('cnae_complexidade').doc(_cnaeDocId(subclasse)).get();
   return snap.exists ? snap.data() : null;
 }
 
@@ -149,7 +155,7 @@ async function seedCNAEComplexidade(rows) {
       row['Denominação'] || row['Denominacao'] || row['denominacao'] ||
       row['Atividade'] || row['atividade'] || ''
     ).replace(/"/g, '').trim();
-    const ref = window.db.collection('cnae_complexidade').doc(sub);
+    const ref = window.db.collection('cnae_complexidade').doc(_cnaeDocId(sub));
     batch.set(ref, {
       subclasse: sub,
       complexidade,
