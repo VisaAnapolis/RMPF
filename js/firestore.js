@@ -194,6 +194,33 @@ async function deleteManuaisTodosMes(mes, ano) {
   return count;
 }
 
+// ── Delete only imported (VISA/SIM) manuais for a month ──
+// Lançamentos manuais feitos pelos fiscais NÃO são apagados.
+// Identificação: IDs de importação sempre começam com "visa_" ou "sim_".
+
+async function deleteImportadosMes(mes, ano) {
+  const snap = await window.db.collection('manuais')
+    .where('mes', '==', Number(mes))
+    .where('ano', '==', Number(ano))
+    .get();
+  const importados = snap.docs.filter(
+    d => d.id.startsWith('visa_') || d.id.startsWith('sim_')
+  );
+  const BATCH_SIZE = 499;
+  let batch = window.db.batch();
+  let count = 0;
+  for (const doc of importados) {
+    batch.delete(doc.ref);
+    count++;
+    if (count % BATCH_SIZE === 0) {
+      await batch.commit();
+      batch = window.db.batch();
+    }
+  }
+  if (count % BATCH_SIZE !== 0 && count > 0) await batch.commit();
+  return count;
+}
+
 // ── VISA Manuais (importados do CSV) ─────────────────────
 
 function _visaDocId(visaControle, fiscalEmail) {
@@ -213,6 +240,7 @@ async function upsertVISAManual(visaControle, fiscalEmail, data, existingId, isN
   if (isNew) {
     await ref.set({
       ...data,
+      origem:      'visa',
       fiscal_email: fiscalEmail,
       created_at: firebase.firestore.FieldValue.serverTimestamp(),
       updated_at: firebase.firestore.FieldValue.serverTimestamp(),
@@ -283,6 +311,7 @@ async function upsertSIMManual(osNum, fiscalEmail, data, existingId, isNew) {
   if (isNew) {
     await ref.set({
       ...data,
+      origem:      'sim',
       fiscal_email: fiscalEmail,
       created_at: firebase.firestore.FieldValue.serverTimestamp(),
       updated_at: firebase.firestore.FieldValue.serverTimestamp(),
@@ -342,6 +371,7 @@ window.db_createManual        = createManual;
 window.db_updateManual        = updateManual;
 window.db_deleteManual        = deleteManual;
 window.db_deleteManuaisTodosMes = deleteManuaisTodosMes;
+window.db_deleteImportadosMes   = deleteImportadosMes;
 window.db_getOcorrencias      = getOcorrencias;
 window.db_getOcorrenciasTodas = getOcorrenciasTodas;
 window.db_createOcorrencia    = createOcorrencia;

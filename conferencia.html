@@ -61,8 +61,8 @@
         📥 Importar SIM — Todos os Fiscais
       </button>
       <button class="btn btn-danger btn-sm" id="btn-apagar-todos" type="button"
-              style="display:none" title="Apagar todos os lançamentos do mês (inclui homologados)">
-        🗑️ Apagar Todos os Lançamentos
+              style="display:none" title="Apagar lançamentos importados (VISA e SIM) do mês — lançamentos manuais dos fiscais NÃO são apagados">
+        🗑️ Apagar Lançamentos Importados (VISA e SIM)
       </button>
     </div>
 
@@ -493,17 +493,17 @@
       const ano = Number(document.getElementById('sel-ano').value);
       const selMesEl2 = document.getElementById('sel-mes');
       const mesNome = selMesEl2.options[selMesEl2.selectedIndex]?.text || mes;
-      if (!confirm(`⚠️ Apagar TODOS os lançamentos de ${mesNome}/${ano}?\n\nEsta ação é IRREVERSÍVEL e inclui lançamentos já homologados.`)) return;
-      if (!confirm(`Confirmação final: apagar TODOS os lançamentos de ${mesNome}/${ano}, incluindo os homologados?`)) return;
+      if (!confirm(`⚠️ Apagar lançamentos importados (VISA e SIM) de ${mesNome}/${ano}?\n\nLançamentos manuais dos fiscais NÃO serão apagados.\nEsta ação é IRREVERSÍVEL.`)) return;
+      if (!confirm(`Confirmação final: apagar lançamentos importados (VISA e SIM) de ${mesNome}/${ano}?`)) return;
       const logEl = document.getElementById('import-visa-log');
       btnApagarTodos.disabled = true;
-      logEl.innerHTML = alerta('info', '🗑️ Apagando lançamentos…');
+      logEl.innerHTML = alerta('info', '🗑️ Apagando lançamentos importados…');
       let lockAcquired = false;
       try {
         await window.db_acquireVisaImportLock(mes, ano, _user.email, _user.nome || _user.email);
         lockAcquired = true;
-        const total = await db_deleteManuaisTodosMes(mes, ano);
-        logEl.innerHTML = alerta('ok', `✅ ${total} lançamento(s) apagado(s) em ${mesNome}/${ano}.`);
+        const total = await db_deleteImportadosMes(mes, ano);
+        logEl.innerHTML = alerta('ok', `✅ ${total} lançamento(s) importado(s) apagado(s) em ${mesNome}/${ano}.`);
         loadConferencia();
       } catch(e) {
         logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar: ' + escHtml(e.message));
