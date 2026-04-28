@@ -711,8 +711,74 @@ table.rmpf-table {
   }
   .page-title { font-size: 1.1rem; }
 }
+@media (max-width: 600px) {
+  /* Card-stack layout for tables on small screens */
+  .rmpf-table thead { display: none; }
+
+  .rmpf-table tbody tr {
+    display: block;
+    background: var(--branco);
+    border: 1px solid var(--cinzaL);
+    border-radius: var(--radius);
+    margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+  .rmpf-table tbody tr:hover { background: var(--branco); }
+
+  .rmpf-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--cinzaL);
+    text-align: right;
+    gap: 8px;
+  }
+  .rmpf-table tbody td:last-child { border-bottom: none; }
+  .rmpf-table tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    color: var(--cinzaT);
+    text-align: left;
+    flex-shrink: 0;
+  }
+  .rmpf-table tbody td.td-num { text-align: right; }
+  .rmpf-table tbody td.td-center { justify-content: space-between; }
+
+  /* Actions cell: wrap buttons naturally */
+  .rmpf-table tbody td.nao-imprimir {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    border-bottom: none;
+  }
+
+  /* Empty/spinner row stays centered */
+  .rmpf-table .empty-row { display: table-row; }
+  .rmpf-table .empty-row td {
+    display: table-cell;
+    text-align: center;
+    padding: 32px;
+  }
+}
+
 @media (max-width: 480px) {
   .metrics-grid { grid-template-columns: 1fr 1fr; }
   .login-card { padding: 28px 20px; }
   .btn-lg { padding: 10px 16px; }
+
+  /* Competência selector stacks vertically */
+  .comp-selector {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .comp-selector select,
+  .comp-selector .btn {
+    width: 100%;
+    max-width: none;
+  }
 }
