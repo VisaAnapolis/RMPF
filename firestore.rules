@@ -74,6 +74,12 @@ service cloud.firestore {
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
     }
 
+    // Lock de importação VISA: qualquer autenticado lê, cria, atualiza e apaga.
+    // A exclusividade é garantida por transação no cliente — a rule apenas abre o acesso.
+    match /visa_import_locks/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
     // Qualquer outra coleção: bloqueado por padrão
     match /{document=**} {
       allow read, write: if false;

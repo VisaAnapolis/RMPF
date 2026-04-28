@@ -371,7 +371,7 @@
       };
       try {
         const allFiscais = await db_getTodosFiscais();
-        await importarInspecoesVISA({ fiscalEmail: user.email, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
+        await importarInspecoesVISA({ fiscalEmail: user.email, fiscalNome: user.nome || user.email, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
       } catch(e) {
         logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
       } finally {

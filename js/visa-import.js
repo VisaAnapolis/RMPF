@@ -80,7 +80,7 @@ function visaDataToISO(dataStr) {
   return null;
 }
 
-async function importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProgress, onProgressBar }) {
+async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFiscais, onProgress, onProgressBar }) {
   mes = Number(mes); ano = Number(ano);
 
   if (!visaMesAberto(mes, ano)) {
@@ -88,135 +88,142 @@ async function importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProg
     return { criados: 0, atualizados: 0, ignorados: 0, erros: 0 };
   }
 
-  onProgress('🔄 Buscando CSV de inspeções do VISA...', 'info');
+  // Acquire distributed lock — throws if another import is already running for this month
+  await window.db_acquireVisaImportLock(mes, ano, fiscalEmail, fiscalNome || fiscalEmail);
 
-  const resp = await fetch(VISA_CSV_URL + '?v=' + Date.now());
-  if (!resp.ok) throw new Error('Não foi possível acessar o CSV do VISA: HTTP ' + resp.status);
-  const text = await resp.text();
+  try {
+    onProgress('🔄 Buscando CSV de inspeções do VISA...', 'info');
 
-  const parsed = Papa.parse(text, {
-    header: true,
-    delimiter: ';',
-    skipEmptyLines: true,
-    transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
-  });
-  const rows = parsed.data;
+    const resp = await fetch(VISA_CSV_URL + '?v=' + Date.now());
+    if (!resp.ok) throw new Error('Não foi possível acessar o CSV do VISA: HTTP ' + resp.status);
+    const text = await resp.text();
 
-  const fiscalMap = new Map();
-  for (const f of (allFiscais || [])) {
-    if (f.nome) fiscalMap.set(normNomeVisa(f.nome), f.email || f.id);
-  }
+    const parsed = Papa.parse(text, {
+      header: true,
+      delimiter: ';',
+      skipEmptyLines: true,
+      transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
+    });
+    const rows = parsed.data;
 
-  const mesStr = String(mes).padStart(2, '0');
-  const anoStr = String(ano);
-  const rowsFiltradas = rows.filter(r => {
-    const rawDt = String(r['DT_VISITA'] || '').replace(/"/g, '').trim();
-    const dt = visaDataToISO(rawDt);
-    return dt && dt.startsWith(`${anoStr}-${mesStr}-`);
-  });
-
-  onProgress(`📋 ${rowsFiltradas.length} inspeção(ões) encontrada(s) para ${mesStr}/${anoStr}.`, 'info');
-
-  let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
-  const cnaeCache = new Map();
-
-  for (let idx = 0; idx < rowsFiltradas.length; idx++) {
-    const row = rowsFiltradas[idx];
-    if (onProgressBar) onProgressBar(idx + 1, rowsFiltradas.length);
-
-    const controleVisa = String(row['CONTROLE'] || '').replace(/"/g, '').trim();
-    if (!controleVisa) continue;
-
-    const subclasse = String(row['Atividade'] || '').replace(/"/g, '').trim();
-    let cnaeInfo = { complexidade: 'Média', descricao: '' };
-    if (subclasse) {
-      if (!cnaeCache.has(subclasse)) {
-        try {
-          const info = await window.db_getCNAEComplexidade(subclasse);
-          cnaeCache.set(subclasse, info || { complexidade: 'Média', descricao: subclasse });
-        } catch(_) {
-          cnaeCache.set(subclasse, { complexidade: 'Média', descricao: subclasse });
-        }
-      }
-      cnaeInfo = cnaeCache.get(subclasse) || { complexidade: 'Média', descricao: subclasse };
+    const fiscalMap = new Map();
+    for (const f of (allFiscais || [])) {
+      if (f.nome) fiscalMap.set(normNomeVisa(f.nome), f.email || f.id);
     }
 
-    const tipoRaw = String(row['tipo'] || row['TIPO'] || row['Tipo'] || '').replace(/"/g, '').trim();
-    const tipoInfo = resolverTipoVisa(tipoRaw, cnaeInfo.complexidade);
+    const mesStr = String(mes).padStart(2, '0');
+    const anoStr = String(ano);
+    const rowsFiltradas = rows.filter(r => {
+      const rawDt = String(r['DT_VISITA'] || '').replace(/"/g, '').trim();
+      const dt = visaDataToISO(rawDt);
+      return dt && dt.startsWith(`${anoStr}-${mesStr}-`);
+    });
 
-    const dataISO = visaDataToISO(String(row['DT_VISITA'] || '').replace(/"/g, '').trim());
-    const os = String(row['OS'] || row['NUMERO'] || '').replace(/"/g, '').trim();
+    onProgress(`📋 ${rowsFiltradas.length} inspeção(ões) encontrada(s) para ${mesStr}/${anoStr}.`, 'info');
 
-    const descParts = [tipoInfo.descLabel];
-    if (os) descParts.push('OS ' + os);
-    if (subclasse) descParts.push('CNAE ' + subclasse);
-    if (cnaeInfo.descricao && cnaeInfo.descricao !== subclasse) descParts.push(cnaeInfo.descricao);
-    const descricao = descParts.join(' — ');
+    let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
+    const cnaeCache = new Map();
 
-    const fiscaisCsv = [
-      String(row['Fiscal1'] || '').replace(/"/g, '').trim(),
-      String(row['Fiscal2'] || '').replace(/"/g, '').trim(),
-      String(row['Fiscal3'] || '').replace(/"/g, '').trim(),
-    ].filter(Boolean);
+    for (let idx = 0; idx < rowsFiltradas.length; idx++) {
+      const row = rowsFiltradas[idx];
+      if (onProgressBar) onProgressBar(idx + 1, rowsFiltradas.length);
 
-    for (const nomeFiscalCsv of fiscaisCsv) {
-      const emailFiscal = fiscalMap.get(normNomeVisa(nomeFiscalCsv));
-      if (!emailFiscal) continue;
-      if (fiscalEmail && emailFiscal !== fiscalEmail) continue;
+      const controleVisa = String(row['CONTROLE'] || '').replace(/"/g, '').trim();
+      if (!controleVisa) continue;
 
-      try {
-        const existing = await window.db_getVISAManual(controleVisa, emailFiscal);
-
-        if (existing) {
-          if (existing.status === 'aceito' || existing.status === 'fechado') {
-            ignorados++;
-            onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado, ignorado.`, 'warn');
-            continue;
+      const subclasse = String(row['Atividade'] || '').replace(/"/g, '').trim();
+      let cnaeInfo = { complexidade: 'Média', descricao: '' };
+      if (subclasse) {
+        if (!cnaeCache.has(subclasse)) {
+          try {
+            const info = await window.db_getCNAEComplexidade(subclasse);
+            cnaeCache.set(subclasse, info || { complexidade: 'Média', descricao: subclasse });
+          } catch(_) {
+            cnaeCache.set(subclasse, { complexidade: 'Média', descricao: subclasse });
           }
-          await window.db_upsertVISAManual(controleVisa, emailFiscal, {
-            fiscal_nome: nomeFiscalCsv,
-            mes, ano, data: dataISO,
-            tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
-            tipo_nome: tipoInfo.tipo_nome,
-            item_pontuacao: tipoInfo.item_pontuacao,
-            complexidade: cnaeInfo.complexidade,
-            pontos: tipoInfo.pontos, descricao,
-            origem: 'visa_csv',
-            visa_controle: controleVisa,
-          }, existing.id, false);
-          atualizados++;
-        } else {
-          await window.db_upsertVISAManual(controleVisa, emailFiscal, {
-            controle: 'VISA-' + controleVisa,
-            fiscal_email: emailFiscal,
-            fiscal_nome: nomeFiscalCsv,
-            mes, ano, data: dataISO,
-            tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
-            tipo_nome: tipoInfo.tipo_nome,
-            item_pontuacao: tipoInfo.item_pontuacao,
-            complexidade: cnaeInfo.complexidade,
-            pontos: tipoInfo.pontos, descricao,
-            status: 'enviado',
-            origem: 'visa_csv',
-            visa_controle: controleVisa,
-          }, null, true);
-          criados++;
         }
-      } catch(e) {
-        erros++;
-        onProgress('🚨 Erro CONTROLE ' + controleVisa + ': ' + e.message, 'danger');
+        cnaeInfo = cnaeCache.get(subclasse) || { complexidade: 'Média', descricao: subclasse };
+      }
+
+      const tipoRaw = String(row['tipo'] || row['TIPO'] || row['Tipo'] || '').replace(/"/g, '').trim();
+      const tipoInfo = resolverTipoVisa(tipoRaw, cnaeInfo.complexidade);
+
+      const dataISO = visaDataToISO(String(row['DT_VISITA'] || '').replace(/"/g, '').trim());
+      const os = String(row['OS'] || row['NUMERO'] || '').replace(/"/g, '').trim();
+
+      const descParts = [tipoInfo.descLabel];
+      if (os) descParts.push('OS ' + os);
+      if (subclasse) descParts.push('CNAE ' + subclasse);
+      if (cnaeInfo.descricao && cnaeInfo.descricao !== subclasse) descParts.push(cnaeInfo.descricao);
+      const descricao = descParts.join(' — ');
+
+      const fiscaisCsv = [
+        String(row['Fiscal1'] || '').replace(/"/g, '').trim(),
+        String(row['Fiscal2'] || '').replace(/"/g, '').trim(),
+        String(row['Fiscal3'] || '').replace(/"/g, '').trim(),
+      ].filter(Boolean);
+
+      for (const nomeFiscalCsv of fiscaisCsv) {
+        const emailFiscal = fiscalMap.get(normNomeVisa(nomeFiscalCsv));
+        if (!emailFiscal) continue;
+        if (fiscalEmail && emailFiscal !== fiscalEmail) continue;
+
+        try {
+          const existing = await window.db_getVISAManual(controleVisa, emailFiscal);
+
+          if (existing) {
+            if (existing.status === 'aceito' || existing.status === 'fechado') {
+              ignorados++;
+              onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado, ignorado.`, 'warn');
+              continue;
+            }
+            await window.db_upsertVISAManual(controleVisa, emailFiscal, {
+              fiscal_nome: nomeFiscalCsv,
+              mes, ano, data: dataISO,
+              tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
+              tipo_nome: tipoInfo.tipo_nome,
+              item_pontuacao: tipoInfo.item_pontuacao,
+              complexidade: cnaeInfo.complexidade,
+              pontos: tipoInfo.pontos, descricao,
+              origem: 'visa_csv',
+              visa_controle: controleVisa,
+            }, existing.id, false);
+            atualizados++;
+          } else {
+            await window.db_upsertVISAManual(controleVisa, emailFiscal, {
+              controle: 'VISA-' + controleVisa,
+              fiscal_email: emailFiscal,
+              fiscal_nome: nomeFiscalCsv,
+              mes, ano, data: dataISO,
+              tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
+              tipo_nome: tipoInfo.tipo_nome,
+              item_pontuacao: tipoInfo.item_pontuacao,
+              complexidade: cnaeInfo.complexidade,
+              pontos: tipoInfo.pontos, descricao,
+              status: 'enviado',
+              origem: 'visa_csv',
+              visa_controle: controleVisa,
+            }, null, true);
+            criados++;
+          }
+        } catch(e) {
+          erros++;
+          onProgress('🚨 Erro CONTROLE ' + controleVisa + ': ' + e.message, 'danger');
+        }
       }
     }
-  }
 
-  onProgress(
-    `✅ Importação concluída: <strong>${criados}</strong> criado(s), ` +
-    `<strong>${atualizados}</strong> atualizado(s), ` +
-    `<strong>${ignorados}</strong> ignorado(s), ` +
-    `<strong>${erros}</strong> erro(s).`,
-    erros > 0 ? 'warn' : 'ok'
-  );
-  return { criados, atualizados, ignorados, erros };
+    onProgress(
+      `✅ Importação concluída: <strong>${criados}</strong> criado(s), ` +
+      `<strong>${atualizados}</strong> atualizado(s), ` +
+      `<strong>${ignorados}</strong> ignorado(s), ` +
+      `<strong>${erros}</strong> erro(s).`,
+      erros > 0 ? 'warn' : 'ok'
+    );
+    return { criados, atualizados, ignorados, erros };
+  } finally {
+    await window.db_releaseVisaImportLock(mes, ano);
+  }
 }
 
 window.visaMesAberto         = visaMesAberto;

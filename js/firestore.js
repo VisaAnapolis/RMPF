@@ -226,6 +226,44 @@ async function upsertVISAManual(visaControle, fiscalEmail, data, existingId, isN
   return id;
 }
 
+// ── VISA Import Lock ─────────────────────────────────────
+// Uses a Firestore transaction so the check+set is atomic.
+// Lock document: visa_import_locks/{ano}-{mes}
+// A stale lock (> 30 min) is automatically overridden as a safety net.
+
+function _visaLockDocId(mes, ano) {
+  return `${ano}-${String(mes).padStart(2, '0')}`;
+}
+
+async function acquireVisaImportLock(mes, ano, fiscalEmail, fiscalNome) {
+  const docId = _visaLockDocId(mes, ano);
+  const ref = window.db.collection('visa_import_locks').doc(docId);
+  await window.db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (snap.exists) {
+      const data = snap.data();
+      const lockedAt = data.locked_at?.toMillis?.() || 0;
+      const ageMs = Date.now() - lockedAt;
+      const STALE_MS = 30 * 60 * 1000; // 30 min safety net
+      if (ageMs < STALE_MS) {
+        throw new Error(
+          `Importação já em andamento por ${data.locked_by_nome || data.locked_by}. Aguarde a conclusão.`
+        );
+      }
+    }
+    tx.set(ref, {
+      locked_by:      fiscalEmail,
+      locked_by_nome: fiscalNome || fiscalEmail,
+      locked_at:      firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+}
+
+async function releaseVisaImportLock(mes, ano) {
+  const docId = _visaLockDocId(mes, ano);
+  await window.db.collection('visa_import_locks').doc(docId).delete();
+}
+
 // ── Exports ──────────────────────────────────────────────
 
 window.db_getManuais          = getManuais;
@@ -249,3 +287,5 @@ window.db_getCNAEComplexidade  = getCNAEComplexidade;
 window.db_seedCNAEComplexidade = seedCNAEComplexidade;
 window.db_getVISAManual        = getVISAManual;
 window.db_upsertVISAManual     = upsertVISAManual;
+window.db_acquireVisaImportLock = acquireVisaImportLock;
+window.db_releaseVisaImportLock = releaseVisaImportLock;
