@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon"             href="icons/apple-touch-icon.png">
   <link rel="manifest"                     href="manifest.webmanifest">
   <meta name="theme-color" content="#1565c0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
 <div id="loading-overlay" class="loading-overlay">
@@ -43,7 +44,13 @@
       <select class="form-control" id="sel-mes" style="max-width:140px"></select>
       <select class="form-control" id="sel-ano" style="max-width:90px"></select>
       <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
+      <button class="btn btn-outline btn-sm" id="btn-import-visa" type="button"
+              style="display:none" disabled title="">
+        📥 Importar Inspeções do CSV
+      </button>
     </div>
+
+    <div id="import-visa-log" style="margin-bottom:8px"></div>
 
     <!-- Metric summary -->
     <div class="metrics-grid" id="metrics-wrap" style="display:none">
@@ -131,6 +138,7 @@
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
+<script src="js/visa-import.js"></script>
 <script>
   let _user    = null;
   let _manuais = [];
@@ -230,7 +238,9 @@
     tbody.innerHTML = _manuais.map(m => {
       const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
       let acoes = '—';
-      if (isAdmin) {
+      if (m.origem === 'visa_csv' && !isAdmin) {
+        acoes = `<span class="badge badge-cvs" title="Importado do VISA">CVS</span>`;
+      } else if (isAdmin) {
         if (m.status === 'enviado') {
           acoes = `<button class="btn btn-outline btn-sm" onclick="abrirHom('${m.id}')">📝 Homologar</button>`;
         } else if (m.status === 'aceito' || m.status === 'recusado') {
@@ -315,8 +325,57 @@
       await loadFiscais();
     }
 
+    // ── Importação VISA (admin/administrativo) ───────────
+    const btnImportVisa = document.getElementById('btn-import-visa');
+    if (_grupo !== 'Fiscal') {
+      btnImportVisa.style.display = '';
+    }
+
+    function atualizarBtnImportConf() {
+      const mes = Number(document.getElementById('sel-mes').value);
+      const ano = Number(document.getElementById('sel-ano').value);
+      if (!visaMesAberto(mes, ano)) {
+        btnImportVisa.disabled = true;
+        btnImportVisa.title = 'Mês anterior a Abril/2026 — impossível importar';
+      } else {
+        btnImportVisa.disabled = false;
+        btnImportVisa.title = 'Importar inspeções do VISA para o fiscal selecionado';
+      }
+    }
+    document.getElementById('sel-mes').addEventListener('change', atualizarBtnImportConf);
+    document.getElementById('sel-ano').addEventListener('change', atualizarBtnImportConf);
+
+    btnImportVisa.addEventListener('click', async () => {
+      const fiscalEmail = document.getElementById('sel-fiscal').value;
+      const mes  = Number(document.getElementById('sel-mes').value);
+      const ano  = Number(document.getElementById('sel-ano').value);
+      if (!fiscalEmail) {
+        document.getElementById('alert-area').innerHTML = alerta('warn', 'Selecione um fiscal antes de importar.');
+        return;
+      }
+      const logEl  = document.getElementById('import-visa-log');
+      const btn    = btnImportVisa;
+      btn.disabled = true;
+      logEl.innerHTML = '';
+      const msgs = [];
+      const onProgress = (msg, type) => {
+        msgs.push(alerta(type, msg));
+        logEl.innerHTML = msgs.slice(-6).join('');
+      };
+      try {
+        const allFiscais = await db_getTodosFiscais();
+        await importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProgress });
+        loadConferencia();
+      } catch(e) {
+        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
+      } finally {
+        btn.disabled = !visaMesAberto(mes, ano);
+      }
+    });
+
     buildMesSelect('sel-mes');
     buildAnoSelect('sel-ano');
+    atualizarBtnImportConf();
 
     // Pre-fill from URL params
     const params = new URLSearchParams(location.search);

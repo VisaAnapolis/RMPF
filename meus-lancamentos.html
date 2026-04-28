@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon"             href="icons/apple-touch-icon.png">
   <link rel="manifest"                     href="manifest.webmanifest">
   <meta name="theme-color" content="#1565c0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
 <div id="loading-overlay" class="loading-overlay">
@@ -46,9 +47,15 @@
       <select class="form-control" id="sel-mes" style="max-width:140px"></select>
       <select class="form-control" id="sel-ano" style="max-width:90px"></select>
       <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
+      <button class="btn btn-outline btn-sm" id="btn-import-visa" type="button" disabled
+              title="Selecione a competência">
+        📥 Importar Inspeções do CSV
+      </button>
       <span class="toolbar-spacer"></span>
       <a href="lancamento.html" class="btn btn-primary btn-sm">+ Nova Atividade</a>
     </div>
+
+    <div id="import-visa-log" style="margin-bottom:8px"></div>
 
     <div class="card">
       <div class="table-wrap">
@@ -126,6 +133,7 @@
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
+<script src="js/visa-import.js"></script>
 <script>
   let _user = null;
   let _manuais = [];
@@ -179,7 +187,9 @@
     tbody.innerHTML = _manuais.map(m => {
       const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
       let acoes = '';
-      if (m.status === 'rascunho') {
+      if (m.origem === 'visa_csv') {
+        acoes = `<span class="badge badge-cvs" title="Importado do VISA — somente leitura">CVS</span>`;
+      } else if (m.status === 'rascunho') {
         acoes = `<button class="btn btn-outline btn-sm" onclick="enviarManual('${m.id}')">📤 Enviar</button>
                  <button class="btn btn-default btn-sm" onclick="editarManual('${m.id}')">✏️</button>
                  <button class="btn btn-danger btn-sm" onclick="excluirManual('${m.id}')">🗑️</button>`;
@@ -276,6 +286,46 @@
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     buildMesSelect(); buildAnoSelect(); loadManuais();
+
+    // ── Importação VISA ──────────────────────────────────
+    function atualizarBtnImportVisa() {
+      const mes = Number(document.getElementById('sel-mes').value);
+      const ano = Number(document.getElementById('sel-ano').value);
+      const btn = document.getElementById('btn-import-visa');
+      if (!visaMesAberto(mes, ano)) {
+        btn.disabled = true;
+        btn.title = 'Mês anterior a Abril/2026 — impossível importar';
+      } else {
+        btn.disabled = false;
+        btn.title = 'Importar inspeções do VISA para este mês';
+      }
+    }
+    document.getElementById('sel-mes').addEventListener('change', atualizarBtnImportVisa);
+    document.getElementById('sel-ano').addEventListener('change', atualizarBtnImportVisa);
+    atualizarBtnImportVisa();
+
+    document.getElementById('btn-import-visa').addEventListener('click', async () => {
+      const mes    = Number(document.getElementById('sel-mes').value);
+      const ano    = Number(document.getElementById('sel-ano').value);
+      const logEl  = document.getElementById('import-visa-log');
+      const btn    = document.getElementById('btn-import-visa');
+      btn.disabled = true;
+      logEl.innerHTML = '';
+      const msgs = [];
+      const onProgress = (msg, type) => {
+        msgs.push(alerta(type, msg));
+        logEl.innerHTML = msgs.slice(-6).join('');
+      };
+      try {
+        const allFiscais = await db_getTodosFiscais();
+        await importarInspecoesVISA({ fiscalEmail: _user.email, mes, ano, allFiscais, onProgress });
+        loadManuais();
+      } catch(e) {
+        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
+      } finally {
+        btn.disabled = !visaMesAberto(mes, ano);
+      }
+    });
 
     document.getElementById('btn-carregar').addEventListener('click', loadManuais);
     document.getElementById('btn-logout').addEventListener('click', () => {

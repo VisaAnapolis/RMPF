@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon"             href="icons/apple-touch-icon.png">
   <link rel="manifest"                     href="manifest.webmanifest">
   <meta name="theme-color" content="#1565c0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 </head>
 <body>
 <div id="loading-overlay" class="loading-overlay">
@@ -40,6 +41,22 @@
   <main class="app-main">
     <div class="page-title">✏️ Lançar Nova Atividade</div>
     <div id="alert-area"></div>
+
+    <!-- ── Importar Inspeções do VISA ── -->
+    <div class="card" id="card-import-visa" style="max-width:680px">
+      <div class="card-title">📥 Importar Inspeções do VISA</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Busca automaticamente suas inspeções do mês selecionado no sistema VISA e cria os lançamentos
+        correspondentes. Registros já homologados não serão alterados.
+      </p>
+      <div class="btn-group">
+        <button class="btn btn-outline" id="btn-import-visa" type="button" disabled
+                title="Selecione a competência acima">
+          📥 Importar Inspeções do CSV
+        </button>
+      </div>
+      <div id="import-visa-log" style="margin-top:10px"></div>
+    </div>
 
     <div class="card" style="max-width:680px">
       <div class="card-title">📄 Dados da Atividade</div>
@@ -126,7 +143,7 @@
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
-<script>
+<script src="js/visa-import.js"></script>
   function showAlert(type, msg) {
     document.getElementById('alert-area').innerHTML = alerta(type, msg);
     window.scrollTo(0, 0);
@@ -287,6 +304,45 @@
     buildMesSelect();
     buildAnoSelect();
     buildTipoSelect();
+
+    // ── Importação VISA ──────────────────────────────────
+    function atualizarBtnImportVisa() {
+      const mes = Number(document.getElementById('f-mes').value);
+      const ano = Number(document.getElementById('f-ano').value);
+      const btn = document.getElementById('btn-import-visa');
+      if (!visaMesAberto(mes, ano)) {
+        btn.disabled = true;
+        btn.title = 'Mês anterior a Abril/2026 — impossível importar';
+      } else {
+        btn.disabled = false;
+        btn.title = 'Importar inspeções do VISA para este mês';
+      }
+    }
+    document.getElementById('f-mes').addEventListener('change', atualizarBtnImportVisa);
+    document.getElementById('f-ano').addEventListener('change', atualizarBtnImportVisa);
+    atualizarBtnImportVisa();
+
+    document.getElementById('btn-import-visa').addEventListener('click', async () => {
+      const mes    = Number(document.getElementById('f-mes').value);
+      const ano    = Number(document.getElementById('f-ano').value);
+      const logEl  = document.getElementById('import-visa-log');
+      const btn    = document.getElementById('btn-import-visa');
+      btn.disabled = true;
+      logEl.innerHTML = '';
+      const msgs = [];
+      const onProgress = (msg, type) => {
+        msgs.push(alerta(type, msg));
+        logEl.innerHTML = msgs.slice(-6).join('');
+      };
+      try {
+        const allFiscais = await db_getTodosFiscais();
+        await importarInspecoesVISA({ fiscalEmail: user.email, mes, ano, allFiscais, onProgress });
+      } catch(e) {
+        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
+      } finally {
+        btn.disabled = !visaMesAberto(mes, ano);
+      }
+    });
 
     // Default today
     document.getElementById('f-data').value = new Date().toISOString().split('T')[0];

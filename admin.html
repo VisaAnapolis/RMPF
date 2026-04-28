@@ -12,6 +12,7 @@
   <link rel="apple-touch-icon"             href="icons/apple-touch-icon.png">
   <link rel="manifest"                     href="manifest.webmanifest">
   <meta name="theme-color" content="#1565c0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
   <style>
     /* Pills   */
     .pill-group { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -123,6 +124,22 @@
         <div class="card-title">📱 Modo de Acesso</div>
         <div class="pill-group" id="pills-modo"></div>
       </div>
+    </div>
+
+    <!-- ── CNAE Complexidade — Seed ── -->
+    <div class="card" id="card-seed-cnae">
+      <div class="card-title">🧬 Tabela CNAE / Complexidade</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Copia a tabela de complexidade CNAE do VISA para o Firestore. Execute este procedimento
+        uma vez antes de usar a importação de inspeções, e repita sempre que a tabela
+        <code>cnae.csv</code> do VISA for atualizada. A operação é segura e pode ser repetida.
+      </p>
+      <div class="btn-group">
+        <button class="btn btn-outline" id="btn-seed-cnae" type="button">
+          🔄 Sincronizar CNAE com Firestore
+        </button>
+      </div>
+      <div id="seed-cnae-log" style="margin-top:12px"></div>
     </div>
 
     <!-- ── Tabela de usuários ── -->
@@ -472,6 +489,33 @@
       document.getElementById('tbody-usuarios').innerHTML =
         '<tr class="empty-row"><td colspan="8">Erro ao carregar dados. Tente recarregar a página.</td></tr>';
     }
+
+    // ── Seed CNAE ────────────────────────────────────────
+    const VISA_CNAE_URL = 'https://raw.githubusercontent.com/garrado/VISA/main/data/cnae.csv';
+    document.getElementById('btn-seed-cnae').addEventListener('click', async () => {
+      const btn   = document.getElementById('btn-seed-cnae');
+      const logEl = document.getElementById('seed-cnae-log');
+      btn.disabled = true;
+      logEl.innerHTML = alerta('info', '🔄 Buscando <code>cnae.csv</code> do VISA...');
+      try {
+        const resp = await fetch(VISA_CNAE_URL + '?v=' + Date.now());
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const text = await resp.text();
+        const parsed = Papa.parse(text, {
+          header: true,
+          delimiter: ';',
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
+        });
+        logEl.innerHTML = alerta('info', `⚙️ Gravando ${parsed.data.length} registros no Firestore…`);
+        const count = await db_seedCNAEComplexidade(parsed.data);
+        logEl.innerHTML = alerta('ok', `✅ ${count} registros CNAE sincronizados com sucesso.`);
+      } catch(e) {
+        logEl.innerHTML = alerta('danger', '🚨 Erro: ' + escHtml(e.message));
+      } finally {
+        btn.disabled = false;
+      }
+    });
   });
 </script>
 </body>
