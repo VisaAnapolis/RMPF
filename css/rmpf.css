@@ -712,7 +712,11 @@ table.rmpf-table {
   .page-title { font-size: 1.1rem; }
 }
 @media (max-width: 600px) {
-  /* Card-stack layout for tables on small screens */
+  /* Card-stack layout for tables on small screens.
+     Must convert table + tbody to display:block first so Android Chrome
+     uses viewport width (not the table-layout min-content width) for cards. */
+  table.rmpf-table { display: block; }
+  .rmpf-table tbody { display: block; }
   .rmpf-table thead { display: none; }
 
   .rmpf-table tbody tr {
@@ -758,12 +762,14 @@ table.rmpf-table {
   }
 
   /* Empty/spinner row stays centered */
-  .rmpf-table .empty-row { display: table-row; }
+  .rmpf-table .empty-row { display: block; border: none; box-shadow: none; margin-bottom: 0; }
   .rmpf-table .empty-row td {
-    display: table-cell;
+    display: block;
     text-align: center;
     padding: 32px;
+    border-bottom: none;
   }
+  .rmpf-table .empty-row td::before { display: none; }
 }
 
 @media (max-width: 480px) {
