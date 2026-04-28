@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="6" fill="#1565c0"/>
+  <rect x="2" y="8" width="28" height="17" rx="3" fill="#2e7d32"/>
+  <rect x="2" y="8" width="28" height="17" rx="3" fill="none" stroke="#a5d6a7" stroke-width="1.2"/>
+  <ellipse cx="16" cy="16.5" rx="6" ry="6" fill="#1b5e20" stroke="#a5d6a7" stroke-width="1"/>
+  <text x="16" y="20" font-family="Arial Black,Arial,sans-serif" font-size="7.5"
+        font-weight="900" fill="#f5c518" text-anchor="middle">R$</text>
+</svg>

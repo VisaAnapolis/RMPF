@@ -1,13 +1,17 @@
 {
   "name": "RMPF — Produtividade Fiscal",
   "short_name": "RMPF",
+  "description": "Relatório Mensal de Produtividade Fiscal — Vigilância Sanitária de Anápolis",
   "start_url": "/RMPF/",
   "scope": "/RMPF/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#004aad",
+  "background_color": "#002060",
+  "theme_color": "#1565c0",
   "icons": [
-    { "src": "icons/rmpf-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icons/rmpf-512.png", "sizes": "512x512", "type": "image/png" }
+    { "src": "icons/favicon-32.png",         "sizes": "32x32",   "type": "image/png" },
+    { "src": "icons/rmpf-192.png",           "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/rmpf-512.png",           "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/rmpf-512-maskable.png",  "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/favicon.svg",            "sizes": "any",     "type": "image/svg+xml" }
   ]
 }
