@@ -184,8 +184,11 @@
     const base = links.map(([href,icon,label]) =>
       `<a href="${href}" class="sidebar-link${cur===href?' active':''}"><span class="icon">${icon}</span>${label}</a>`
     ).join('');
+    const admin = grupo === 'Administrador'
+      ? `<a href="admin.html" class="sidebar-link${cur==='admin.html'?' active':''}"><span class="icon">⚙️</span>Admin</a>`
+      : '';
     const changelog = `<a href="changelog.html" class="sidebar-link${cur==='changelog.html'?' active':''}"><span class="icon">📜</span>Changelog</a>`;
-    return base + changelog;
+    return base + admin + changelog;
   }
 
   function buildSels(mesId, anoId) {
