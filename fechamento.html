@@ -41,6 +41,7 @@
     <a href="conferencia.html"class="sidebar-link"><span class="icon">🔍</span>Conferência</a>
     <a href="ocorrencias.html"class="sidebar-link"><span class="icon">📌</span>Ocorrências</a>
     <a href="fechamento.html" class="sidebar-link active"><span class="icon">🔒</span>Fechamento</a>
+    <span id="sidebar-admin-link"></span>
     <a href="changelog.html"  class="sidebar-link"><span class="icon">📜</span>Changelog</a>
   </nav>
 
@@ -333,6 +334,11 @@
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
+
+    if (user.grupo === 'Administrador') {
+      document.getElementById('sidebar-admin-link').innerHTML =
+        '<a href="admin.html" class="sidebar-link"><span class="icon">⚙️</span>Admin</a>';
+    }
 
     buildSels('sel-mes','sel-ano');
 

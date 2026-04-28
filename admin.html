@@ -205,9 +205,7 @@
       <div id="edit-alert"></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-danger" id="btn-excluir" style="margin-right:auto">🗑️ Excluir</button>
       <button class="btn btn-default" id="modal-edit-cancel">Fechar</button>
-      <button class="btn btn-primary" id="btn-salvar">💾 Salvar</button>
     </div>
   </div>
 </div>
@@ -335,7 +333,7 @@
       const ultimoAcesso = u.rmpf_ultimoLogin
         ? fmtData(u.rmpf_ultimoLogin.toDate ? u.rmpf_ultimoLogin.toDate() : new Date(u.rmpf_ultimoLogin))
         : '—';
-      const statusBadge = (u.status || '').toLowerCase() === 'ativo'
+      const statusBadge = (u.status || '').toLowerCase() !== 'inativo'
         ? '<span class="badge badge-aceito">Ativo</span>'
         : '<span class="badge badge-recusado">Inativo</span>';
       const grupoBadge = u.grupo === 'Administrador'
@@ -419,46 +417,6 @@
 
     document.getElementById('modal-edit').style.display = 'flex';
   };
-
-  // ── Salvar usuário ────────────────────────────────────────────
-  document.getElementById('btn-salvar').addEventListener('click', async () => {
-    const email  = document.getElementById('edit-email').value;
-    const grupo  = document.getElementById('edit-grupo').value;
-    const status = document.getElementById('edit-status').value;
-    const alertEl = document.getElementById('edit-alert');
-    const btn = document.getElementById('btn-salvar');
-    btn.disabled = true;
-    alertEl.innerHTML = '';
-    try {
-      await db_updateUsuario(email, { grupo, status });
-      const u = _todosUsuarios.find(x => (x.email || x.id) === email);
-      if (u) { u.grupo = grupo; u.status = status; }
-      renderEstatisticas();
-      renderTabela(document.getElementById('filtro-usuario').value);
-      alertEl.innerHTML = alerta('ok', 'Dados salvos com sucesso.');
-    } catch (e) {
-      alertEl.innerHTML = alerta('danger', 'Erro ao salvar: ' + escHtml(e.message));
-    } finally {
-      btn.disabled = false;
-    }
-  });
-
-  // ── Excluir usuário ───────────────────────────────────────────
-  document.getElementById('btn-excluir').addEventListener('click', async () => {
-    const email = document.getElementById('edit-email').value;
-    if (!confirm(`Excluir o usuário ${email}? Esta ação não pode ser desfeita.`)) return;
-    const alertEl = document.getElementById('edit-alert');
-    try {
-      await db_deleteUsuario(email);
-      _todosUsuarios = _todosUsuarios.filter(u => (u.email || u.id) !== email);
-      renderEstatisticas();
-      renderPills();
-      renderTabela(document.getElementById('filtro-usuario').value);
-      document.getElementById('modal-edit').style.display = 'none';
-    } catch (e) {
-      alertEl.innerHTML = alerta('danger', 'Erro ao excluir: ' + escHtml(e.message));
-    }
-  });
 
   // ── Event bindings ────────────────────────────────────────────
   ['modal-edit-close', 'modal-edit-cancel'].forEach(id => {
