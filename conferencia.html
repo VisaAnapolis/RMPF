@@ -357,6 +357,7 @@
       const btn    = btnImportVisa;
       btn.disabled = true;
       logEl.innerHTML = '';
+      document.getElementById('alert-area').innerHTML = '';
       const msgs = [];
       const onProgress = (msg, type) => {
         msgs.push(alerta(type, msg));
