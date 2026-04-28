@@ -12,6 +12,23 @@
   <link rel="apple-touch-icon"             href="icons/apple-touch-icon.png">
   <link rel="manifest"                     href="manifest.webmanifest">
   <meta name="theme-color" content="#1565c0">
+  <style>
+    /* Fiscal dashboard: fixed 4-col grid so Apuração Final fills the row below */
+    #view-fiscal .metrics-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .metric-card-wide {
+      grid-column: 2 / span 2;
+    }
+    @media (max-width: 768px) {
+      #view-fiscal .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .metric-card-wide { grid-column: span 2; }
+    }
+    @media (max-width: 480px) {
+      #view-fiscal .metrics-grid { grid-template-columns: 1fr 1fr; }
+      .metric-card-wide { grid-column: span 2; }
+    }
+  </style>
 </head>
 <body>
 <div id="loading-overlay" class="loading-overlay">
@@ -55,6 +72,11 @@
     <!-- Fiscal view -->
     <div id="view-fiscal" style="display:none">
       <div class="metrics-grid">
+        <div class="metric-card amar">
+          <div class="metric-label">Pts Enviados</div>
+          <div class="metric-value" id="m-env">—</div>
+          <div class="metric-desc">Aguardando homologação</div>
+        </div>
         <div class="metric-card azul">
           <div class="metric-label">PP — Pontos Positivos</div>
           <div class="metric-value" id="m-pp">—</div>
@@ -66,16 +88,11 @@
           <div class="metric-desc">Pontos negativos</div>
         </div>
         <div class="metric-card amar">
-          <div class="metric-label">Pts Enviados</div>
-          <div class="metric-value" id="m-env">—</div>
-          <div class="metric-desc">Aguardando homologação</div>
-        </div>
-        <div class="metric-card amar">
           <div class="metric-label">PV — Pontos Válidos</div>
           <div class="metric-value" id="m-pv">—</div>
           <div class="metric-desc" id="m-pv-desc">PP − PN</div>
         </div>
-        <div class="metric-card verde">
+        <div class="metric-card verde metric-card-wide">
           <div class="metric-label">Apuração Final</div>
           <div class="metric-value" id="m-apur">—</div>
           <div class="metric-desc">R$ da produtividade</div>
