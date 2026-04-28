@@ -11,7 +11,7 @@
  *    - changelog.html    → adicione entrada da nova versão
  */
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.1.1';
 
 // Expõe no objeto window para compatibilidade com guard.js e outros scripts
 window.APP_VERSION = APP_VERSION;
