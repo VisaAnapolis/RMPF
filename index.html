@@ -126,12 +126,11 @@
       alertArea.innerHTML = `<div class="alert alert-danger mb-2"><span class="alert-icon">🚨</span><div>${msg}</div></div>`;
     }
 
-    // Shared machines: never auto-redirect.
-    // Force logout so the next user can choose their own account.
-    firebase.auth().onAuthStateChanged(async (user) => {
-      if (user) {
-        try { await firebase.auth().signOut(); } catch (_) {}
-      }
+    // Shared machines: clear any existing session on page load so the next
+    // user must choose their own account.  Using a direct signOut() here
+    // (instead of onAuthStateChanged) avoids a race condition where the
+    // listener would sign-out the user who just authenticated via the popup.
+    firebase.auth().signOut().catch(() => {}).finally(() => {
       overlay.style.display = 'none';
       loginPage.style.display = 'flex';
     });
