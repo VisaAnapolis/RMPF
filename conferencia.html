@@ -265,14 +265,14 @@
         }
       }
       return `<tr>
-        <td><span class="ctrl-num">${escHtml(m.controle||'—')}</span></td>
-        <td>${fmtData(m.data)}</td>
-        <td>${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo||'—')}</td>
-        <td>${escHtml(m.descricao||'—')}</td>
-        <td class="td-num">${m.pontos??'—'}</td>
-        <td class="td-num">${m.pontos_homologado!=null?m.pontos_homologado:'—'}</td>
-        <td>${badge(m.status)}</td>
-        <td class="nao-imprimir" style="white-space:nowrap">${acoes}</td>
+        <td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle||'—')}</span></td>
+        <td data-label="Data">${fmtData(m.data)}</td>
+        <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo||'—')}</td>
+        <td data-label="Descrição">${escHtml(m.descricao||'—')}</td>
+        <td data-label="Pts Req." class="td-num">${m.pontos??'—'}</td>
+        <td data-label="Pts Hom." class="td-num">${m.pontos_homologado!=null?m.pontos_homologado:'—'}</td>
+        <td data-label="Status">${badge(m.status)}</td>
+        <td data-label="Ações" class="nao-imprimir" style="white-space:nowrap">${acoes}</td>
       </tr>`;
     }).join('');
   }
