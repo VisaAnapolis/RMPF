@@ -461,13 +461,17 @@
       const logEl = document.getElementById('import-visa-log');
       btnApagarTodos.disabled = true;
       logEl.innerHTML = alerta('info', '🗑️ Apagando lançamentos…');
+      let lockAcquired = false;
       try {
+        await window.db_acquireVisaImportLock(mes, ano, _user.email, _user.nome || _user.email);
+        lockAcquired = true;
         const total = await db_deleteManuaisTodosMes(mes, ano);
         logEl.innerHTML = alerta('ok', `✅ ${total} lançamento(s) apagado(s) em ${mesNome}/${ano}.`);
         loadConferencia();
       } catch(e) {
         logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar: ' + escHtml(e.message));
       } finally {
+        if (lockAcquired) await window.db_releaseVisaImportLock(mes, ano);
         btnApagarTodos.disabled = false;
       }
     });
