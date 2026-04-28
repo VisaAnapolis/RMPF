@@ -631,6 +631,29 @@ table.rmpf-table {
   .signature-line { border-top: 1px solid #000; width: 260pt; margin: 0 auto; text-align: center; padding-top: 4pt; font-size: 10pt; }
 }
 
+/* ── Dark mode ── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --verde:   #2d9e5f;
+    --verdeC:  #3dba72;
+    --verdeP:  #0d2d1a;
+    --azul:    #4a90d9;
+    --azulP:   #0d1f35;
+    --amar:    #e07c27;
+    --amarP:   #2d1e00;
+    --verm:    #e05555;
+    --vermP:   #2d0a0a;
+    --cinzaB:  #1a1d23;
+    --cinzaL:  #2e3340;
+    --cinzaT:  #8a95a5;
+    --preto:   #e8ecf0;
+    --branco:  #252830;
+    --shadow:  0 2px 8px rgba(0,0,0,.40);
+    --shadow-md: 0 4px 16px rgba(0,0,0,.50);
+  }
+  .loading-overlay { background: rgba(30,33,40,.85); }
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .app-layout {

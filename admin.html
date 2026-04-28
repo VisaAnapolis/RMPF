@@ -240,6 +240,7 @@
     if (grupo === 'Administrador') {
       links.push({ href: 'admin.html', icon: '⚙️', label: 'Admin' });
     }
+    links.push({ href: 'changelog.html', icon: '📜', label: 'Changelog' });
     const current = location.pathname.split('/').pop();
     return links.map(l => {
       const active = current === l.href.split('/').pop() ? ' active' : '';
@@ -266,6 +267,10 @@
   }
 
   // ── Pills ─────────────────────────────────────────────────────
+  function getDispositivos(u) {
+    return Array.isArray(u.dispositivos) ? u.dispositivos : [];
+  }
+
   function renderPills() {
     const us = _todosUsuarios;
 
@@ -291,7 +296,7 @@
     // Sites
     const sites = {};
     us.forEach(u => {
-      (u.dispositivos || []).forEach(d => {
+      getDispositivos(u).forEach(d => {
         const s = d.siteOrigem || '—';
         sites[s] = (sites[s] || 0) + 1;
       });
@@ -308,7 +313,7 @@
     // Modo de acesso
     let pwa = 0, nav = 0;
     us.forEach(u => {
-      (u.dispositivos || []).forEach(d => {
+      getDispositivos(u).forEach(d => {
         if (d.modoAcesso === 'PWA') pwa++;
         else nav++;
       });
@@ -394,7 +399,7 @@
   window.abrirListaSite = function(site) {
     const mapa = {};
     _todosUsuarios.forEach(u => {
-      (u.dispositivos || []).forEach(d => {
+      getDispositivos(u).forEach(d => {
         if ((d.siteOrigem || '—') === site) mapa[u.email || u.id] = u;
       });
     });
