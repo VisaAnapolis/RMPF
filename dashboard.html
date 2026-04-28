@@ -142,6 +142,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase-config.js"></script>
+<script src="js/version.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
@@ -312,6 +313,14 @@
       document.getElementById('btn-admin-carregar').addEventListener('click', loadAdmin);
     }
   });
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(function (reg) { console.log('[SW] Registrado:', reg.scope); })
+        .catch(function (err) { console.warn('[SW] Falha no registro:', err); });
+    });
+  }
 </script>
 </body>
 </html>
