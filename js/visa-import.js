@@ -26,6 +26,49 @@ function complexToItem(complexidade) {
   return { item: 2, pontos: 12 };
 }
 
+function resolverTipoVisa(tipoRaw, complexidade) {
+  const norm = String(tipoRaw || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase().replace(/\s+/g, ' ').trim();
+  const c = String(complexidade || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  if (norm === 'MANIFESTACAO DO FISCAL ATUANTE') {
+    return { tipo_id: 5, tipo_codigo: 'MAN', tipo_nome: 'Manifestação do servidor atuante',
+             item_pontuacao: 8, pontos: 12, descLabel: 'Manifestação do fiscal atuante' };
+  }
+  if (norm === 'TERMO DE COLETA DE AMOSTRA') {
+    return { tipo_id: 4, tipo_codigo: 'COL', tipo_nome: 'Coleta de amostra para laboratório',
+             item_pontuacao: 7, pontos: 12, descLabel: 'Termo de coleta de amostra' };
+  }
+  if (norm === 'PRORROGACAO') {
+    return { tipo_id: 3, tipo_codigo: 'PLT', tipo_nome: 'Plantão fiscal',
+             item_pontuacao: 6, pontos: 0, descLabel: 'Prorrogação' };
+  }
+  if (norm === 'RELATORIO TECNICO') {
+    if (c === 'alta')  return { tipo_id: 7, tipo_codigo: 'REL', tipo_nome: 'Elaboração de relatório técnico de inspeção',
+                                item_pontuacao: 10, pontos: 48, descLabel: 'Relatório técnico' };
+    if (c === 'baixa') return { tipo_id: 7, tipo_codigo: 'REL', tipo_nome: 'Elaboração de relatório técnico de inspeção',
+                                item_pontuacao: 12, pontos: 6,  descLabel: 'Relatório técnico' };
+    return               { tipo_id: 7, tipo_codigo: 'REL', tipo_nome: 'Elaboração de relatório técnico de inspeção',
+                           item_pontuacao: 11, pontos: 12, descLabel: 'Relatório técnico' };
+  }
+  if (norm === 'ANALISE DE PAS') {
+    if (c === 'alta')  return { tipo_id: 2, tipo_codigo: 'ARQ', tipo_nome: 'Análise de projeto arquitetônico',
+                                item_pontuacao: 4, pontos: 24, descLabel: 'Análise de PAS' };
+    return               { tipo_id: 2, tipo_codigo: 'ARQ', tipo_nome: 'Análise de projeto arquitetônico',
+                           item_pontuacao: 5, pontos: 12, descLabel: 'Análise de PAS' };
+  }
+  if (norm === 'RELATORIO HARMONIZADO') {
+    return { tipo_id: 8, tipo_codigo: 'RLH', tipo_nome: 'Relatório técnico harmonizado (SNVS)',
+             item_pontuacao: 13, pontos: 48, descLabel: 'Relatório harmonizado' };
+  }
+  // Default: Vistoria VISA with complexidade
+  const { item, pontos } = complexToItem(complexidade);
+  return { tipo_id: 1, tipo_codigo: 'VIS', tipo_nome: 'Vistoria ou atendimento a denúncia',
+           item_pontuacao: item, pontos, descLabel: 'Vistoria VISA' };
+}
+
 function visaDataToISO(dataStr) {
   if (!dataStr) return null;
   const s = String(dataStr).trim().replace(/"/g, '');
