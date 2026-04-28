@@ -66,6 +66,11 @@
           <div class="metric-desc">Pontos negativos</div>
         </div>
         <div class="metric-card amar">
+          <div class="metric-label">Pts Enviados</div>
+          <div class="metric-value" id="m-env">—</div>
+          <div class="metric-desc">Aguardando homologação</div>
+        </div>
+        <div class="metric-card amar">
           <div class="metric-label">PV — Pontos Válidos</div>
           <div class="metric-value" id="m-pv">—</div>
           <div class="metric-desc" id="m-pv-desc">PP − PN</div>
@@ -217,6 +222,11 @@
       document.getElementById('m-pn').textContent   = result.pn;
       document.getElementById('m-pv').textContent   = result.pv;
       document.getElementById('m-apur').textContent = result.apuracao;
+
+      const ptosEnviados = manuais
+        .filter(m => m.status === 'enviado')
+        .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
+      document.getElementById('m-env').textContent = ptosEnviados;
 
       let alerts = '';
       if (result.atingiuTetoPV)    alerts += alerta('info',  'PV atingiu o teto de 1.000 pontos — excedente descartado.');
