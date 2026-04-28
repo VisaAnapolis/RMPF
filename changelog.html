@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.1.3</span>
+            <span class="badge-date">28/04/2026</span>
+          </div>
+          <div class="changelog-title">Lock Distribuído na Importação e Deleção de Registros VISA</div>
+          <ul class="changelog-changes">
+            <li>Implementado lock distribuído via Firestore (<code>visa_import_locks</code>) que impede importações VISA simultâneas para o mesmo mês por usuários diferentes.</li>
+            <li>O mesmo lock protege a deleção em massa de lançamentos VISA do mês em <code>conferencia.html</code>, evitando conflitos de operações concorrentes.</li>
+            <li>Locks obsoletos (acima de 3 minutos) são automaticamente liberados como rede de segurança.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.1.2</span>
             <span class="badge-date">28/04/2026</span>
           </div>
