@@ -21,18 +21,25 @@ service cloud.firestore {
           .hasOnly(['photoURL', 'ultimoAcesso', 'appVersionLast', 'dispositivos']);
     }
 
-    // Manuais: fiscal cria/lê os seus; Administrativo/Administrador lê todos
+    // Manuais: fiscal cria/lê os seus; Administrativo/Administrador lê todos; Administrador/Administrativo importa para qualquer fiscal
     match /manuais/{docId} {
       allow read: if request.auth != null && (
+        resource == null ||
         resource.data.fiscal_email == request.auth.token.email ||
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador' ||
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrativo'
       );
-      allow create: if request.auth != null
-        && request.resource.data.fiscal_email == request.auth.token.email;
+      allow create: if request.auth != null && (
+        request.resource.data.fiscal_email == request.auth.token.email ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador' ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrativo'
+      );
       allow update: if request.auth != null && (
-        (resource.data.fiscal_email == request.auth.token.email && resource.data.status == 'rascunho') ||
-        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador'
+        (resource.data.fiscal_email == request.auth.token.email &&
+          (resource.data.status == 'rascunho' ||
+           (resource.data.origem == 'visa_csv' && resource.data.status != 'aceito' && resource.data.status != 'fechado'))) ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador' ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrativo'
       );
       allow delete: if request.auth != null &&
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
