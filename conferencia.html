@@ -356,7 +356,7 @@
     document.getElementById('sidebar').innerHTML = buildSidebar(user.grupo);
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
-    // Fiscal only sees own data; else = Administrador
+    // Fiscal sees own data; Administrador sees all fiscais
     if (user.grupo === 'Fiscal') {
       const sel = document.getElementById('sel-fiscal');
       sel.innerHTML = `<option value="${escHtml(user.email)}">${escHtml(user.nome||user.email)}</option>`;
