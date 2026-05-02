@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.3.1</span>
+            <span class="badge-date">02/05/2026</span>
+          </div>
+          <div class="changelog-title">Dropdown de competência padrão para último mês fechado; bloqueio de exclusão em meses fechados</div>
+          <ul class="changelog-changes">
+            <li><strong>Dropdown padrão para último mês fechado</strong> — ao abrir qualquer página com seletor de competência (Dashboard, Lançar Atividade, Meus Lançamentos, Conferência, Ocorrências, Fechamento), o mês selecionado por padrão passa a ser o mês mais recente registrado na coleção <code>fechamentos</code>, em vez de varrer <code>manuais</code> (lógica anterior era lenta e incorreta).</li>
+            <li><strong>Bloqueio de exclusão em meses fechados</strong> — em <code>meus-lancamentos.html</code>, os botões de excluir/retirar lançamentos manuais ficam ocultos quando a competência está fechada; a função <code>excluirManual</code> também bloqueia via guard no JS.</li>
+            <li><strong>Regra Firestore corrigida para deleção de manuais</strong> — o próprio fiscal agora tem permissão de apagar seus registros com status <code>rascunho</code> ou <code>enviado</code> (a regra anterior só permitia ao Administrador).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.3.0</span>
             <span class="badge-date">02/05/2026 - 09:35</span>
           </div>

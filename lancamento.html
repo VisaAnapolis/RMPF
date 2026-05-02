@@ -354,7 +354,7 @@
     buildMesSelect();
     buildAnoSelect();
     buildTipoSelect();
-    const { mes: _um, ano: _ua } = await db_getUltimoMesAberto(user.email);
+    const { mes: _um, ano: _ua } = await db_getUltimoMesFechado(user.email);
     document.getElementById('f-mes').value = _um;
     document.getElementById('f-ano').value = _ua;
 

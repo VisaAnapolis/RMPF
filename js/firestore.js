@@ -398,28 +398,25 @@ async function saveFechamento(fiscalEmail, mes, ano, data) {
   return id;
 }
 
-// ── Último mês com lançamentos (busca de trás pra frente) ─
-// Retorna {mes, ano} do mês mais recente que possui algum documento
-// na coleção `manuais`. Filtra por fiscal quando `fiscalEmail` for
-// fornecido; caso contrário consulta globalmente.
-// Percorre até 13 meses a partir do mês corrente.
+// ── Última competência fechada ────────────────────────────
+// Retorna {mes, ano} da competência mais recente com fechamento
+// registrado na coleção `fechamentos`. Filtra por fiscal quando
+// `fiscalEmail` for fornecido; caso contrário consulta globalmente.
+// Fallback: mês corrente se nenhum fechamento for encontrado.
 
-async function getUltimoMesAberto(fiscalEmail) {
+async function getUltimoMesFechado(fiscalEmail) {
   const now = new Date();
-  let ano = now.getFullYear();
-  let mes = now.getMonth() + 1;
-  for (let i = 0; i < 13; i++) {
-    let q = window.db.collection('manuais')
-      .where('mes', '==', mes)
-      .where('ano', '==', ano);
-    if (fiscalEmail) q = q.where('fiscal_email', '==', fiscalEmail);
-    const snap = await q.limit(1).get();
-    if (!snap.empty) return { mes, ano };
-    mes--;
-    if (mes === 0) { mes = 12; ano--; }
-  }
-  return { mes: now.getMonth() + 1, ano: now.getFullYear() };
+  let q = window.db.collection('fechamentos');
+  if (fiscalEmail) q = q.where('fiscal_email', '==', fiscalEmail);
+  const snap = await q.get();
+  if (snap.empty) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
+  const docs = snap.docs.map(d => d.data());
+  docs.sort((a, b) => b.ano - a.ano || b.mes - a.mes);
+  return { mes: docs[0].mes, ano: docs[0].ano };
 }
+
+// Alias mantido por compatibilidade
+const getUltimoMesAberto = getUltimoMesFechado;
 
 // ── Fechamentos de um mês/ano (todos os fiscais) ──────────
 
@@ -435,7 +432,8 @@ async function getFechamentosMes(mes, ano) {
 
 window.db_getFechamento         = getFechamento;
 window.db_saveFechamento        = saveFechamento;
-window.db_getUltimoMesAberto    = getUltimoMesAberto;
+window.db_getUltimoMesFechado   = getUltimoMesFechado;
+window.db_getUltimoMesAberto    = getUltimoMesAberto; // alias
 window.db_getFechamentosMes     = getFechamentosMes;
 window.db_getManuais          = getManuais;
 window.db_getManuaisTodos     = getManuaisTodos;

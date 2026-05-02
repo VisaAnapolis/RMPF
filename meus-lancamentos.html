@@ -203,6 +203,7 @@
 <script>
   let _user = null;
   let _manuais = [];
+  let _fechamento = null;
 
   function showAlert(type, msg) {
     document.getElementById('alert-area').innerHTML = alerta(type, msg);
@@ -237,7 +238,10 @@
     document.getElementById('alert-area').innerHTML = '';
 
     try {
-      _manuais = await db_getManuais(_user.email, mes, ano);
+      [_manuais, _fechamento] = await Promise.all([
+        db_getManuais(_user.email, mes, ano),
+        db_getFechamento(_user.email, mes, ano),
+      ]);
       renderTabela();
     } catch(e) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
@@ -258,12 +262,20 @@
       } else if (m.origem === 'sim_csv') {
         acoes = `<span class="badge badge-cvs" title="Importado do SIM — somente leitura">SIM</span>`;
       } else if (m.status === 'rascunho') {
-        acoes = `<button class="btn btn-outline btn-sm" onclick="enviarManual('${m.id}')">📤 Enviar</button>
-                 <button class="btn btn-default btn-sm" onclick="editarManual('${m.id}')">✏️</button>
-                 <button class="btn btn-danger btn-sm" onclick="excluirManual('${m.id}')">🗑️</button>`;
+        if (_fechamento) {
+          acoes = `<span class="text-muted" style="font-size:.8rem">🔒 Competência fechada</span>`;
+        } else {
+          acoes = `<button class="btn btn-outline btn-sm" onclick="enviarManual('${m.id}')">📤 Enviar</button>
+                   <button class="btn btn-default btn-sm" onclick="editarManual('${m.id}')">✏️</button>
+                   <button class="btn btn-danger btn-sm" onclick="excluirManual('${m.id}')">🗑️</button>`;
+        }
       } else if (m.status === 'enviado') {
-        acoes = `<span class="text-muted" style="font-size:.8rem">⏳ Aguardando</span>
-                 <button class="btn btn-danger btn-sm" onclick="excluirManual('${m.id}')">🗑️ Retirar</button>`;
+        if (_fechamento) {
+          acoes = `<span class="text-muted" style="font-size:.8rem">⏳ Aguardando</span>`;
+        } else {
+          acoes = `<span class="text-muted" style="font-size:.8rem">⏳ Aguardando</span>
+                   <button class="btn btn-danger btn-sm" onclick="excluirManual('${m.id}')">🗑️ Retirar</button>`;
+        }
       } else if (m.status === 'aceito') {
         acoes = `<span class="text-verde fw-bold">✓ Homologado</span>`;
       } else if (m.status === 'recusado') {
@@ -294,6 +306,7 @@
   }
 
   async function excluirManual(id) {
+    if (_fechamento) { showAlert('warn', 'Competência fechada — exclusão não permitida.'); return; }
     const m = _manuais.find(x => x.id === id);
     if (!confirm(`Excluir lançamento ${m?.controle || id}?`)) return;
     try {
@@ -404,7 +417,7 @@
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     buildMesSelect(); buildAnoSelect();
-    const { mes: _um, ano: _ua } = await db_getUltimoMesAberto(user.email);
+    const { mes: _um, ano: _ua } = await db_getUltimoMesFechado(user.email);
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
     loadManuais();

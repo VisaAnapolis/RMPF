@@ -41,8 +41,11 @@ service cloud.firestore {
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador' ||
         get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrativo'
       );
-      allow delete: if request.auth != null &&
-        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador';
+      allow delete: if request.auth != null && (
+        (resource.data.fiscal_email == request.auth.token.email &&
+          (resource.data.status == 'rascunho' || resource.data.status == 'enviado')) ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador'
+      );
     }
 
     // Ocorrências: fiscal cria/lê as suas; Administrativo/Administrador analisa todas
