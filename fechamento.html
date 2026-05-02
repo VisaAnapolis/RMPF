@@ -428,6 +428,9 @@
     }
 
     buildSels('sel-mes','sel-ano');
+    const { mes: _um, ano: _ua } = await db_getUltimoMesAberto();
+    document.getElementById('sel-mes').value = _um;
+    document.getElementById('sel-ano').value = _ua;
 
     const fiscais = await db_getTodosFiscais();
     const selF = document.getElementById('sel-fiscal');

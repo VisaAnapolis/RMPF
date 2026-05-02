@@ -395,7 +395,7 @@
   window.editarManual  = editarManual;
   window.corrigirManual = corrigirManual;
 
-  requireAuth(user => {
+  requireAuth(async user => {
     if (user.grupo !== 'Fiscal') { window.location.href = 'dashboard.html'; return; }
     _user = user;
     document.getElementById('loading-overlay').style.display = 'none';
@@ -403,7 +403,11 @@
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
-    buildMesSelect(); buildAnoSelect(); loadManuais();
+    buildMesSelect(); buildAnoSelect();
+    const { mes: _um, ano: _ua } = await db_getUltimoMesAberto(user.email);
+    document.getElementById('sel-mes').value = _um;
+    document.getElementById('sel-ano').value = _ua;
+    loadManuais();
 
     // ── Importação VISA ──────────────────────────────────
     async function atualizarBtnImportVisa() {

@@ -341,7 +341,7 @@
     }
   }
 
-  requireAuth(user => {
+  requireAuth(async user => {
     if (user.grupo !== 'Fiscal') {
       window.location.href = 'dashboard.html';
       return;
@@ -354,6 +354,9 @@
     buildMesSelect();
     buildAnoSelect();
     buildTipoSelect();
+    const { mes: _um, ano: _ua } = await db_getUltimoMesAberto(user.email);
+    document.getElementById('f-mes').value = _um;
+    document.getElementById('f-ano').value = _ua;
 
     // ── Verificar fechamento da competência ──────────────
     async function verificarFechamento() {
