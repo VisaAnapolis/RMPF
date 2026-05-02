@@ -419,54 +419,24 @@ async function getUltimoMesFechado(fiscalEmail) {
 const getUltimoMesAberto = getUltimoMesFechado;
 
 // ── Próxima competência aberta ────────────────────────────
-// Para fiscal: retorna {mes, ano} imediatamente após o último
-// fechamento desse fiscal. Fallback: mês corrente.
-// Para admin (sem fiscalEmail): retorna o mês imediatamente após
-// o último mês em que TODOS os fiscais têm fechamento registrado.
-// Fallback: mês corrente.
+// Retorna {mes, ano} imediatamente após o último fechamento registrado
+// na coleção `fechamentos`.
+// Para fiscal: considera apenas os fechamentos desse fiscal.
+// Para admin (sem fiscalEmail): considera o fechamento mais recente
+// de qualquer fiscal. Fallback: mês corrente.
 
 async function getProximaCompetencia(fiscalEmail) {
   const now = new Date();
 
-  if (fiscalEmail) {
-    // Caso fiscal: busca somente os fechamentos desse fiscal
-    const snap = await window.db.collection('fechamentos')
-      .where('fiscal_email', '==', fiscalEmail).get();
-    if (snap.empty) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
-    const docs = snap.docs.map(d => d.data());
-    docs.sort((a, b) => Number(b.ano) - Number(a.ano) || Number(b.mes) - Number(a.mes));
-    let mes = Number(docs[0].mes) + 1;
-    let ano = Number(docs[0].ano);
-    if (mes > 12) { mes = 1; ano++; }
-    return { mes, ano };
-  }
+  let q = window.db.collection('fechamentos');
+  if (fiscalEmail) q = q.where('fiscal_email', '==', fiscalEmail);
+  const snap = await q.get();
+  if (snap.empty) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
 
-  // Caso admin: mês fechado = todos os fiscais têm fechamento nele
-  const [fiscaisSnap, fechamentosSnap] = await Promise.all([
-    window.db.collection('usuarios').where('grupo', '==', 'Fiscal').get(),
-    window.db.collection('fechamentos').get(),
-  ]);
-  const totalFiscais = fiscaisSnap.size;
-  if (totalFiscais === 0) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
-
-  // Agrupa emails distintos por chave "AAAA-MM"
-  const emailsPorMes = {};
-  fechamentosSnap.docs.forEach(d => {
-    const { ano, mes, fiscal_email } = d.data();
-    const key = `${Number(ano)}-${String(Number(mes)).padStart(2, '0')}`;
-    if (!emailsPorMes[key]) emailsPorMes[key] = new Set();
-    emailsPorMes[key].add(fiscal_email);
-  });
-
-  // Meses em que TODOS os fiscais fecharam
-  const mesesFechados = Object.keys(emailsPorMes)
-    .filter(k => emailsPorMes[k].size >= totalFiscais);
-  if (mesesFechados.length === 0) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
-
-  mesesFechados.sort().reverse(); // "AAAA-MM" ordena lexicograficamente
-  const [anoStr, mesStr] = mesesFechados[0].split('-');
-  let mes = Number(mesStr) + 1;
-  let ano = Number(anoStr);
+  const docs = snap.docs.map(d => d.data());
+  docs.sort((a, b) => Number(b.ano) - Number(a.ano) || Number(b.mes) - Number(a.mes));
+  let mes = Number(docs[0].mes) + 1;
+  let ano = Number(docs[0].ano);
   if (mes > 12) { mes = 1; ano++; }
   return { mes, ano };
 }
