@@ -71,6 +71,7 @@
 
     <!-- Fiscal view -->
     <div id="view-fiscal" style="display:none">
+      <div id="alert-recusados"></div>
       <div class="metrics-grid">
         <div class="metric-card amar">
           <div class="metric-label">Pts Enviados</div>
@@ -337,6 +338,13 @@
       document.getElementById('view-fiscal').style.display = '';
       buildMesSelect('sel-mes');
       buildAnoSelect('sel-ano');
+      // Show persistent banner if there are any refused records (across all competências)
+      db_getManuaisRecusados(user.email).then(recusados => {
+        if (recusados.length > 0) {
+          document.getElementById('alert-recusados').innerHTML = alerta('danger',
+            `Você tem <strong>${recusados.length}</strong> lançamento(s) recusado(s). <a href="meus-lancamentos.html">Ver lançamentos</a>`);
+        }
+      }).catch(() => {});
       loadFiscal(user);
       document.getElementById('btn-carregar').addEventListener('click', () => loadFiscal(user));
     } else {

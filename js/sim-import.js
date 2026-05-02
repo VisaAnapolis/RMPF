@@ -131,7 +131,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             onProgress(`⚠️ OS ${osNum} — ${nomeFiscalCsv}: já homologado, ignorado.`, 'warn');
             continue;
           }
-          await window.db_upsertSIMManual(osNum, emailFiscal, {
+          const updateData = {
             fiscal_nome: nomeFiscalCsv,
             mes, ano, data: dataISO,
             tipo_id: 1, tipo_codigo: 'VIS',
@@ -141,7 +141,13 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             pontos, descricao,
             origem: 'sim_csv',
             sim_os: osNum,
-          }, existing.id, false);
+          };
+          if (existing.status === 'recusado') {
+            updateData.status = 'enviado';
+            updateData.motivo_recusa = null;
+            onProgress(`🔄 OS ${osNum}: recusado anteriormente, resubmetido para conferência.`, 'info');
+          }
+          await window.db_upsertSIMManual(osNum, emailFiscal, updateData, existing.id, false);
           atualizados++;
         } else {
           const fechamento = await window.db_getFechamento(emailFiscal, mes, ano);

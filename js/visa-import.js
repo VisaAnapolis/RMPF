@@ -177,7 +177,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado, ignorado.`, 'warn');
               continue;
             }
-            await window.db_upsertVISAManual(controleVisa, emailFiscal, {
+            const updateData = {
               fiscal_nome: nomeFiscalCsv,
               mes, ano, data: dataISO,
               tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
@@ -187,7 +187,13 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               pontos: tipoInfo.pontos, descricao,
               origem: 'visa_csv',
               visa_controle: controleVisa,
-            }, existing.id, false);
+            };
+            if (existing.status === 'recusado') {
+              updateData.status = 'enviado';
+              updateData.motivo_recusa = null;
+              onProgress(`🔄 CONTROLE ${controleVisa}: recusado anteriormente, resubmetido para conferência.`, 'info');
+            }
+            await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false);
             atualizados++;
           } else {
             const fechamento = await window.db_getFechamento(emailFiscal, mes, ano);

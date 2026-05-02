@@ -142,6 +142,47 @@
         </div>
       </div>
     </div>
+
+    <!-- Corrigir e Reenviar modal -->
+    <div id="modal-corrigir" class="modal-backdrop" style="display:none">
+      <div class="modal">
+        <div class="modal-header">
+          <span>✏️ Corrigir e Reenviar Lançamento</span>
+          <button class="modal-close" id="corrigir-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="corrigir-id">
+          <div id="corrigir-motivo-banner"></div>
+          <div class="form-group">
+            <label class="form-label">Tipo / Item</label>
+            <input type="text" class="form-control" id="corrigir-tipo-label" disabled>
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="corrigir-data">Data</label>
+            <input type="date" class="form-control" id="corrigir-data">
+          </div>
+          <div class="form-group">
+            <label class="form-label required" for="corrigir-desc">Descrição</label>
+            <textarea class="form-control" id="corrigir-desc" rows="3"></textarea>
+          </div>
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label required" for="corrigir-pontos">Pontos Solicitados</label>
+              <input type="number" class="form-control" id="corrigir-pontos" min="0">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="corrigir-obs">Observações</label>
+              <input type="text" class="form-control" id="corrigir-obs">
+            </div>
+          </div>
+          <div id="corrigir-alert"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" id="corrigir-close2">Cancelar</button>
+          <button class="btn btn-primary" id="btn-save-corrigir">📤 Reenviar para Conferência</button>
+        </div>
+      </div>
+    </div>
   </main>
   <footer class="app-footer nao-imprimir">
     RMPF v<span id="footer-version"></span> — <a href="changelog.html">Changelog</a>
@@ -227,7 +268,8 @@
         acoes = `<span class="text-verde fw-bold">✓ Homologado</span>`;
       } else if (m.status === 'recusado') {
         acoes = `<span class="text-verm fw-bold">✗ Recusado</span>
-                 ${m.motivo_recusa ? `<span class="form-hint">${escHtml(m.motivo_recusa)}</span>` : ''}`;
+                 ${m.motivo_recusa ? `<span class="form-hint">${escHtml(m.motivo_recusa)}</span>` : ''}
+                 <button class="btn btn-outline btn-sm" onclick="corrigirManual('${m.id}')">✏️ Corrigir e Reenviar</button>`;
       }
       return `<tr>
         <td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle || '—')}</span></td>
@@ -299,10 +341,59 @@
     });
   });
 
+  function corrigirManual(id) {
+    const m = _manuais.find(x => x.id === id);
+    if (!m || m.status !== 'recusado') return;
+    document.getElementById('corrigir-id').value         = id;
+    document.getElementById('corrigir-tipo-label').value = `[${m.tipo_codigo}] ${m.tipo_nome || ''} — Item ${m.item_pontuacao}`;
+    document.getElementById('corrigir-data').value        = m.data || '';
+    document.getElementById('corrigir-desc').value        = m.descricao || '';
+    document.getElementById('corrigir-pontos').value      = m.pontos ?? '';
+    document.getElementById('corrigir-obs').value         = m.obs || '';
+    document.getElementById('corrigir-alert').innerHTML   = '';
+    document.getElementById('corrigir-motivo-banner').innerHTML = m.motivo_recusa
+      ? `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:10px 12px;margin-bottom:12px">
+           <strong>⚠️ Motivo da recusa:</strong><br>${escHtml(m.motivo_recusa)}
+         </div>`
+      : '';
+    document.getElementById('modal-corrigir').style.display = 'flex';
+  }
+
+  document.getElementById('btn-save-corrigir').addEventListener('click', async () => {
+    const id     = document.getElementById('corrigir-id').value;
+    const data   = document.getElementById('corrigir-data').value;
+    const desc   = document.getElementById('corrigir-desc').value.trim();
+    const pontos = document.getElementById('corrigir-pontos').value;
+    if (!data || !desc || pontos === '') {
+      document.getElementById('corrigir-alert').innerHTML = alerta('warn','Preencha todos os campos obrigatórios.');
+      return;
+    }
+    try {
+      await db_updateManual(id, {
+        data, descricao: desc, pontos: Number(pontos),
+        obs: document.getElementById('corrigir-obs').value.trim(),
+        status: 'enviado',
+        motivo_recusa: null,
+      });
+      document.getElementById('modal-corrigir').style.display = 'none';
+      showAlert('ok', 'Lançamento corrigido e reenviado para conferência.');
+      loadManuais();
+    } catch(e) {
+      document.getElementById('corrigir-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
+    }
+  });
+
+  ['corrigir-close','corrigir-close2'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      document.getElementById('modal-corrigir').style.display = 'none';
+    });
+  });
+
   // Expose to onclick handlers
-  window.enviarManual = enviarManual;
+  window.enviarManual  = enviarManual;
   window.excluirManual = excluirManual;
   window.editarManual  = editarManual;
+  window.corrigirManual = corrigirManual;
 
   requireAuth(user => {
     if (user.grupo !== 'Fiscal') { window.location.href = 'dashboard.html'; return; }

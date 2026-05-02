@@ -22,6 +22,14 @@ async function getManuaisTodos(mes, ano) {
     .sort((a, b) => (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
 }
 
+async function getManuaisRecusados(fiscalEmail) {
+  const snap = await window.db.collection('manuais')
+    .where('fiscal_email', '==', fiscalEmail)
+    .where('status', '==', 'recusado')
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 async function createManual(data) {
   const ref = await window.db.collection('manuais').add({
     ...data,
@@ -396,6 +404,7 @@ window.db_getFechamento         = getFechamento;
 window.db_saveFechamento        = saveFechamento;
 window.db_getManuais          = getManuais;
 window.db_getManuaisTodos     = getManuaisTodos;
+window.db_getManuaisRecusados = getManuaisRecusados;
 window.db_createManual        = createManual;
 window.db_updateManual        = updateManual;
 window.db_deleteManual        = deleteManual;
