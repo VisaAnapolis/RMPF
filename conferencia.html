@@ -90,6 +90,7 @@
 
     <!-- Metric summary -->
     <div class="metrics-grid" id="metrics-wrap" style="display:none">
+      <div class="metric-card amar"><div class="metric-label">Pts Enviados</div><div class="metric-value" id="m-env">—</div><div class="metric-desc">Aguardando homologação</div></div>
       <div class="metric-card azul"><div class="metric-label">PP</div><div class="metric-value" id="m-pp">—</div></div>
       <div class="metric-card verm"><div class="metric-label">PN</div><div class="metric-value" id="m-pn">—</div></div>
       <div class="metric-card amar"><div class="metric-label">PV</div><div class="metric-value" id="m-pv">—</div></div>
@@ -256,6 +257,10 @@
       document.getElementById('m-pn').textContent   = result.pn;
       document.getElementById('m-pv').textContent   = result.pv;
       document.getElementById('m-apur').textContent = result.apuracao;
+      const ptosEnviados = _manuais
+        .filter(m => m.status === 'enviado')
+        .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
+      document.getElementById('m-env').textContent = ptosEnviados;
       document.getElementById('metrics-wrap').style.display = '';
       renderTabela();
     } catch(e) {
