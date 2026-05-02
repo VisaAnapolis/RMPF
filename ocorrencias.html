@@ -335,7 +335,7 @@
 
     buildSels('sel-mes','sel-ano');
     const _emailParaUm = user.grupo === 'Fiscal' ? user.email : null;
-    const { mes: _um, ano: _ua } = await db_getUltimoMesFechado(_emailParaUm);
+    const { mes: _um, ano: _ua } = await db_getProximaCompetencia(_emailParaUm);
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
 

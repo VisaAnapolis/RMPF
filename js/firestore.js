@@ -418,6 +418,25 @@ async function getUltimoMesFechado(fiscalEmail) {
 // Alias mantido por compatibilidade
 const getUltimoMesAberto = getUltimoMesFechado;
 
+// ── Próxima competência aberta ────────────────────────────
+// Retorna {mes, ano} do primeiro mês SEM fechamento registrado,
+// ou seja, o mês imediatamente após o último fechado.
+// Fallback: mês corrente se nenhum fechamento for encontrado.
+
+async function getProximaCompetencia(fiscalEmail) {
+  const now = new Date();
+  let q = window.db.collection('fechamentos');
+  if (fiscalEmail) q = q.where('fiscal_email', '==', fiscalEmail);
+  const snap = await q.get();
+  if (snap.empty) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
+  const docs = snap.docs.map(d => d.data());
+  docs.sort((a, b) => b.ano - a.ano || b.mes - a.mes);
+  let mes = docs[0].mes + 1;
+  let ano = docs[0].ano;
+  if (mes > 12) { mes = 1; ano++; }
+  return { mes, ano };
+}
+
 // ── Fechamentos de um mês/ano (todos os fiscais) ──────────
 
 async function getFechamentosMes(mes, ano) {
@@ -434,6 +453,7 @@ window.db_getFechamento         = getFechamento;
 window.db_saveFechamento        = saveFechamento;
 window.db_getUltimoMesFechado   = getUltimoMesFechado;
 window.db_getUltimoMesAberto    = getUltimoMesAberto; // alias
+window.db_getProximaCompetencia = getProximaCompetencia;
 window.db_getFechamentosMes     = getFechamentosMes;
 window.db_getManuais          = getManuais;
 window.db_getManuaisTodos     = getManuaisTodos;

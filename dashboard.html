@@ -361,7 +361,7 @@
       document.getElementById('view-fiscal').style.display = '';
       buildMesSelect('sel-mes');
       buildAnoSelect('sel-ano');
-      const { mes: _um, ano: _ua } = await db_getUltimoMesFechado(user.email);
+      const { mes: _um, ano: _ua } = await db_getProximaCompetencia(user.email);
       document.getElementById('sel-mes').value = _um;
       document.getElementById('sel-ano').value = _ua;
       // Show persistent banner if there are any refused records (across all competências)
@@ -377,7 +377,7 @@
       document.getElementById('view-admin').style.display = '';
       buildMesSelect('admin-sel-mes');
       buildAnoSelect('admin-sel-ano');
-      const { mes: _um, ano: _ua } = await db_getUltimoMesFechado();
+      const { mes: _um, ano: _ua } = await db_getProximaCompetencia();
       document.getElementById('admin-sel-mes').value = _um;
       document.getElementById('admin-sel-ano').value = _ua;
       loadAdmin();

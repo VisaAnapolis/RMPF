@@ -417,7 +417,7 @@
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     buildMesSelect(); buildAnoSelect();
-    const { mes: _um, ano: _ua } = await db_getUltimoMesFechado(user.email);
+    const { mes: _um, ano: _ua } = await db_getProximaCompetencia(user.email);
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
     loadManuais();
