@@ -41,6 +41,7 @@
   <main class="app-main">
     <div class="page-title">✏️ Lançar Nova Atividade</div>
     <div id="alert-area"></div>
+    <div id="comp-fechado-alert" style="display:none"></div>
 
     <!-- ── Importar Inspeções do VISA ── -->
     <div class="card" id="card-import-visa" style="max-width:680px">
@@ -321,6 +322,13 @@
     const btns = document.querySelectorAll('#btn-rascunho, #btn-enviar');
     btns.forEach(b => { b.disabled = true; });
 
+    // Verificar se a competência já foi fechada
+    const fechamento = await db_getFechamento(user.email, mes, ano);
+    if (fechamento) {
+      showAlert('warn', `A competência <strong>${MESES[mes-1]}/${ano}</strong> já foi fechada e não aceita novos lançamentos.`);
+      return;
+    }
+
     try {
       await db_createManual(doc);
       showAlert('ok', `Atividade <strong>${controle}</strong> salva com status <em>${status}</em>! <a href="meus-lancamentos.html">Ver meus lançamentos</a>`);
@@ -347,22 +355,37 @@
     buildAnoSelect();
     buildTipoSelect();
 
-    // ── Importação VISA ──────────────────────────────────
-    function atualizarBtnImportVisa() {
+    // ── Verificar fechamento da competência ──────────────
+    async function verificarFechamento() {
       const mes = Number(document.getElementById('f-mes').value);
       const ano = Number(document.getElementById('f-ano').value);
-      const btn = document.getElementById('btn-import-visa');
-      if (!visaMesAberto(mes, ano)) {
-        btn.disabled = true;
-        btn.title = 'Mês anterior a Abril/2026 — impossível importar';
+      const btnRascunho = document.getElementById('btn-rascunho');
+      const btnEnviar   = document.getElementById('btn-enviar');
+      const btnVisa     = document.getElementById('btn-import-visa');
+      const btnSim      = document.getElementById('btn-import-sim');
+      [btnRascunho, btnEnviar, btnVisa, btnSim].forEach(b => { b.disabled = true; });
+      const fechamento = await db_getFechamento(user.email, mes, ano);
+      if (fechamento) {
+        document.getElementById('comp-fechado-alert').innerHTML =
+          alerta('warn', `A competência <strong>${MESES[mes-1]}/${ano}</strong> já foi fechada e não aceita novos lançamentos.`);
+        document.getElementById('comp-fechado-alert').style.display = '';
       } else {
-        btn.disabled = false;
-        btn.title = 'Importar inspeções do VISA para este mês';
+        document.getElementById('comp-fechado-alert').style.display = 'none';
+        btnRascunho.disabled = false;
+        btnEnviar.disabled   = false;
+        btnVisa.disabled = !visaMesAberto(mes, ano);
+        btnVisa.title = visaMesAberto(mes, ano)
+          ? 'Importar inspeções do VISA para este mês'
+          : 'Mês anterior a Abril/2026 — impossível importar';
+        btnSim.disabled = !simMesAberto(mes, ano);
+        btnSim.title = simMesAberto(mes, ano)
+          ? 'Importar auditorias do SIM para este mês'
+          : 'Mês anterior a Abril/2026 — impossível importar';
       }
     }
-    document.getElementById('f-mes').addEventListener('change', atualizarBtnImportVisa);
-    document.getElementById('f-ano').addEventListener('change', atualizarBtnImportVisa);
-    atualizarBtnImportVisa();
+    document.getElementById('f-mes').addEventListener('change', verificarFechamento);
+    document.getElementById('f-ano').addEventListener('change', verificarFechamento);
+    verificarFechamento();
 
     const progressWrap  = document.getElementById('import-progress-wrap');
     const progressLabel = document.getElementById('import-progress-label');
@@ -401,27 +424,10 @@
       } catch(e) {
         logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
       } finally {
-        btn.disabled = !visaMesAberto(mes, ano);
+        await verificarFechamento();
         ocultarProgresso();
       }
     });
-
-    // ── Importação SIM ───────────────────────────────────
-    function atualizarBtnImportSim() {
-      const mes = Number(document.getElementById('f-mes').value);
-      const ano = Number(document.getElementById('f-ano').value);
-      const btn = document.getElementById('btn-import-sim');
-      if (!simMesAberto(mes, ano)) {
-        btn.disabled = true;
-        btn.title = 'Mês anterior a Abril/2026 — impossível importar';
-      } else {
-        btn.disabled = false;
-        btn.title = 'Importar auditorias do SIM para este mês';
-      }
-    }
-    document.getElementById('f-mes').addEventListener('change', atualizarBtnImportSim);
-    document.getElementById('f-ano').addEventListener('change', atualizarBtnImportSim);
-    atualizarBtnImportSim();
 
     const simProgressWrap  = document.getElementById('import-sim-progress-wrap');
     const simProgressLabel = document.getElementById('import-sim-progress-label');
@@ -460,7 +466,7 @@
       } catch(e) {
         logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
       } finally {
-        btn.disabled = !simMesAberto(mes, ano);
+        await verificarFechamento();
         ocultarProgressoSim();
       }
     });

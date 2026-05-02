@@ -190,6 +190,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             }, existing.id, false);
             atualizados++;
           } else {
+            const fechamento = await window.db_getFechamento(emailFiscal, mes, ano);
+            if (fechamento) {
+              ignorados++;
+              onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
+              continue;
+            }
             await window.db_upsertVISAManual(controleVisa, emailFiscal, {
               controle: 'VISA-' + controleVisa,
               fiscal_email: emailFiscal,

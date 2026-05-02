@@ -144,6 +144,12 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
           }, existing.id, false);
           atualizados++;
         } else {
+          const fechamento = await window.db_getFechamento(emailFiscal, mes, ano);
+          if (fechamento) {
+            ignorados++;
+            onProgress(`⚠️ OS ${osNum} — ${nomeFiscalCsv}: competência fechada, ignorado.`, 'warn');
+            continue;
+          }
           await window.db_upsertSIMManual(osNum, emailFiscal, {
             controle: 'SIM-' + osNum,
             fiscal_email: emailFiscal,
