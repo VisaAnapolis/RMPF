@@ -81,21 +81,24 @@
       <!-- Glosas override -->
       <div class="card nao-imprimir" id="admin-controls" style="display:none">
         <div class="card-title">⚙️ Configurações de Fechamento</div>
-        <div class="form-row cols-2">
-          <div class="form-group">
-            <label class="form-label" for="pn-extra">Glosas / PN Extra</label>
-            <input type="number" class="form-control" id="pn-extra" min="0" value="0">
-            <div class="form-hint">Pontos negativos adicionais a deduzir do PV.</div>
+        <div id="ja-fechado-banner" style="display:none"></div>
+        <div id="admin-form-fields">
+          <div class="form-row cols-2">
+            <div class="form-group">
+              <label class="form-label" for="pn-extra">Glosas / PN Extra</label>
+              <input type="number" class="form-control" id="pn-extra" min="0" value="0">
+              <div class="form-hint">Pontos negativos adicionais a deduzir do PV.</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="f-obs">Observações do Chefe</label>
+              <textarea class="form-control" id="f-obs" rows="3" placeholder="Observações que constarão no relatório…"></textarea>
+            </div>
           </div>
-          <div class="form-group">
-            <label class="form-label" for="f-obs">Observações do Chefe</label>
-            <textarea class="form-control" id="f-obs" rows="3" placeholder="Observações que constarão no relatório…"></textarea>
+          <div id="pn-alert"></div>
+          <div class="btn-group mt-2">
+            <button class="btn btn-warn" id="btn-recalc">🔄 Recalcular</button>
+            <button class="btn btn-primary" id="btn-fechar">🔒 Fechar Competência e Gerar Relatório</button>
           </div>
-        </div>
-        <div id="pn-alert"></div>
-        <div class="btn-group mt-2">
-          <button class="btn btn-warn" id="btn-recalc">🔄 Recalcular</button>
-          <button class="btn btn-primary" id="btn-fechar">🔒 Fechar Competência e Gerar Relatório</button>
         </div>
       </div>
 
@@ -204,10 +207,10 @@
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
 <script>
-  let _user    = null;
-  let _manuais = [];
-  let _ocorrs  = [];
-  let _result  = null;
+  let _user      = null;
+  let _manuais   = [];
+  let _ocorrs    = [];
+  let _result    = null;
   let _fiscalSel = null;
 
   const TIPO_LABELS = { ferias:'Férias', licenca_medica:'Lic. Médica', licenca_gestante:'Lic. Gestante', afastamento_legal:'Afastamento Legal', outros:'Outros' };
@@ -234,17 +237,67 @@
 
     document.getElementById('alert-area').innerHTML = '';
     document.getElementById('summary-wrap').style.display = 'none';
+    document.getElementById('print-btn-wrap').style.display = 'none';
 
     const fiscais = await db_getTodosFiscais();
     _fiscalSel = fiscais.find(f => (f.email||f.id) === fiscalEmail);
 
-    const pnExtra = Number(document.getElementById('pn-extra')?.value||0);
-    [_manuais, _ocorrs] = await Promise.all([
+    const [manuais, ocorrs, fechamento] = await Promise.all([
       db_getManuais(fiscalEmail, mes, ano),
       db_getOcorrencias(fiscalEmail, mes, ano),
+      db_getFechamento(fiscalEmail, mes, ano),
     ]);
+    _manuais = manuais;
+    _ocorrs  = ocorrs;
+
+    // Restore saved pnExtra if competência was already closed; otherwise keep field value
+    const pnExtra = fechamento
+      ? Number(fechamento.pn_extra || 0)
+      : Number(document.getElementById('pn-extra')?.value || 0);
 
     renderSummary(pnExtra, mes, ano);
+
+    if (fechamento) {
+      mostrarJaFechado(fechamento);
+    } else {
+      // Reset form fields to editable state when loading a new competência
+      document.getElementById('pn-extra').value    = 0;
+      document.getElementById('pn-extra').disabled = false;
+      document.getElementById('f-obs').value       = '';
+      document.getElementById('f-obs').disabled    = false;
+      if (_user.grupo === 'Administrador') {
+        document.getElementById('btn-recalc').disabled = false;
+        document.getElementById('btn-fechar').disabled = false;
+      }
+      document.getElementById('ja-fechado-banner').style.display = 'none';
+      document.getElementById('admin-form-fields').style.display = '';
+      document.getElementById('rel-obs-section').style.display = 'none';
+    }
+  }
+
+  function mostrarJaFechado(rec) {
+    document.getElementById('pn-extra').value    = rec.pn_extra || 0;
+    document.getElementById('pn-extra').disabled = true;
+    document.getElementById('f-obs').value       = rec.obs || '';
+    document.getElementById('f-obs').disabled    = true;
+    if (_user.grupo === 'Administrador') {
+      document.getElementById('btn-recalc').disabled = true;
+      document.getElementById('btn-fechar').disabled = true;
+    }
+
+    const dt = rec.fechado_em?.toDate?.()?.toLocaleString('pt-BR') || '—';
+    const por = rec.fechado_por_nome || rec.fechado_por || '—';
+    document.getElementById('ja-fechado-banner').innerHTML =
+      alerta('info', `✅ Competência fechada em <strong>${dt}</strong> por <strong>${escHtml(por)}</strong>. Apuração: <strong>R$ ${rec.apuracao},00</strong>.`);
+    document.getElementById('ja-fechado-banner').style.display = '';
+    document.getElementById('admin-form-fields').style.display = 'none';
+
+    if (rec.obs) {
+      document.getElementById('rel-obs-section').style.display = '';
+      document.getElementById('rel-obs-text').textContent = rec.obs;
+    }
+
+    document.getElementById('print-btn-wrap').style.display = 'flex';
   }
 
   function renderSummary(pnExtra, mes, ano) {
@@ -256,7 +309,7 @@
     document.getElementById('m-pvlim').textContent = _result.pvLim;
     document.getElementById('m-apur').textContent  = _result.apuracao;
 
-    const aceitas = _manuais.filter(m => m.status === 'aceito');
+    const aceitas = _manuais.filter(m => m.status === 'aceito' || m.status === 'fechado');
     const tbodyAtiv = document.getElementById('tbody-ativ');
     tbodyAtiv.innerHTML = aceitas.length ? aceitas.map(m =>
       `<tr><td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle||'—')}</span></td><td data-label="Data">${fmtData(m.data)}</td>
@@ -307,6 +360,7 @@
     const mes  = Number(document.getElementById('sel-mes').value);
     const ano  = Number(document.getElementById('sel-ano').value);
     const obs  = document.getElementById('f-obs').value.trim();
+    const pnExtra = Number(document.getElementById('pn-extra').value || 0);
 
     if (!confirm(`Fechar a competência ${MESES[mes-1]}/${ano} para ${_fiscalSel?.nome||fiscalEmail}? Esta ação não pode ser desfeita.`)) return;
 
@@ -317,6 +371,25 @@
         .map(m => db_updateManual(m.id, { status: 'fechado' }));
       await Promise.all(updates);
 
+      // Persist fechamento record so the state can be restored on reload
+      await db_saveFechamento(fiscalEmail, mes, ano, {
+        fiscal_nome:     _fiscalSel?.nome || fiscalEmail,
+        pn_extra:        pnExtra,
+        obs,
+        apuracao:        _result.apuracao,
+        pp:              _result.pp,
+        pn:              _result.pn,
+        pv:              _result.pv,
+        pv_lim:          _result.pvLim,
+        fechado_por:      _user.email,
+        fechado_por_nome: _user.nome || _user.email,
+      });
+
+      // Update local manuais list so renderSummary counts them as fechado
+      _manuais = _manuais.map(m =>
+        m.status === 'aceito' ? { ...m, status: 'fechado' } : m
+      );
+
       // Show obs in report
       if (obs) {
         document.getElementById('rel-obs-section').style.display = '';
@@ -325,6 +398,7 @@
 
       document.getElementById('print-btn-wrap').style.display = 'flex';
       document.getElementById('btn-fechar').disabled = true;
+      document.getElementById('admin-form-fields').style.display = 'none';
       document.getElementById('alert-area').innerHTML = alerta('ok', `Competência fechada! <strong>Apuração: R$ ${_result.apuracao},00</strong>. Clique em "Imprimir" para salvar o relatório.`);
       window.scrollTo(0, 0);
     } catch(e) {

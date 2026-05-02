@@ -363,8 +363,37 @@ async function releaseSimImportLock(mes, ano) {
   await window.db.collection('sim_import_locks').doc(docId).delete();
 }
 
+// ── Fechamentos ──────────────────────────────────────────
+// Document ID: {ano}-{mes_padded}-{fiscal_email_sanitized}
+
+function _fechamentoDocId(fiscalEmail, mes, ano) {
+  const emailSan = String(fiscalEmail).replace(/[.@+]/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  return `${ano}-${String(mes).padStart(2, '0')}-${emailSan}`;
+}
+
+async function getFechamento(fiscalEmail, mes, ano) {
+  const id   = _fechamentoDocId(fiscalEmail, mes, ano);
+  const snap = await window.db.collection('fechamentos').doc(id).get();
+  return snap.exists ? { id: snap.id, ...snap.data() } : null;
+}
+
+async function saveFechamento(fiscalEmail, mes, ano, data) {
+  const id  = _fechamentoDocId(fiscalEmail, mes, ano);
+  const ref = window.db.collection('fechamentos').doc(id);
+  await ref.set({
+    ...data,
+    fiscal_email: fiscalEmail,
+    mes:          Number(mes),
+    ano:          Number(ano),
+    fechado_em:   firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+  return id;
+}
+
 // ── Exports ──────────────────────────────────────────────
 
+window.db_getFechamento         = getFechamento;
+window.db_saveFechamento        = saveFechamento;
 window.db_getManuais          = getManuais;
 window.db_getManuaisTodos     = getManuaisTodos;
 window.db_createManual        = createManual;

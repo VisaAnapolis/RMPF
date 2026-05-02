@@ -86,6 +86,19 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
 
+    // Fechamentos: Administrativo/Administrador escreve; fiscal lê o seu próprio
+    match /fechamentos/{docId} {
+      allow read: if request.auth != null && (
+        resource.data.fiscal_email == request.auth.token.email ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador' ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrativo'
+      );
+      allow write: if request.auth != null && (
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrador' ||
+        get(/databases/$(database)/documents/usuarios/$(request.auth.token.email)).data.grupo == 'Administrativo'
+      );
+    }
+
     // Qualquer outra coleção: bloqueado por padrão
     match /{document=**} {
       allow read, write: if false;
