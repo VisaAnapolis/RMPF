@@ -398,10 +398,45 @@ async function saveFechamento(fiscalEmail, mes, ano, data) {
   return id;
 }
 
+// ── Último mês com lançamentos (busca de trás pra frente) ─
+// Retorna {mes, ano} do mês mais recente que possui algum documento
+// na coleção `manuais`. Filtra por fiscal quando `fiscalEmail` for
+// fornecido; caso contrário consulta globalmente.
+// Percorre até 13 meses a partir do mês corrente.
+
+async function getUltimoMesAberto(fiscalEmail) {
+  const now = new Date();
+  let ano = now.getFullYear();
+  let mes = now.getMonth() + 1;
+  for (let i = 0; i < 13; i++) {
+    let q = window.db.collection('manuais')
+      .where('mes', '==', mes)
+      .where('ano', '==', ano);
+    if (fiscalEmail) q = q.where('fiscal_email', '==', fiscalEmail);
+    const snap = await q.limit(1).get();
+    if (!snap.empty) return { mes, ano };
+    mes--;
+    if (mes === 0) { mes = 12; ano--; }
+  }
+  return { mes: now.getMonth() + 1, ano: now.getFullYear() };
+}
+
+// ── Fechamentos de um mês/ano (todos os fiscais) ──────────
+
+async function getFechamentosMes(mes, ano) {
+  const snap = await window.db.collection('fechamentos')
+    .where('mes', '==', Number(mes))
+    .where('ano', '==', Number(ano))
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // ── Exports ──────────────────────────────────────────────
 
 window.db_getFechamento         = getFechamento;
 window.db_saveFechamento        = saveFechamento;
+window.db_getUltimoMesAberto    = getUltimoMesAberto;
+window.db_getFechamentosMes     = getFechamentosMes;
 window.db_getManuais          = getManuais;
 window.db_getManuaisTodos     = getManuaisTodos;
 window.db_getManuaisRecusados = getManuaisRecusados;

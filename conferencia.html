@@ -499,6 +499,14 @@
       const ano = Number(document.getElementById('sel-ano').value);
       const selMesEl2 = document.getElementById('sel-mes');
       const mesNome = selMesEl2.options[selMesEl2.selectedIndex]?.text || mes;
+
+      const fechamentosMes = await db_getFechamentosMes(mes, ano);
+      if (fechamentosMes.length > 0) {
+        document.getElementById('alert-area').innerHTML = alerta('warn',
+          `A competência <strong>${escHtml(mesNome)}/${ano}</strong> já está fechada. Não é permitido apagar lançamentos de uma competência já fechada.`);
+        return;
+      }
+
       if (!confirm(`⚠️ Apagar lançamentos importados (VISA e SIM) de ${mesNome}/${ano}?\n\nLançamentos manuais dos fiscais NÃO serão apagados.\nEsta ação é IRREVERSÍVEL.`)) return;
       if (!confirm(`Confirmação final: apagar lançamentos importados (VISA e SIM) de ${mesNome}/${ano}?`)) return;
       const logEl = document.getElementById('import-visa-log');
@@ -601,6 +609,9 @@
 
     buildMesSelect('sel-mes');
     buildAnoSelect('sel-ano');
+    const { mes: _um, ano: _ua } = await db_getUltimoMesAberto();
+    document.getElementById('sel-mes').value = _um;
+    document.getElementById('sel-ano').value = _ua;
     atualizarBtnImportConf();
 
     // Pre-fill from URL params

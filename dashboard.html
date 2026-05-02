@@ -338,7 +338,7 @@
   }
 
   // ── Init ──────────────────────────────────────────────────
-  requireAuth(user => {
+  requireAuth(async user => {
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
@@ -361,6 +361,9 @@
       document.getElementById('view-fiscal').style.display = '';
       buildMesSelect('sel-mes');
       buildAnoSelect('sel-ano');
+      const { mes: _um, ano: _ua } = await db_getUltimoMesAberto(user.email);
+      document.getElementById('sel-mes').value = _um;
+      document.getElementById('sel-ano').value = _ua;
       // Show persistent banner if there are any refused records (across all competências)
       db_getManuaisRecusados(user.email).then(recusados => {
         if (recusados.length > 0) {
@@ -374,6 +377,9 @@
       document.getElementById('view-admin').style.display = '';
       buildMesSelect('admin-sel-mes');
       buildAnoSelect('admin-sel-ano');
+      const { mes: _um, ano: _ua } = await db_getUltimoMesAberto();
+      document.getElementById('admin-sel-mes').value = _um;
+      document.getElementById('admin-sel-ano').value = _ua;
       loadAdmin();
       document.getElementById('btn-admin-carregar').addEventListener('click', loadAdmin);
     } else {

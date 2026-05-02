@@ -334,10 +334,16 @@
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     buildSels('sel-mes','sel-ano');
+    const _emailParaUm = user.grupo === 'Fiscal' ? user.email : null;
+    const { mes: _um, ano: _ua } = await db_getUltimoMesAberto(_emailParaUm);
+    document.getElementById('sel-mes').value = _um;
+    document.getElementById('sel-ano').value = _ua;
 
     if (user.grupo === 'Fiscal') {
       document.getElementById('form-wrap').style.display = '';
       buildSels('o-mes','o-ano');
+      document.getElementById('o-mes').value = _um;
+      document.getElementById('o-ano').value = _ua;
       document.getElementById('btn-registrar').addEventListener('click', registrarOcorrencia);
     } else {
       // Administrador: show fiscal filter and actions
