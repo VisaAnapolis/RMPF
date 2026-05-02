@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.3.0</span>
+            <span class="badge-date">02/05/2026</span>
+          </div>
+          <div class="changelog-title">Fechamento, Bloqueios, Ciclo de Recusa e Restrições de Perfil</div>
+          <ul class="changelog-changes">
+            <li><strong>Persistência e cálculo do fechamento</strong> — ao fechar uma competência, o registro é gravado no Firestore (<code>fechamentos</code>); pontos com status <code>fechado</code> passam a ser contabilizados junto com <code>aceito</code> no Dashboard, Conferência e Fechamento. (<a href="https://github.com/garrado/RMPF/pull/55" target="_blank">#55</a>)</li>
+            <li><strong>Bloqueio de lançamentos e importações em competências fechadas</strong> — <code>lancamento.html</code> exibe banner de aviso e desabilita os botões de salvar e importar; <code>meus-lancamentos.html</code> protege os botões de importação e o link "Nova Atividade"; <code>js/visa-import.js</code> e <code>js/sim-import.js</code> bloqueiam a criação de novos registros em competências já fechadas. (<a href="https://github.com/garrado/RMPF/pull/56" target="_blank">#56</a>)</li>
+            <li><strong>Ciclo admin↔fiscal para recusa e reenvio de lançamentos</strong> — banner de alerta no dashboard do fiscal quando há lançamentos recusados; reimportação de CSV reseta status <code>recusado</code> → <code>enviado</code>; botão "✏️ Corrigir e Reenviar" em <code>meus-lancamentos.html</code> permite ao fiscal editar e reenviar lançamentos manuais recusados. (<a href="https://github.com/garrado/RMPF/pull/57" target="_blank">#57</a>)</li>
+            <li><strong>Perfil Administrativo restrito ao dashboard</strong> — acesso bloqueado a <code>fechamento.html</code>, <code>conferencia.html</code>, <code>ocorrencias.html</code> e <code>changelog.html</code>; sidebar exibe somente o link Dashboard; visão de apresentação exibida no lugar da tabela de fiscais. (<a href="https://github.com/garrado/RMPF/pull/58" target="_blank">#58</a>)</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.2.0</span>
             <span class="badge-date">28/04/2026 — 11:22 (UTC-3)</span>
           </div>
