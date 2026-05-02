@@ -44,6 +44,18 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.3.2</span>
+            <span class="badge-date">02/05/2026 - 11:49</span>
+          </div>
+          <div class="changelog-title">Fechamento em lote para todos os fiscais; dropdown de competência aponta para o próximo mês aberto</div>
+          <ul class="changelog-changes">
+            <li><strong>Botão "Fechar para Todos os Fiscais"</strong> — novo botão bulk-close em <code>fechamento.html</code>; o administrador pode fechar a competência para todos os fiscais de uma só vez, com diálogo de confirmação, processamento em lote (pula fiscais já fechados), banner de resultado com totais e estado de carregamento visual. (<a href="https://github.com/garrado/RMPF/pull/64" target="_blank">#64</a>)</li>
+            <li><strong>Dropdown de competência aponta para o próximo mês aberto</strong> — nova função <code>getProximaCompetencia</code> em <code>js/firestore.js</code> substitui <code>db_getUltimoMesFechado</code> no inicializador de dropdown em todas as páginas (<code>dashboard.html</code>, <code>lancamento.html</code>, <code>meus-lancamentos.html</code>, <code>conferencia.html</code>, <code>fechamento.html</code>, <code>ocorrencias.html</code>); o seletor passa a exibir por padrão o mês imediatamente posterior ao último fechamento registrado. Lógica de admin e fiscal unificada para consultar diretamente a coleção <code>fechamentos</code>, eliminando verificação frágil por contagem de usuários. (<a href="https://github.com/garrado/RMPF/pull/65" target="_blank">#65</a>, <a href="https://github.com/garrado/RMPF/pull/66" target="_blank">#66</a>, <a href="https://github.com/garrado/RMPF/pull/67" target="_blank">#67</a>)</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.3.1</span>
             <span class="badge-date">02/05/2026 - 10:49 </span>
           </div>
