@@ -421,9 +421,13 @@ const getUltimoMesAberto = getUltimoMesFechado;
 // ── Próxima competência aberta ────────────────────────────
 // Retorna {mes, ano} imediatamente após o último fechamento registrado
 // na coleção `fechamentos`.
-// Para fiscal: considera apenas os fechamentos desse fiscal.
-// Para admin (sem fiscalEmail): considera o fechamento mais recente
-// de qualquer fiscal. Fallback: mês corrente.
+// Para fiscal: considera apenas os fechamentos desse fiscal — retorna o
+//   mês seguinte ao seu último fechamento.
+// Para admin (sem fiscalEmail): agrupa todos os fechamentos por fiscal,
+//   determina o último fechamento de cada um e retorna o mês seguinte ao
+//   MÍNIMO desses últimos fechamentos. Assim, enquanto qualquer fiscal
+//   ainda estiver no mês X, o admin continua vendo X+1 como mês aberto.
+// Fallback: mês corrente se nenhum fechamento for encontrado.
 
 async function getProximaCompetencia(fiscalEmail) {
   const now = new Date();
@@ -434,9 +438,36 @@ async function getProximaCompetencia(fiscalEmail) {
   if (snap.empty) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
 
   const docs = snap.docs.map(d => d.data());
-  docs.sort((a, b) => Number(b.ano) - Number(a.ano) || Number(b.mes) - Number(a.mes));
-  let mes = Number(docs[0].mes) + 1;
-  let ano = Number(docs[0].ano);
+
+  // Para fiscal individual: usa o fechamento mais recente dele.
+  // Para admin: agrupa por fiscal e pega o mínimo dos últimos fechamentos
+  //   de cada fiscal (o fiscal mais atrasado define o mês aberto).
+  let refDoc;
+  if (fiscalEmail) {
+    docs.sort((a, b) => Number(b.ano) - Number(a.ano) || Number(b.mes) - Number(a.mes));
+    refDoc = docs[0];
+  } else {
+    // Agrupar por fiscal_email → pegar o mais recente de cada um
+    const porFiscal = {};
+    for (const d of docs) {
+      const email = d.fiscal_email;
+      if (!porFiscal[email]) {
+        porFiscal[email] = d;
+      } else {
+        const cur = porFiscal[email];
+        if (Number(d.ano) > Number(cur.ano) || (Number(d.ano) === Number(cur.ano) && Number(d.mes) > Number(cur.mes))) {
+          porFiscal[email] = d;
+        }
+      }
+    }
+    // Pegar o mínimo (fiscal mais atrasado)
+    const ultimos = Object.values(porFiscal);
+    ultimos.sort((a, b) => Number(a.ano) - Number(b.ano) || Number(a.mes) - Number(b.mes));
+    refDoc = ultimos[0];
+  }
+
+  let mes = Number(refDoc.mes) + 1;
+  let ano = Number(refDoc.ano);
   if (mes > 12) { mes = 1; ano++; }
   return { mes, ano };
 }

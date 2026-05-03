@@ -44,6 +44,17 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.3.3</span>
+            <span class="badge-date">03/05/2026</span>
+          </div>
+          <div class="changelog-title">Correção: dropdown de competência do administrador usa o fiscal mais atrasado como referência</div>
+          <ul class="changelog-changes">
+            <li><strong>Lógica do mês aberto para admin corrigida</strong> — <code>getProximaCompetencia</code> em <code>js/firestore.js</code> agora agrupa os fechamentos por fiscal, determina o último fechamento de cada um e usa o <em>mínimo</em> desses como referência; enquanto qualquer fiscal ainda não tiver fechado o mês X, o dropdown do admin aponta para X (mês aberto), e não para além dele.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.3.2</span>
             <span class="badge-date">02/05/2026 - 11:49</span>
           </div>
