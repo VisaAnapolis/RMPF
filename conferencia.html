@@ -624,12 +624,12 @@
 
     buildMesSelect('sel-mes');
     buildAnoSelect('sel-ano');
-    const { mes: _um, ano: _ua } = await db_getProximaCompetencia();
+    let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
+    try { ({ mes: _um, ano: _ua } = await db_getProximaCompetencia()); }
+    catch (e) { console.warn('Falha ao obter próxima competência:', e); }
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
     atualizarBtnImportConf();
-
-    // Pre-fill from URL params
     const params = new URLSearchParams(location.search);
     if (params.get('fiscal')) document.getElementById('sel-fiscal').value = params.get('fiscal');
     if (params.get('mes'))    document.getElementById('sel-mes').value    = params.get('mes');

@@ -71,9 +71,16 @@
     });
   });
 
-  // Convenience wrapper — call page init once auth resolves
+  // Convenience wrapper — call page init once auth resolves.
+  // NOTE: authReady only ever resolves (never rejects) — the outer .catch handles
+  // unexpected failures obtaining the Promise itself.  Page-level errors thrown by
+  // callback are caught separately so they do NOT redirect the user away.
   window.requireAuth = function (callback) {
-    window.authReady.then(callback).catch(() => {
+    window.authReady.then(user => {
+      Promise.resolve(callback(user)).catch(e => {
+        console.error('[requireAuth] Page init error:', e);
+      });
+    }).catch(() => {
       window.location.href = 'dashboard.html';
     });
   };
