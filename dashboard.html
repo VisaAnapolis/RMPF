@@ -277,7 +277,7 @@
         return;
       }
 
-      tbody.innerHTML = manuais.map(m => {
+      tbody.innerHTML = [...manuais].sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(m => {
         const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
         return `<tr>
           <td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle || '—')}</span></td>
