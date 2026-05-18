@@ -82,6 +82,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
 
     let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
     const cnaeCache = new Map();
+    const processedKeys = new Set(); // "fiscalEmail::osNum"
 
     for (let idx = 0; idx < rowsFiltradas.length; idx++) {
       const row = rowsFiltradas[idx];
@@ -96,6 +97,9 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
       const emailFiscal = fiscalMap.get(normNomeSim(nomeFiscalCsv));
       if (!emailFiscal) continue;
       if (fiscalEmail && emailFiscal !== fiscalEmail) continue;
+
+      // Marca como presente no CSV para detecção de registros órfãos
+      processedKeys.add(emailFiscal + '::' + osNum);
 
       const subclasse = String(row['CNAE'] || '').replace(/"/g, '').trim();
       let cnaeInfo = { complexidade: 'Média', descricao: '' };
@@ -175,14 +179,35 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
       }
     }
 
+    // Exclui lançamentos SIM que foram removidos do CSV e ainda não foram homologados
+    let excluidos = 0;
+    try {
+      const candidatos = fiscalEmail
+        ? await window.db_getManuais(fiscalEmail, mes, ano)
+        : await window.db_getManuaisTodos(mes, ano);
+      for (const m of candidatos) {
+        if (m.origem !== 'sim_csv') continue;
+        if (m.status === 'aceito' || m.status === 'fechado') continue;
+        const key = (m.fiscal_email || '') + '::' + (m.sim_os || '');
+        if (!processedKeys.has(key)) {
+          await window.db_deleteManual(m.id);
+          excluidos++;
+          onProgress(`🗑️ OS ${m.sim_os} — não encontrado no CSV, lançamento excluído.`, 'info');
+        }
+      }
+    } catch(e) {
+      onProgress('⚠️ Erro ao verificar lançamentos órfãos: ' + e.message, 'warn');
+    }
+
     onProgress(
       `✅ Importação concluída: <strong>${criados}</strong> criado(s), ` +
       `<strong>${atualizados}</strong> atualizado(s), ` +
       `<strong>${ignorados}</strong> ignorado(s), ` +
+      `<strong>${excluidos}</strong> excluído(s), ` +
       `<strong>${erros}</strong> erro(s).`,
       erros > 0 ? 'warn' : 'ok'
     );
-    return { criados, atualizados, ignorados, erros };
+    return { criados, atualizados, ignorados, excluidos, erros };
   } finally {
     await window.db_releaseSimImportLock(mes, ano);
   }
