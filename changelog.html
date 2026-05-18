@@ -44,6 +44,28 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.5.2</span>
+            <span class="badge-date">18/05/2026</span>
+          </div>
+          <div class="changelog-title">Correção: exclusão de registros órfãos ao re-importar CSV VISA/SIM</div>
+          <ul class="changelog-changes">
+            <li><strong>Detecção e exclusão de registros removidos do CSV</strong> — na re-importação, lançamentos criados via <code>visa_csv</code> ou <code>sim_csv</code> que não estejam mais presentes no CSV do mês são automaticamente excluídos, desde que ainda não estejam homologados (<code>aceito</code> / <code>fechado</code>); cada exclusão é registrada no log com 🗑️ e contabilizada no resumo de conclusão como <strong>excluído(s)</strong> (<code>js/visa-import.js</code>, <code>js/sim-import.js</code>).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.5.1</span>
+            <span class="badge-date">18/05/2026</span>
+          </div>
+          <div class="changelog-title">Correção: re-importação CSV preservava lançamentos removidos do CSV</div>
+          <ul class="changelog-changes">
+            <li>Versão intermediária — substituída por v1.5.2.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.5.0</span>
             <span class="badge-date">05/05/2026</span>
           </div>
