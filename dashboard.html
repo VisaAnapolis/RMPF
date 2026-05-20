@@ -282,7 +282,7 @@
       tbody.innerHTML = manuais.map(m => {
         const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
         const statusCell = m.status === 'pendente' && m.motivo_pendencia
-          ? `${badge(m.status)}<br><span style="font-size:.75rem;color:var(--laranja)">⚠️ ${escHtml(m.motivo_pendencia)}</span>`
+          ? `${badge('pendente-fiscal')}<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia)}</span>`
           : badge(m.status);
         return `<tr>
           <td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle || '—')}</span></td>

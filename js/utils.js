@@ -65,7 +65,8 @@ function badge(type) {
     rascunho: ['badge-rascunho', 'Rascunho'],
     recusado: ['badge-recusado', 'Recusado'],
     fechado:  ['badge-fechado',  'Fechado'],
-    pendente: ['badge-pendente', 'Pendente'],
+    pendente:        ['badge-pendente',        'Pendente'],
+    'pendente-fiscal': ['badge-pendente-fiscal', 'Pendente'],
     cvs:      ['badge-cvs',      'CVS'],
     manual:   ['badge-manual',   'Manual'],
   };
