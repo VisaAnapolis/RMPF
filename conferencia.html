@@ -159,6 +159,10 @@
               <input type="number" class="form-control" id="hom-pts-hom" min="0">
             </div>
           </div>
+          <div id="hom-pendencia-aviso" style="display:none;margin-bottom:.5rem" class="alert alert-warn">
+            <span class="alert-icon">⚠️</span>
+            <div><strong>Pendência de autorização:</strong> <span id="hom-pendencia-texto"></span></div>
+          </div>
           <div class="form-group">
             <label class="form-label" for="hom-motivo">Motivo (obrigatório para Recusar)</label>
             <input type="text" class="form-control" id="hom-motivo" placeholder="Ex: Documento insuficiente…">
@@ -300,6 +304,8 @@
       } else if (isAdmin) {
         if (m.status === 'enviado') {
           acoes = `<button class="btn btn-outline btn-sm" onclick="abrirHom('${m.id}')">📝 Homologar</button>`;
+        } else if (m.status === 'pendente') {
+          acoes = `<button class="btn btn-default btn-sm" onclick="abrirHom('${m.id}')" title="Fiscal3 aguarda autorização">🔔 Autorizar</button>`;
         } else if (m.status === 'aceito' || m.status === 'recusado') {
           acoes = `<button class="btn btn-default btn-sm" onclick="abrirHom('${m.id}')">✏️ Rever</button>`;
         }
@@ -339,6 +345,15 @@
     document.getElementById('hom-pts-req').value   = m.pontos ?? '';
     document.getElementById('hom-pts-hom').value   = m.pontos_homologado ?? m.pontos ?? '';
     document.getElementById('hom-motivo').value    = m.motivo_recusa || '';
+    const aviso = document.getElementById('hom-pendencia-aviso');
+    const avisoTexto = document.getElementById('hom-pendencia-texto');
+    if (m.motivo_pendencia) {
+      avisoTexto.textContent = m.motivo_pendencia;
+      aviso.style.display = '';
+    } else {
+      avisoTexto.textContent = '';
+      aviso.style.display = 'none';
+    }
     document.getElementById('hom-alert').innerHTML = '';
     document.getElementById('modal-hom').style.display = 'flex';
   }
@@ -374,6 +389,7 @@
         status,
         pontos_homologado: status === 'aceito' ? Number(ponHom) : null,
         motivo_recusa: status === 'recusado' ? motivo : null,
+        motivo_pendencia: null,
       });
       document.getElementById('modal-hom').style.display = 'none';
       document.getElementById('alert-area').innerHTML = alerta('ok', `Lançamento <strong>${status}</strong>.`);
