@@ -225,8 +225,9 @@ input, select, textarea { font-family: var(--font); }
 .badge-rascunho { background: var(--cinzaB); color: var(--cinzaT);}
 .badge-recusado { background: var(--vermP);  color: var(--verm);  }
 .badge-fechado  { background: #e2e8f0;       color: #475569;      }
-.badge-pendente { background: var(--laraP); color: var(--lara);  }
-.badge-cvs      { background: var(--azulP);  color: var(--azul);  }
+.badge-pendente         { background: var(--laraP); color: var(--lara);  }
+.badge-pendente-fiscal  { background: var(--azulP); color: var(--azul);  }
+.badge-cvs              { background: var(--azulP);  color: var(--azul);  }
 .badge-manual   { background: var(--verdeP); color: var(--verde); }
 
 /* ── Alerts ── */
