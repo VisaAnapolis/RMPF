@@ -44,14 +44,34 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.5.6</span>
+            <span class="badge-date">20/05/2026</span>
+          </div>
+          <div class="changelog-title">Suporte a imagens como anexo em Nova Atividade e Meus Lançamentos</div>
+          <ul class="changelog-changes">
+            <li><strong>Tipos aceitos expandidos</strong> — além de PDF, os campos de anexo agora aceitam imagens JPEG, PNG, WebP e GIF; a validação usa um mapa <code>ANEXO_TIPOS_ACEITOS</code> + <code>ANEXO_EXTENSOES_ACEITAS</code> em vez de checar apenas <code>application/pdf</code> (<code>js/firestore.js</code>).</li>
+            <li><strong>Limite de tamanho aumentado</strong> — de 5 MB para 10 MB por arquivo.</li>
+            <li><strong>Interface atualizada</strong> — labels, hints e mensagens de progresso/sucesso/erro em <code>lancamento.html</code> e no modal de <code>meus-lancamentos.html</code> refletem os novos tipos aceitos.</li>
+            <li><strong>Detecção de tipo na tabela</strong> — a célula da coluna Anexo detecta o tipo pela extensão do arquivo e exibe 🖼️ <strong>Imagem</strong> ou 📎 <strong>PDF</strong> conforme o caso.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.5.5</span>
             <span class="badge-date">20/05/2026</span>
           </div>
-          <div class="changelog-title">Correção: autorização de Fiscal3 pendente não deve pular direto para homologado</div>
+          <div class="changelog-title">Melhorias no fluxo de autorização do Fiscal3: correções, visibilidade e ajustes visuais</div>
           <ul class="changelog-changes">
-            <li><strong>Fluxo de autorização corrigido</strong> — ao autorizar um lançamento com <code>status: 'pendente'</code> (Fiscal3 sem autorização de terceiro fiscal), o status passa agora para <code>'enviado'</code>, entrando no fluxo normal de conferência/homologação, em vez de ir diretamente para <code>'aceito'</code>.</li>
-            <li><strong>Modal adaptativo</strong> — quando aberto para um lançamento pendente, o modal exibe o título <em>Autorizar Lançamento</em> e o botão <em>✓ Autorizar</em> (em vez de "Homologar" / "✓ Aceitar"), e oculta o campo de pontos homologados, que não é relevante nesse passo.</li>
-            <li><strong>Mensagem de confirmação</strong> — após a autorização bem-sucedida, o alerta informa que o lançamento foi <em>autorizado e enviado para conferência</em>.</li>
+            <li><strong>Lógica de autorização corrigida</strong> — a função <code>isTerceiroFiscalAutorizado</code> em <code>js/visa-import.js</code> tinha um bloco permissivo que retornava <code>true</code> quando a OS/Ofício não era encontrada em nenhum mapa; removido para que registros sem autorização explícita sejam corretamente marcados como <code>'pendente'</code> (PR #93).</li>
+            <li><strong>Fluxo de autorização corrigido</strong> — ao autorizar um lançamento com <code>status: 'pendente'</code>, o status transita para <code>'enviado'</code> e entra no fluxo normal de conferência/homologação, em vez de ir diretamente para <code>'aceito'</code> (PR #97).</li>
+            <li><strong>Modal adaptativo</strong> — quando aberto para um lançamento pendente, exibe o título <em>Autorizar Lançamento</em> e o botão <em>✓ Autorizar</em> (em vez de "Homologar" / "✓ Aceitar"), ocultando o campo de pontos homologados (PR #97).</li>
+            <li><strong>Motivo de pendência visível ao fiscal</strong> — em Meus Lançamentos e no Dashboard, lançamentos VISA com <code>status: 'pendente'</code> exibem o <code>motivo_pendencia</code> abaixo do badge; o Dashboard inclui também um banner de aviso com contagem de pendentes (PR #91).</li>
+            <li><strong>Badge azul para pendência por Fiscal3</strong> — nova classe <code>.badge-pendente-fiscal</code> (azul) diferencia visualmente a pendência por falta de autorização do terceiro fiscal da pendência comum (laranja), em <code>dashboard.html</code>, <code>meus-lancamentos.html</code> e <code>conferencia.html</code> (PR #96).</li>
+            <li><strong>Diferenciação de badges Pendente vs. Enviado</strong> — badge <em>Pendente</em> migrado para novas variáveis CSS laranja (<code>--lara</code>/<code>--laraP</code>) enquanto <em>Enviado</em> mantém âmbar, tornando-os distinguíveis em todas as tabelas (PR #94).</li>
+            <li><strong>Nome do arquivo truncado na coluna Anexo</strong> — o link de anexo exibe rótulo fixo (📎 PDF) em vez do nome completo do arquivo, evitando que a coluna se expanda e empurre as demais; o nome completo continua acessível pelo atributo <code>title</code> (PR #95).</li>
+            <li><strong>Aviso falso-positivo de CSV suprimido</strong> — <code>fetchGitHubCSV</code> retorna <code>null</code> para HTTP 404 (arquivo ainda não criado) em vez de lançar exceção, evitando o ⚠️ desnecessário ao importar quando <code>Oficio.csv</code> ou <code>requerimento.csv</code> ainda não existem no repositório (PR #92).</li>
+            <li><strong>Mensagem de confirmação</strong> — após autorização bem-sucedida, o alerta informa que o lançamento foi <em>autorizado e enviado para conferência</em> (PR #97).</li>
           </ul>
         </li>
 
