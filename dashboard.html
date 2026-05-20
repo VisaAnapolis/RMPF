@@ -318,7 +318,7 @@
         const ptosReq   = manuais
           .filter(m => m.status === 'enviado')
           .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
-        const pendentes = manuais.filter(m => m.status === 'enviado').length;
+        const pendentes = manuais.filter(m => m.status === 'enviado' || m.status === 'pendente').length;
         return `<tr>
           <td data-label="Fiscal">${escHtml(f.nome || f.id)}</td>
           <td data-label="Pts Req." class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>

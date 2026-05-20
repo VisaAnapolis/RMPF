@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.5.4</span>
+            <span class="badge-date">20/05/2026</span>
+          </div>
+          <div class="changelog-title">Correção do status pendente do Fiscal3 não autorizado na importação VISA</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção de case no status</strong> — o status de pendência do Fiscal3 não autorizado era gravado como <code>'Pendente'</code> (P maiúsculo), incompatível com o restante do sistema que usa <code>'pendente'</code>; corrigido para minúsculo.</li>
+            <li><strong>Campo <code>motivo_pendencia</code></strong> — registros pendentes de autorização do Fiscal3 agora incluem o campo <code>motivo_pendencia</code> na coleção, informando o motivo ao administrador sem conflitar com <code>motivo_recusa</code>.</li>
+            <li><strong>Conferência: botão "Autorizar"</strong> — na tela de conferência, o administrador vê o botão <em>🔔 Autorizar</em> para lançamentos com <code>status: 'pendente'</code>, e o modal exibe o aviso de pendência de autorização do terceiro fiscal.</li>
+            <li><strong>Dashboard admin</strong> — a contagem de pendentes na visão do administrador passa a incluir lançamentos com <code>status: 'pendente'</code> além de <code>'enviado'</code>.</li>
+            <li><strong>Limpeza ao homologar</strong> — ao aceitar ou recusar um lançamento na conferência, o campo <code>motivo_pendencia</code> é automaticamente limpo.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.5.3</span>
             <span class="badge-date">20/05/2026</span>
           </div>

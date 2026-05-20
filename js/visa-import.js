@@ -273,10 +273,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             if (isTerceiro) {
               const autorizado = isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);
               if (!autorizado) {
-                updateData.status = 'Pendente';
-                onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como Pendente.`, 'warn');
-              } else if (existing.status === 'Pendente') {
+                updateData.status = 'pendente';
+                updateData.motivo_pendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
+                onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
+              } else if (existing.status === 'pendente') {
                 updateData.status = 'enviado';
+                updateData.motivo_pendencia = null;
                 onProgress(`✅ CONTROLE ${controleVisa} — Fiscal3 agora autorizado, restaurado para enviado.`, 'info');
               }
             }
@@ -291,9 +293,11 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             }
             // Determinar status inicial considerando autorização do terceiro fiscal
             let statusInicial = 'enviado';
+            let motivoPendencia = null;
             if (isTerceiro && !isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap)) {
-              statusInicial = 'Pendente';
-              onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como Pendente.`, 'warn');
+              statusInicial = 'pendente';
+              motivoPendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
+              onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
             }
             await window.db_upsertVISAManual(controleVisa, emailFiscal, {
               controle: 'VISA-' + controleVisa,
@@ -306,6 +310,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               complexidade: cnaeInfo.complexidade,
               pontos: tipoInfo.pontos, descricao,
               status: statusInicial,
+              motivo_pendencia: motivoPendencia,
               origem: 'visa_csv',
               visa_controle: controleVisa,
             }, null, true);
