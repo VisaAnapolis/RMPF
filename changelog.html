@@ -44,6 +44,17 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.5.3</span>
+            <span class="badge-date">20/05/2026</span>
+          </div>
+          <div class="changelog-title">Verificação de autorização do terceiro fiscal na importação de CSV VISA</div>
+          <ul class="changelog-changes">
+            <li><strong>Bloqueio de pendência do Fiscal3 não autorizado</strong> — na importação de <code>inspecoes.csv</code>, registros atribuídos ao <code>Fiscal3</code> recebem <code>status: 'Pendente'</code> em vez de <code>'enviado'</code> quando a OS não consta em <code>requerimento.csv</code> com <code>prioridade=true</code> nem o Ofício consta em <code>Oficio.csv</code> com <code>terceiro=true</code>; na re-importação, a autorização é reavaliada e o status é restaurado para <code>'enviado'</code> se a autorização for concedida — PR #88.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.5.2</span>
             <span class="badge-date">18/05/2026</span>
           </div>
