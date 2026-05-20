@@ -534,6 +534,7 @@ async function fetchGitHubCSV(filePath) {
       'Accept': 'application/vnd.github.v3.raw',
     },
   });
+  if (resp.status === 404) return null;
   if (!resp.ok) throw new Error('Não foi possível acessar o arquivo do repositório VISA: HTTP ' + resp.status);
   return resp.text();
 }

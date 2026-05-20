@@ -138,18 +138,20 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
     try {
       const reqText = await window.fetchGitHubCSV('data/requerimento.csv');
-      const reqParsed = Papa.parse(reqText, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
-      });
-      for (const r of reqParsed.data) {
-        const osKey = String(r['OS'] || '').replace(/"/g, '').trim();
-        if (!osKey) continue;
-        const prioridade = String(r['prioridade'] || '').replace(/"/g, '').trim().toLowerCase();
-        requerimentoMap.set(osKey, { prioridade: prioridade === 'true' || prioridade === '1' || prioridade === 'sim' });
+      if (reqText !== null) {
+        const reqParsed = Papa.parse(reqText, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
+        });
+        for (const r of reqParsed.data) {
+          const osKey = String(r['OS'] || '').replace(/"/g, '').trim();
+          if (!osKey) continue;
+          const prioridade = String(r['prioridade'] || '').replace(/"/g, '').trim().toLowerCase();
+          requerimentoMap.set(osKey, { prioridade: prioridade === 'true' || prioridade === '1' || prioridade === 'sim' });
+        }
+        onProgress(`📑 ${requerimentoMap.size} requerimento(s) carregado(s).`, 'info');
       }
-      onProgress(`📑 ${requerimentoMap.size} requerimento(s) carregado(s).`, 'info');
     } catch (err) {
       onProgress('⚠️ Não foi possível carregar requerimento.csv — autorizações de terceiro fiscal não verificadas.', 'warn');
       console.error('Failed to load requerimento.csv:', err);
@@ -157,18 +159,20 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
     try {
       const ofiText = await window.fetchGitHubCSV('data/Oficio.csv');
-      const ofiParsed = Papa.parse(ofiText, {
-        header: true,
-        skipEmptyLines: true,
-        transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
-      });
-      for (const r of ofiParsed.data) {
-        const ofiKey = String(r['Oficio'] || '').replace(/"/g, '').trim();
-        if (!ofiKey) continue;
-        const terceiro = String(r['terceiro'] || '').replace(/"/g, '').trim().toLowerCase();
-        oficioMap.set(ofiKey, { terceiro: terceiro === 'true' || terceiro === '1' || terceiro === 'sim' });
+      if (ofiText !== null) {
+        const ofiParsed = Papa.parse(ofiText, {
+          header: true,
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
+        });
+        for (const r of ofiParsed.data) {
+          const ofiKey = String(r['Oficio'] || '').replace(/"/g, '').trim();
+          if (!ofiKey) continue;
+          const terceiro = String(r['terceiro'] || '').replace(/"/g, '').trim().toLowerCase();
+          oficioMap.set(ofiKey, { terceiro: terceiro === 'true' || terceiro === '1' || terceiro === 'sim' });
+        }
+        onProgress(`📑 ${oficioMap.size} ofício(s) carregado(s).`, 'info');
       }
-      onProgress(`📑 ${oficioMap.size} ofício(s) carregado(s).`, 'info');
     } catch (err) {
       onProgress('⚠️ Não foi possível carregar Oficio.csv — autorizações de terceiro fiscal não verificadas.', 'warn');
       console.error('Failed to load Oficio.csv:', err);
