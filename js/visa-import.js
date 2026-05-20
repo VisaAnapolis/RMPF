@@ -69,31 +69,22 @@ function resolverTipoVisa(tipoRaw, complexidade) {
 }
 
 // ── Autorização do terceiro fiscal ───────────────────────
-// Retorna true quando o Fiscal3 está autorizado a participar da OS/Ofício.
-// Comportamento permissivo: se a OS/Ofício não for encontrada em nenhum mapa,
-// considera autorizado (chave desconhecida não bloqueia o registro).
+// Retorna true somente quando o Fiscal3 está explicitamente autorizado:
+//   - OS encontrada em requerimento.csv com prioridade=true, OU
+//   - Ofício encontrado em oficio.csv com terceiro=true.
+// Qualquer outro caso (chave ausente ou flag falso) → não autorizado.
 function isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap) {
-  let encontrado = false;
-
   if (os) {
     const req = requerimentoMap.get(os);
-    if (req !== undefined) {
-      encontrado = true;
-      if (req.prioridade === true) return true;
-    }
+    if (req !== undefined && req.prioridade === true) return true;
   }
 
   if (oficio) {
     const ofi = oficioMap.get(oficio);
-    if (ofi !== undefined) {
-      encontrado = true;
-      if (ofi.terceiro === true) return true;
-    }
+    if (ofi !== undefined && ofi.terceiro === true) return true;
   }
 
-  // Chave não encontrada em nenhum mapa → permissivo
-  if (!encontrado) return true;
-
+  // Não autorizado: OS/Ofício ausente nos mapas ou encontrado sem flag de autorização
   return false;
 }
 
