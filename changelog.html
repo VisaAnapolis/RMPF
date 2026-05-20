@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.5.5</span>
+            <span class="badge-date">20/05/2026</span>
+          </div>
+          <div class="changelog-title">Correção: autorização de Fiscal3 pendente não deve pular direto para homologado</div>
+          <ul class="changelog-changes">
+            <li><strong>Fluxo de autorização corrigido</strong> — ao autorizar um lançamento com <code>status: 'pendente'</code> (Fiscal3 sem autorização de terceiro fiscal), o status passa agora para <code>'enviado'</code>, entrando no fluxo normal de conferência/homologação, em vez de ir diretamente para <code>'aceito'</code>.</li>
+            <li><strong>Modal adaptativo</strong> — quando aberto para um lançamento pendente, o modal exibe o título <em>Autorizar Lançamento</em> e o botão <em>✓ Autorizar</em> (em vez de "Homologar" / "✓ Aceitar"), e oculta o campo de pontos homologados, que não é relevante nesse passo.</li>
+            <li><strong>Mensagem de confirmação</strong> — após a autorização bem-sucedida, o alerta informa que o lançamento foi <em>autorizado e enviado para conferência</em>.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.5.4</span>
             <span class="badge-date">20/05/2026</span>
           </div>

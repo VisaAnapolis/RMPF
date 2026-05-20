@@ -196,9 +196,10 @@
 <script src="js/visa-import.js"></script>
 <script src="js/sim-import.js"></script>
 <script>
-  let _user    = null;
-  let _manuais = [];
-  let _grupo   = '';
+  let _user        = null;
+  let _manuais     = [];
+  let _grupo       = '';
+  let _homPendente = false; // true quando o modal foi aberto para autorizar (status 'pendente')
 
   function buildSidebar(grupo) {
     const links = grupo === 'Fiscal' ? [
@@ -339,6 +340,7 @@
   function abrirHom(id) {
     const m = _manuais.find(x => x.id === id);
     if (!m) return;
+    _homPendente = m.status === 'pendente';
     document.getElementById('hom-id').value        = id;
     document.getElementById('hom-info').value      = `${m.controle||id} — ${m.tipo_nome||m.tipo_codigo}`;
     document.getElementById('hom-desc').value      = m.descricao || '';
@@ -354,6 +356,12 @@
       avisoTexto.textContent = '';
       aviso.style.display = 'none';
     }
+    // Adaptar modal conforme contexto: autorização de pendência vs. homologação
+    const isPendente = _homPendente;
+    document.getElementById('modal-title').textContent   = isPendente ? 'Autorizar Lançamento' : 'Homologar Lançamento';
+    document.getElementById('btn-aceitar').textContent   = isPendente ? '✓ Autorizar' : '✓ Aceitar';
+    // Ocultar campo de pontos homologados na autorização (não faz parte desse passo)
+    document.getElementById('hom-pts-hom').closest('.form-group').style.display = isPendente ? 'none' : '';
     document.getElementById('hom-alert').innerHTML = '';
     document.getElementById('modal-hom').style.display = 'flex';
   }
@@ -384,15 +392,22 @@
       document.getElementById('hom-alert').innerHTML = alerta('warn','Informe o motivo da recusa.');
       return;
     }
+    // Quando o admin "aceita" um lançamento pendente (autorização do Fiscal3),
+    // o lançamento deve ir para 'enviado' (entrando no fluxo normal de homologação),
+    // não direto para 'aceito'.
+    const statusFinal = (status === 'aceito' && _homPendente) ? 'enviado' : status;
     try {
       await db_updateManual(id, {
-        status,
-        pontos_homologado: status === 'aceito' ? Number(ponHom) : null,
-        motivo_recusa: status === 'recusado' ? motivo : null,
+        status: statusFinal,
+        pontos_homologado: statusFinal === 'aceito' ? Number(ponHom) : null,
+        motivo_recusa: statusFinal === 'recusado' ? motivo : null,
         motivo_pendencia: null,
       });
       document.getElementById('modal-hom').style.display = 'none';
-      document.getElementById('alert-area').innerHTML = alerta('ok', `Lançamento <strong>${status}</strong>.`);
+      const msg = _homPendente && status === 'aceito'
+        ? 'Lançamento <strong>autorizado</strong> e enviado para conferência.'
+        : `Lançamento <strong>${statusFinal}</strong>.`;
+      document.getElementById('alert-area').innerHTML = alerta('ok', msg);
       loadConferencia();
     } catch(e) {
       document.getElementById('hom-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
