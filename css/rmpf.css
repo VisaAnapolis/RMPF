@@ -10,6 +10,8 @@
   --azulP:   #e6eef8;
   --amar:    #b45309;
   --amarP:   #fffbeb;
+  --lara:    #c2410c;
+  --laraP:   #fff7ed;
   --verm:    #b91c1c;
   --vermP:   #fff1f2;
   --cinzaB:  #f4f5f7;
@@ -223,7 +225,7 @@ input, select, textarea { font-family: var(--font); }
 .badge-rascunho { background: var(--cinzaB); color: var(--cinzaT);}
 .badge-recusado { background: var(--vermP);  color: var(--verm);  }
 .badge-fechado  { background: #e2e8f0;       color: #475569;      }
-.badge-pendente { background: var(--amarP);  color: var(--amar);  }
+.badge-pendente { background: var(--laraP); color: var(--lara);  }
 .badge-cvs      { background: var(--azulP);  color: var(--azul);  }
 .badge-manual   { background: var(--verdeP); color: var(--verde); }
 
@@ -667,6 +669,8 @@ table.rmpf-table {
     --azulP:   #0d1f35;
     --amar:    #e07c27;
     --amarP:   #2d1e00;
+    --lara:    #fb923c;
+    --laraP:   #431407;
     --verm:    #e05555;
     --vermP:   #2d0a0a;
     --cinzaB:  #1a1d23;
