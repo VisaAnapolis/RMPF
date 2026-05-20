@@ -157,14 +157,14 @@
         </div>
 
         <div class="form-group" id="grupo-anexo-pdf">
-          <label class="form-label" for="f-pdf">Anexo PDF (opcional, máx. 10 MB)</label>
-          <input type="file" class="form-control" id="f-pdf" accept=".pdf,application/pdf">
-          <div class="form-hint">Apenas arquivos PDF. O upload ocorre após salvar o lançamento.</div>
+          <label class="form-label" for="f-pdf">Anexo (opcional, máx. 10 MB)</label>
+          <input type="file" class="form-control" id="f-pdf" accept=".pdf,application/pdf,image/*">
+          <div class="form-hint">PDF ou imagem (JPEG, PNG, WebP, GIF). O upload ocorre após salvar o lançamento.</div>
         </div>
 
         <div id="upload-pdf-progress" class="progress-wrap" style="display:none">
           <div class="progress-header">
-            <span class="progress-label" id="upload-pdf-label">Enviando PDF…</span>
+            <span class="progress-label" id="upload-pdf-label">Enviando arquivo…</span>
             <span class="progress-pct" id="upload-pdf-pct">0%</span>
           </div>
           <div class="progress-track">
@@ -350,7 +350,7 @@
     try {
       const docId = await db_createManual(doc);
 
-      // ── Upload do PDF (opcional) ──────────────────────
+      // ── Upload do anexo (opcional) ──────────────────────
       const pdfInput = document.getElementById('f-pdf');
       const pdfFile  = pdfInput && pdfInput.files[0];
       if (pdfFile) {
@@ -363,13 +363,13 @@
           await db_uploadAnexoManual(docId, pdfFile, pct => {
             progressFill.style.width = pct + '%';
             progressPct.textContent  = pct + '%';
-            progressLabel.textContent = `Enviando PDF… ${pct}%`;
+            progressLabel.textContent = `Enviando arquivo… ${pct}%`;
           });
           progressWrap.style.display = 'none';
-          showAlert('ok', `Atividade <strong>${controle}</strong> salva com status <em>${status}</em> e PDF anexado! <a href="meus-lancamentos.html">Ver meus lançamentos</a>`);
+          showAlert('ok', `Atividade <strong>${controle}</strong> salva com status <em>${status}</em> e anexo enviado! <a href="meus-lancamentos.html">Ver meus lançamentos</a>`);
         } catch (uploadErr) {
           progressWrap.style.display = 'none';
-          showAlert('warn', `Atividade salva, mas houve um erro ao enviar o PDF: ${escHtml(uploadErr.message)}`);
+          showAlert('warn', `Atividade salva, mas houve um erro ao enviar o anexo: ${escHtml(uploadErr.message)}`);
         }
       } else {
         showAlert('ok', `Atividade <strong>${controle}</strong> salva com status <em>${status}</em>! <a href="meus-lancamentos.html">Ver meus lançamentos</a>`);
