@@ -189,19 +189,19 @@
   </footer>
 </div>
 
-<!-- Modal de Anexo PDF -->
+<!-- Modal de Anexo -->
 <div id="modal-anexo" class="modal-backdrop" style="display:none">
   <div class="modal">
     <div class="modal-header">
-      <span>📎 Anexar PDF</span>
+      <span>📎 Anexar Arquivo</span>
       <button class="modal-close" id="anexo-close">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="anexo-doc-id">
       <div class="form-group">
-        <label class="form-label required" for="anexo-file">Arquivo PDF (máx. 10 MB)</label>
-        <input type="file" class="form-control" id="anexo-file" accept=".pdf,application/pdf">
-        <div class="form-hint">Apenas arquivos PDF são aceitos.</div>
+        <label class="form-label required" for="anexo-file">Arquivo (máx. 10 MB)</label>
+        <input type="file" class="form-control" id="anexo-file" accept=".pdf,application/pdf,image/*">
+        <div class="form-hint">PDF ou imagem (JPEG, PNG, WebP, GIF).</div>
       </div>
       <div id="anexo-progress-wrap" class="progress-wrap" style="display:none">
         <div class="progress-header">
@@ -216,7 +216,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-default" id="anexo-close2">Cancelar</button>
-      <button class="btn btn-primary" id="btn-confirmar-anexo">📤 Enviar PDF</button>
+      <button class="btn btn-primary" id="btn-confirmar-anexo">📤 Enviar Arquivo</button>
     </div>
   </div>
 </div>
@@ -325,14 +325,17 @@
       let anexoCell = '';
       const podeAnexar = !_fechamento && m.status !== 'fechado' && m.origem !== 'visa_csv' && m.origem !== 'sim_csv';
       if (m.anexo_url) {
-        const nomeSeguro = escHtml(m.anexo_nome || 'arquivo.pdf');
+        const nomeSeguro = escHtml(m.anexo_nome || 'arquivo');
+        const ext = (m.anexo_nome || '').toLowerCase().split('.').pop();
+        const isImagem = ['jpg','jpeg','png','webp','gif'].includes(ext);
+        const iconeAnexo = isImagem ? '🖼️ Imagem' : '📎 PDF';
         anexoCell = `<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
           <a href="${escHtml(m.anexo_url)}" target="_blank" rel="noopener"
-             title="${nomeSeguro}" class="btn btn-outline btn-sm" style="gap:4px">📎 PDF</a>
-          ${podeAnexar ? `<button class="btn btn-danger btn-sm" onclick="removerAnexo('${m.id}','${escHtml(m.anexo_path || '')}')" title="Remover PDF">🗑️ Remover</button>` : ''}
+             title="${nomeSeguro}" class="btn btn-outline btn-sm" style="gap:4px">${iconeAnexo}</a>
+          ${podeAnexar ? `<button class="btn btn-danger btn-sm" onclick="removerAnexo('${m.id}','${escHtml(m.anexo_path || '')}')" title="Remover anexo">🗑️ Remover</button>` : ''}
         </div>`;
       } else if (podeAnexar) {
-        anexoCell = `<button class="btn btn-default btn-sm" onclick="abrirUploadAnexo('${m.id}')" title="Anexar PDF">📎 Anexar</button>`;
+        anexoCell = `<button class="btn btn-default btn-sm" onclick="abrirUploadAnexo('${m.id}')" title="Anexar arquivo">📎 Anexar</button>`;
       } else {
         anexoCell = '—';
       }
@@ -463,7 +466,7 @@
   window.editarManual  = editarManual;
   window.corrigirManual = corrigirManual;
 
-  // ── Anexo PDF ────────────────────────────────────────────
+  // ── Anexo ────────────────────────────────────────────
 
   function abrirUploadAnexo(docId) {
     document.getElementById('anexo-doc-id').value = docId;
@@ -476,7 +479,7 @@
   }
 
   async function removerAnexo(docId, anexoPath) {
-    if (!confirm('Remover o PDF anexado a este lançamento?')) return;
+    if (!confirm('Remover o anexo deste lançamento?')) return;
     try {
       await db_removeAnexoManual(docId, anexoPath);
       showAlert('ok', 'Anexo removido com sucesso.');
@@ -490,7 +493,7 @@
     const docId = document.getElementById('anexo-doc-id').value;
     const file  = document.getElementById('anexo-file').files[0];
     if (!file) {
-      document.getElementById('anexo-alert').innerHTML = alerta('warn', 'Selecione um arquivo PDF.');
+      document.getElementById('anexo-alert').innerHTML = alerta('warn', 'Selecione um arquivo.');
       return;
     }
     const progressWrap  = document.getElementById('anexo-progress-wrap');
@@ -505,10 +508,10 @@
       await db_uploadAnexoManual(docId, file, pct => {
         progressFill.style.width  = pct + '%';
         progressPct.textContent   = pct + '%';
-        progressLabel.textContent = `Enviando PDF… ${pct}%`;
+        progressLabel.textContent = `Enviando arquivo… ${pct}%`;
       });
       document.getElementById('modal-anexo').style.display = 'none';
-      showAlert('ok', `PDF <strong>${escHtml(file.name)}</strong> anexado com sucesso.`);
+      showAlert('ok', `Arquivo <strong>${escHtml(file.name)}</strong> anexado com sucesso.`);
       loadManuais();
     } catch(e) {
       progressWrap.style.display = 'none';

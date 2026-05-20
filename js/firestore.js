@@ -541,28 +541,46 @@ async function fetchGitHubCSV(filePath) {
 
 // ── Anexos de Manuais (Upload / Remoção) ─────────────────
 
+const ANEXO_TIPOS_ACEITOS = {
+  'application/pdf': true,
+  'image/jpeg': true,
+  'image/png': true,
+  'image/webp': true,
+  'image/gif': true,
+};
+const ANEXO_EXTENSOES_ACEITAS = {
+  '.pdf':  'application/pdf',
+  '.jpg':  'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png':  'image/png',
+  '.webp': 'image/webp',
+  '.gif':  'image/gif',
+};
+
 /**
- * Faz upload de um PDF para o Firebase Storage e atualiza os campos
+ * Faz upload de um PDF ou imagem para o Firebase Storage e atualiza os campos
  * de anexo no documento da coleção `manuais`.
  *
  * @param {string}   docId      - ID do documento na coleção manuais
- * @param {File}     file       - arquivo PDF (máx 10 MB)
+ * @param {File}     file       - arquivo PDF ou imagem (máx 10 MB)
  * @param {function(number):void} [onProgress] - callback com % de 0–100
  * @returns {Promise<{url: string, path: string}>}
  */
 async function uploadAnexoManual(docId, file, onProgress) {
-  const MAX_BYTES = 5 * 1024 * 1024;
+  const MAX_BYTES = 10 * 1024 * 1024;
   if (!file) throw new Error('Nenhum arquivo selecionado.');
-  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    throw new Error('Apenas arquivos PDF são permitidos.');
+  const ext = '.' + file.name.toLowerCase().split('.').pop();
+  if (!ANEXO_TIPOS_ACEITOS[file.type] && !ANEXO_EXTENSOES_ACEITAS[ext]) {
+    throw new Error('Apenas arquivos PDF ou imagens (JPEG, PNG, WebP, GIF) são permitidos.');
   }
   if (file.size > MAX_BYTES) {
-    throw new Error(`O arquivo excede o limite de 5 MB (tamanho: ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
+    throw new Error(`O arquivo excede o limite de 10 MB (tamanho: ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
   }
 
   const path = `anexos/${docId}/${file.name}`;
   const storageRef = firebase.storage().ref(path);
-  const uploadTask = storageRef.put(file, { contentType: 'application/pdf' });
+  const contentType = file.type || ANEXO_EXTENSOES_ACEITAS[ext] || 'application/octet-stream';
+  const uploadTask = storageRef.put(file, { contentType });
 
   return new Promise((resolve, reject) => {
     uploadTask.on(
@@ -592,7 +610,7 @@ async function uploadAnexoManual(docId, file, onProgress) {
 }
 
 /**
- * Remove o PDF do Firebase Storage e limpa os campos de anexo no Firestore.
+ * Remove o anexo (PDF ou imagem) do Firebase Storage e limpa os campos de anexo no Firestore.
  *
  * @param {string} docId      - ID do documento na coleção manuais
  * @param {string} anexoPath  - caminho do arquivo no Storage (ex: anexos/{docId}/{nome})
