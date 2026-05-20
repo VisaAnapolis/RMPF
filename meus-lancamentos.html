@@ -293,6 +293,9 @@
       let acoes = '';
       if (m.origem === 'visa_csv') {
         acoes = `<span class="badge badge-cvs" title="Importado do VISA — somente leitura">CVS</span>`;
+        if (m.status === 'pendente') {
+          acoes += `<br><span style="font-size:.75rem;color:var(--laranja)">⚠️ ${escHtml(m.motivo_pendencia || 'Aguardando autorização')}</span>`;
+        }
       } else if (m.origem === 'sim_csv') {
         acoes = `<span class="badge badge-cvs" title="Importado do SIM — somente leitura">SIM</span>`;
       } else if (m.status === 'rascunho') {
