@@ -68,6 +68,35 @@ function resolverTipoVisa(tipoRaw, complexidade) {
            item_pontuacao: item, pontos, descLabel: 'Vistoria VISA' };
 }
 
+// ── Autorização do terceiro fiscal ───────────────────────
+// Retorna true quando o Fiscal3 está autorizado a participar da OS/Ofício.
+// Comportamento permissivo: se a OS/Ofício não for encontrada em nenhum mapa,
+// considera autorizado (chave desconhecida não bloqueia o registro).
+function isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap) {
+  let encontrado = false;
+
+  if (os) {
+    const req = requerimentoMap.get(os);
+    if (req !== undefined) {
+      encontrado = true;
+      if (req.prioridade === true) return true;
+    }
+  }
+
+  if (oficio) {
+    const ofi = oficioMap.get(oficio);
+    if (ofi !== undefined) {
+      encontrado = true;
+      if (ofi.terceiro === true) return true;
+    }
+  }
+
+  // Chave não encontrada em nenhum mapa → permissivo
+  if (!encontrado) return true;
+
+  return false;
+}
+
 function visaDataToISO(dataStr) {
   if (!dataStr) return null;
   const s = String(dataStr).trim().replace(/"/g, '');
@@ -102,6 +131,48 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
     });
     const rows = parsed.data;
+
+    // ── Carregar CSVs de autorização do terceiro fiscal ──
+    const requerimentoMap = new Map(); // OS normalizada → { prioridade: boolean }
+    const oficioMap       = new Map(); // Oficio normalizado → { terceiro: boolean }
+
+    try {
+      const reqText = await window.fetchGitHubCSV('data/requerimento.csv');
+      const reqParsed = Papa.parse(reqText, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
+      });
+      for (const r of reqParsed.data) {
+        const osKey = String(r['OS'] || '').replace(/"/g, '').trim();
+        if (!osKey) continue;
+        const prioridade = String(r['prioridade'] || '').replace(/"/g, '').trim().toLowerCase();
+        requerimentoMap.set(osKey, { prioridade: prioridade === 'true' || prioridade === '1' || prioridade === 'sim' });
+      }
+      onProgress(`📑 ${requerimentoMap.size} requerimento(s) carregado(s).`, 'info');
+    } catch (err) {
+      onProgress('⚠️ Não foi possível carregar requerimento.csv — autorizações de terceiro fiscal não verificadas.', 'warn');
+      console.error('Failed to load requerimento.csv:', err);
+    }
+
+    try {
+      const ofiText = await window.fetchGitHubCSV('data/Oficio.csv');
+      const ofiParsed = Papa.parse(ofiText, {
+        header: true,
+        skipEmptyLines: true,
+        transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
+      });
+      for (const r of ofiParsed.data) {
+        const ofiKey = String(r['Oficio'] || '').replace(/"/g, '').trim();
+        if (!ofiKey) continue;
+        const terceiro = String(r['terceiro'] || '').replace(/"/g, '').trim().toLowerCase();
+        oficioMap.set(ofiKey, { terceiro: terceiro === 'true' || terceiro === '1' || terceiro === 'sim' });
+      }
+      onProgress(`📑 ${oficioMap.size} ofício(s) carregado(s).`, 'info');
+    } catch (err) {
+      onProgress('⚠️ Não foi possível carregar Oficio.csv — autorizações de terceiro fiscal não verificadas.', 'warn');
+      console.error('Failed to load Oficio.csv:', err);
+    }
 
     const fiscalMap = new Map();
     for (const f of (allFiscais || [])) {
@@ -148,6 +219,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
       const dataISO = visaDataToISO(String(row['DT_VISITA'] || '').replace(/"/g, '').trim());
       const os = String(row['OS'] || row['NUMERO'] || '').replace(/"/g, '').trim();
+      const oficio = String(row['Oficio'] || row['OFICIO'] || '').replace(/"/g, '').trim();
 
       const descParts = [tipoInfo.descLabel];
       if (os) descParts.push('OS ' + os);
@@ -155,13 +227,16 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       if (cnaeInfo.descricao && cnaeInfo.descricao !== subclasse) descParts.push(cnaeInfo.descricao);
       const descricao = descParts.join(' — ');
 
-      const fiscaisCsv = [
-        String(row['Fiscal1'] || '').replace(/"/g, '').trim(),
-        String(row['Fiscal2'] || '').replace(/"/g, '').trim(),
-        String(row['Fiscal3'] || '').replace(/"/g, '').trim(),
-      ].filter(Boolean);
+      const rawFiscais = [
+        { nome: row['Fiscal1'], isTerceiro: false },
+        { nome: row['Fiscal2'], isTerceiro: false },
+        { nome: row['Fiscal3'], isTerceiro: true  },
+      ];
+      const fiscaisCsv = rawFiscais
+        .map(f => ({ ...f, nome: String(f.nome || '').replace(/"/g, '').trim() }))
+        .filter(f => f.nome);
 
-      for (const nomeFiscalCsv of fiscaisCsv) {
+      for (const { nome: nomeFiscalCsv, isTerceiro } of fiscaisCsv) {
         const emailFiscal = fiscalMap.get(normNomeVisa(nomeFiscalCsv));
         if (!emailFiscal) continue;
         if (fiscalEmail && emailFiscal !== fiscalEmail) continue;
@@ -194,6 +269,17 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               updateData.motivo_recusa = null;
               onProgress(`🔄 CONTROLE ${controleVisa}: recusado anteriormente, resubmetido para conferência.`, 'info');
             }
+            // Verificação de autorização do terceiro fiscal na atualização
+            if (isTerceiro) {
+              const autorizado = isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);
+              if (!autorizado) {
+                updateData.status = 'Pendente';
+                onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como Pendente.`, 'warn');
+              } else if (existing.status === 'Pendente') {
+                updateData.status = 'enviado';
+                onProgress(`✅ CONTROLE ${controleVisa} — Fiscal3 agora autorizado, restaurado para enviado.`, 'info');
+              }
+            }
             await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false);
             atualizados++;
           } else {
@@ -202,6 +288,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               ignorados++;
               onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
               continue;
+            }
+            // Determinar status inicial considerando autorização do terceiro fiscal
+            let statusInicial = 'enviado';
+            if (isTerceiro && !isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap)) {
+              statusInicial = 'Pendente';
+              onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como Pendente.`, 'warn');
             }
             await window.db_upsertVISAManual(controleVisa, emailFiscal, {
               controle: 'VISA-' + controleVisa,
@@ -213,7 +305,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               item_pontuacao: tipoInfo.item_pontuacao,
               complexidade: cnaeInfo.complexidade,
               pontos: tipoInfo.pontos, descricao,
-              status: 'enviado',
+              status: statusInicial,
               origem: 'visa_csv',
               visa_controle: controleVisa,
             }, null, true);
