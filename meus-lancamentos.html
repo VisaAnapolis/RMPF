@@ -328,7 +328,7 @@
         const nomeSeguro = escHtml(m.anexo_nome || 'arquivo.pdf');
         anexoCell = `<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
           <a href="${escHtml(m.anexo_url)}" target="_blank" rel="noopener"
-             title="${nomeSeguro}" class="btn btn-outline btn-sm" style="gap:4px">📎 ${nomeSeguro}</a>
+             title="${nomeSeguro}" class="btn btn-outline btn-sm" style="gap:4px">📎 PDF</a>
           ${podeAnexar ? `<button class="btn btn-danger btn-sm" onclick="removerAnexo('${m.id}','${escHtml(m.anexo_path || '')}')" title="Remover PDF">🗑️ Remover</button>` : ''}
         </div>`;
       } else if (podeAnexar) {
