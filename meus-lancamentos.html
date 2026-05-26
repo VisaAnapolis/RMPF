@@ -318,7 +318,8 @@
       } else if (m.status === 'recusado') {
         acoes = `<span class="text-verm fw-bold">✗ Recusado</span>
                  ${m.motivo_recusa ? `<span class="form-hint">${escHtml(m.motivo_recusa)}</span>` : ''}
-                 <button class="btn btn-outline btn-sm" onclick="corrigirManual('${m.id}')">✏️ Corrigir e Reenviar</button>`;
+                 <button class="btn btn-outline btn-sm" onclick="corrigirManual('${m.id}')">✏️ Corrigir e Reenviar</button>
+                 ${!_fechamento ? `<button class="btn btn-danger btn-sm" onclick="excluirManual('${m.id}')">🗑️ Excluir</button>` : ''}`;
       }
 
       // ── Célula de Anexo ──
