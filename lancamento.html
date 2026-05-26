@@ -375,7 +375,7 @@
     // ── Verificar ocorrência aceita no dia ───────────────
     const ocorrConflito = await verificarOcorrenciaParaData(user.email, mes, ano, data);
     if (ocorrConflito) {
-      const tipoLabel = TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo;
+      const tipoLabel = escHtml(TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo);
       showAlert('warn',
         `⚠️ O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
         `<strong>${tipoLabel}</strong>. Não é possível lançar atividades neste dia.`
@@ -488,7 +488,7 @@
 
       const ocorrConflito = await verificarOcorrenciaParaData(user.email, mes, ano, data);
       if (ocorrConflito) {
-        const tipoLabel = TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo;
+        const tipoLabel = escHtml(TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo);
         alertDataEl.innerHTML = alerta('warn',
           `⚠️ O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
           `<strong>${tipoLabel}</strong>. Não é possível lançar atividades neste dia.`
