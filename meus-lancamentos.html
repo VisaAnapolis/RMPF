@@ -322,8 +322,11 @@
       }
 
       // ── Célula de Anexo ──
+      // O botão "Remover" só é exibido enquanto o lançamento está em rascunho.
+      // Após ser enviado ao administrador (status != 'rascunho'), o fiscal
+      // pode apenas visualizar o anexo, mas não removê-lo.
+      const podeAnexar = !_fechamento && m.status === 'rascunho' && m.origem !== 'visa_csv' && m.origem !== 'sim_csv';
       let anexoCell = '';
-      const podeAnexar = !_fechamento && m.status !== 'fechado' && m.origem !== 'visa_csv' && m.origem !== 'sim_csv';
       if (m.anexo_url) {
         const nomeSeguro = escHtml(m.anexo_nome || 'arquivo');
         const ext = (m.anexo_nome || '').toLowerCase().split('.').pop();
