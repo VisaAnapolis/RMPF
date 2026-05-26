@@ -17,7 +17,7 @@ function calcular(ativCVS = [], ativManuais = [], pnsExtras = 0) {
   const pp = [
     ...ativCVS.map(a => Number(a.pontos) || 0),
     ...ativManuais
-      .filter(a => a.status === 'aceito' || a.status === 'fechado')
+      .filter(a => a.status === 'aceito' || a.status === 'fechado' || a.status === 'homologado')
       .map(a => Number(a.pontos_homologado != null ? a.pontos_homologado : a.pontos) || 0),
   ].reduce((s, v) => s + v, 0);
 
