@@ -4,6 +4,28 @@
 const VISA_IMPORT_INICIO_MES = 4;
 const VISA_IMPORT_INICIO_ANO = 2026;
 
+// ── Cache de ocorrências aceitas por fiscal/mês ──────────
+const _visaOcorrCache = new Map();
+async function _getOcorrenciasAceitasVisa(emailFiscal, mes, ano) {
+  const key = `${emailFiscal}::${mes}::${ano}`;
+  if (!_visaOcorrCache.has(key)) {
+    try {
+      const ocorrs = await window.db_getOcorrencias(emailFiscal, mes, ano);
+      _visaOcorrCache.set(key, ocorrs.filter(o => o.status === 'aceito'));
+    } catch (_) {
+      _visaOcorrCache.set(key, []);
+    }
+  }
+  return _visaOcorrCache.get(key);
+}
+
+function _dataCobertaOcorrVisa(dataISO, ocorrencias) {
+  return ocorrencias.some(o => {
+    const fim = o.data_fim || o.data_inicio;
+    return dataISO >= o.data_inicio && dataISO <= fim;
+  });
+}
+
 function visaMesAberto(mes, ano) {
   mes = Number(mes); ano = Number(ano);
   if (ano > VISA_IMPORT_INICIO_ANO) return true;
@@ -238,6 +260,22 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
         // Marca como presente no CSV para detecção de registros órfãos
         processedKeys.add(emailFiscal + '::' + controleVisa);
+
+        // ── Verificar ocorrência aceita no dia ────────────
+        if (dataISO) {
+          const dtParts = dataISO.split('-');
+          const dtMes = Number(dtParts[1]);
+          const dtAno = Number(dtParts[0]);
+          const ocorrAceitas = await _getOcorrenciasAceitasVisa(emailFiscal, dtMes, dtAno);
+          if (_dataCobertaOcorrVisa(dataISO, ocorrAceitas)) {
+            ignorados++;
+            onProgress(
+              `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: ` +
+              `dia ${dataISO} coberto por ocorrência aceita, ignorado.`, 'warn'
+            );
+            continue;
+          }
+        }
 
         try {
           const existing = await window.db_getVISAManual(controleVisa, emailFiscal);

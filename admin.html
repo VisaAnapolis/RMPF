@@ -241,6 +241,46 @@
       <div id="storage-log" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── Converter Ocorrências Aceitas em Pontos (Migração) ── -->
+    <div class="card" id="card-seed-ocorrencias">
+      <div class="card-title">📌 Converter Ocorrências Aceitas em Pontos</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Processa todas as ocorrências <strong>já aceitas</strong> do mês/ano selecionado e gera
+        <strong>50 pontos por dia</strong> para cada fiscal. Use este script para migrar ocorrências
+        que foram aceitas antes desta funcionalidade ser implantada.
+      </p>
+
+      <!-- Aviso redundante -->
+      <div style="background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+        <strong style="color:#7c5800">⚠️ ATENÇÃO — Leia antes de executar</strong>
+        <ul style="margin:6px 0 0;font-size:.85rem;color:#7c5800;padding-left:18px">
+          <li>Para cada dia coberto por uma ocorrência aceita, <strong>todos os lançamentos existentes naquele dia serão apagados</strong> e substituídos por um lançamento de 50 pontos.</li>
+          <li>A operação é <strong>irreversível</strong>. Faça backup dos dados se necessário.</li>
+          <li>Ocorrências registradas em outros meses mas que cubram dias deste mês <strong>não são processadas</strong> — execute o script no mês de registro da ocorrência.</li>
+          <li>Execute apenas uma vez por competência para evitar duplicações.</li>
+        </ul>
+      </div>
+
+      <div class="form-row cols-2" style="max-width:360px;margin-bottom:14px">
+        <div class="form-group">
+          <label class="form-label" for="ocr-seed-mes">Mês</label>
+          <select class="form-control" id="ocr-seed-mes"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="ocr-seed-ano">Ano</label>
+          <select class="form-control" id="ocr-seed-ano"></select>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn btn-outline" id="btn-seed-ocorrencias" type="button"
+                style="color:var(--verm);border-color:var(--verm)">
+          🔄 Converter Ocorrências do Mês em Pontos
+        </button>
+      </div>
+      <div id="seed-ocorrencias-log" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── Tabela de usuários ── -->
     <div class="card">
       <div class="card-title d-flex justify-between align-center">
@@ -707,6 +747,153 @@
         btn.disabled = false;
       }
     });
+
+    // ── Seed Ocorrências → Pontos ─────────────────────────
+    (function() {
+      const selM = document.getElementById('ocr-seed-mes');
+      const selA = document.getElementById('ocr-seed-ano');
+      if (!selM || !selA) return;
+
+      // Popular mês
+      (window.MESES || []).forEach((m, i) => {
+        const o = document.createElement('option');
+        o.value = i + 1; o.textContent = m;
+        if (i === new Date().getMonth()) o.selected = true;
+        selM.appendChild(o);
+      });
+      // Popular ano
+      const yy = new Date().getFullYear();
+      for (let i = yy - 1; i <= yy + 1; i++) {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = i;
+        if (i === yy) o.selected = true;
+        selA.appendChild(o);
+      }
+
+      document.getElementById('btn-seed-ocorrencias').addEventListener('click', async () => {
+        const btn   = document.getElementById('btn-seed-ocorrencias');
+        const logEl = document.getElementById('seed-ocorrencias-log');
+        const mes   = Number(selM.value);
+        const ano   = Number(selA.value);
+        const nomeMes = (window.MESES || [])[mes - 1] || mes;
+
+        const TIPO_LABELS_SEED = {
+          ferias: 'Férias', licenca_medica: 'Licença Médica',
+          licenca_gestante: 'Licença Gestante', afastamento_legal: 'Afastamento Legal',
+          outros: 'Outros',
+        };
+
+        const ok1 = confirm(
+          `⚠️ ATENÇÃO\n\n` +
+          `Você está prestes a converter as ocorrências aceitas de ${nomeMes}/${ano} em pontos.\n` +
+          `Para cada dia coberto, TODOS os lançamentos existentes serão apagados e substituídos por 50 pontos.\n\n` +
+          `Esta ação é IRREVERSÍVEL.\n\nDeseja continuar?`
+        );
+        if (!ok1) return;
+
+        const ok2 = confirm(
+          `✅ CONFIRMAÇÃO FINAL\n\nConverte ocorrências aceitas de ${nomeMes}/${ano}?\nOs lançamentos dos dias cobertos serão substituídos.`
+        );
+        if (!ok2) return;
+
+        btn.disabled = true;
+        logEl.innerHTML = alerta('info', `⏳ Processando ocorrências de ${nomeMes}/${ano}…`);
+
+        const msgs = [];
+        const log = (tipo, msg) => {
+          msgs.push(alerta(tipo, msg));
+          logEl.innerHTML = msgs.slice(-20).join('');
+        };
+
+        try {
+          const ocorrencias = await window.db_getOcorrenciasTodas(mes, ano);
+          const aceitas = ocorrencias.filter(o => o.status === 'aceito');
+
+          if (!aceitas.length) {
+            logEl.innerHTML = alerta('warn', `Nenhuma ocorrência aceita encontrada em ${nomeMes}/${ano}.`);
+            btn.disabled = false;
+            return;
+          }
+
+          log('info', `📋 ${aceitas.length} ocorrência(s) aceita(s) encontrada(s).`);
+
+          function diasDaOcorrPorMesSeed(dataInicio, dataFim) {
+            const fim = dataFim || dataInicio;
+            const result = {};
+            const cur = new Date(dataInicio + 'T12:00:00');
+            const end = new Date(fim + 'T12:00:00');
+            while (cur <= end) {
+              const iso = cur.toISOString().split('T')[0];
+              const m   = cur.getMonth() + 1;
+              const a   = cur.getFullYear();
+              const key = `${m}-${a}`;
+              if (!result[key]) result[key] = { mes: m, ano: a, dias: [] };
+              result[key].dias.push(iso);
+              cur.setDate(cur.getDate() + 1);
+            }
+            return result;
+          }
+
+          let totalDias = 0, totalApagados = 0, totalErros = 0;
+
+          for (const o of aceitas) {
+            const porMes = diasDaOcorrPorMesSeed(o.data_inicio, o.data_fim);
+            const key = `${mes}-${ano}`;
+            if (!porMes[key]) {
+              log('warn', `⚠️ Ocorrência de ${escHtml(o.fiscal_nome || o.fiscal_email)} (${o.data_inicio}→${o.data_fim || o.data_inicio}) não cobre dias de ${nomeMes}/${ano}.`);
+              continue;
+            }
+            const dias = porMes[key].dias;
+            log('info', `👤 ${escHtml(o.fiscal_nome || o.fiscal_email)} — ${TIPO_LABELS_SEED[o.tipo] || o.tipo} — ${dias.length} dia(s)`);
+
+            for (const dia of dias) {
+              try {
+                // 1. Apagar lançamentos existentes no dia
+                const apagados = await window.db_deleteLancamentosDia(o.fiscal_email, dia);
+                totalApagados += apagados;
+                if (apagados) log('info', `  🗑️ ${dia}: ${apagados} lançamento(s) removido(s).`);
+
+                // 2. Criar lançamento de 50 pts
+                await window.db_createManual({
+                  controle:       `OCR-${ano}-${String(mes).padStart(2,'0')}-${dia.replace(/-/g,'')}`,
+                  fiscal_email:   o.fiscal_email,
+                  fiscal_nome:    o.fiscal_nome,
+                  mes,
+                  ano,
+                  data:           dia,
+                  tipo_id:        99,
+                  tipo_codigo:    'OCR',
+                  tipo_nome:      'Ocorrência',
+                  item_pontuacao: null,
+                  complexidade:   '—',
+                  pontos:         50,
+                  descricao:      `Ocorrência: ${TIPO_LABELS_SEED[o.tipo] || o.tipo} — aceita pelo administrador`,
+                  obs:            o.obs_admin || null,
+                  status:         'homologado',
+                  origem:         'ocorrencia',
+                  ocorrencia_id:  o.id,
+                });
+                totalDias++;
+              } catch(e) {
+                totalErros++;
+                log('danger', `  🚨 Erro no dia ${dia}: ${escHtml(e.message)}`);
+              }
+            }
+          }
+
+          logEl.innerHTML = msgs.slice(-20).join('') +
+            alerta(totalErros ? 'warn' : 'ok',
+              `✅ Concluído: <strong>${totalDias}</strong> dia(s) gerado(s), ` +
+              `<strong>${totalApagados}</strong> lançamento(s) substituído(s), ` +
+              `<strong>${totalErros}</strong> erro(s).`
+            );
+        } catch(e) {
+          logEl.innerHTML = alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
 
     // ── Storage Monitoring ───────────────────────────────
 

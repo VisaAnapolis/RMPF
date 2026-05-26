@@ -4,6 +4,28 @@
 const SIM_IMPORT_INICIO_MES = 4;
 const SIM_IMPORT_INICIO_ANO = 2026;
 
+// ── Cache de ocorrências aceitas por fiscal/mês ──────────
+const _simOcorrCache = new Map();
+async function _getOcorrenciasAceitasSim(emailFiscal, mes, ano) {
+  const key = `${emailFiscal}::${mes}::${ano}`;
+  if (!_simOcorrCache.has(key)) {
+    try {
+      const ocorrs = await window.db_getOcorrencias(emailFiscal, mes, ano);
+      _simOcorrCache.set(key, ocorrs.filter(o => o.status === 'aceito'));
+    } catch (_) {
+      _simOcorrCache.set(key, []);
+    }
+  }
+  return _simOcorrCache.get(key);
+}
+
+function _dataCobertaOcorrSim(dataISO, ocorrencias) {
+  return ocorrencias.some(o => {
+    const fim = o.data_fim || o.data_inicio;
+    return dataISO >= o.data_inicio && dataISO <= fim;
+  });
+}
+
 function simMesAberto(mes, ano) {
   mes = Number(mes); ano = Number(ano);
   if (ano > SIM_IMPORT_INICIO_ANO) return true;
@@ -122,6 +144,22 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
       if (subclasse) descParts.push('CNAE ' + subclasse);
       if (cnaeInfo.descricao && cnaeInfo.descricao !== subclasse) descParts.push(cnaeInfo.descricao);
       const descricao = descParts.join(' — ');
+
+      // ── Verificar ocorrência aceita no dia ────────────
+      if (dataISO) {
+        const dtParts = dataISO.split('-');
+        const dtMes = Number(dtParts[1]);
+        const dtAno = Number(dtParts[0]);
+        const ocorrAceitas = await _getOcorrenciasAceitasSim(emailFiscal, dtMes, dtAno);
+        if (_dataCobertaOcorrSim(dataISO, ocorrAceitas)) {
+          ignorados++;
+          onProgress(
+            `⚠️ OS ${osNum} — ${nomeFiscalCsv}: ` +
+            `dia ${dataISO} coberto por ocorrência aceita, ignorado.`, 'warn'
+          );
+          continue;
+        }
+      }
 
       try {
         const existing = await window.db_getSIMManual(osNum, emailFiscal);
