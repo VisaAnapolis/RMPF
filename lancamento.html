@@ -234,6 +234,31 @@
     });
   }
 
+  const TIPO_LABELS_OCR = {
+    ferias: 'Férias',
+    licenca_medica: 'Licença Médica',
+    licenca_gestante: 'Licença Gestante',
+    afastamento_legal: 'Afastamento Legal',
+    outros: 'Outros',
+  };
+
+  /**
+   * Verifica se a data selecionada está coberta por alguma ocorrência aceita.
+   * Retorna a ocorrência conflitante ou null.
+   */
+  async function verificarOcorrenciaParaData(fiscalEmail, mes, ano, dataISO) {
+    if (!dataISO) return null;
+    try {
+      const ocorrencias = await window.db_getOcorrencias(fiscalEmail, mes, ano);
+      const aceitas = ocorrencias.filter(o => o.status === 'aceito');
+      for (const o of aceitas) {
+        const fim = o.data_fim || o.data_inicio;
+        if (dataISO >= o.data_inicio && dataISO <= fim) return o;
+      }
+    } catch (_) {}
+    return null;
+  }
+
   // When tipo changes, populate items
   document.getElementById('f-tipo').addEventListener('change', function () {
     const tipoId = Number(this.value);
@@ -347,6 +372,18 @@
       return;
     }
 
+    // ── Verificar ocorrência aceita no dia ───────────────
+    const ocorrConflito = await verificarOcorrenciaParaData(user.email, mes, ano, data);
+    if (ocorrConflito) {
+      const tipoLabel = TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo;
+      showAlert('warn',
+        `⚠️ O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
+        `<strong>${tipoLabel}</strong>. Não é possível lançar atividades neste dia.`
+      );
+      btns.forEach(b => { b.disabled = false; });
+      return;
+    }
+
     try {
       const docId = await db_createManual(doc);
 
@@ -435,6 +472,38 @@
     document.getElementById('f-mes').addEventListener('change', verificarFechamento);
     document.getElementById('f-ano').addEventListener('change', verificarFechamento);
     verificarFechamento();
+
+    // ── Verificar ocorrência aceita ao mudar data ────────
+    async function verificarDataOcorrencia() {
+      const data = document.getElementById('f-data').value;
+      const mes  = Number(document.getElementById('f-mes').value);
+      const ano  = Number(document.getElementById('f-ano').value);
+      const alertDataEl = document.getElementById('comp-fechado-alert');
+
+      // Se a competência já está fechada, não sobrescrever esse alerta
+      const fechamento = await db_getFechamento(user.email, mes, ano);
+      if (fechamento) return;
+
+      if (!data) { alertDataEl.style.display = 'none'; return; }
+
+      const ocorrConflito = await verificarOcorrenciaParaData(user.email, mes, ano, data);
+      if (ocorrConflito) {
+        const tipoLabel = TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo;
+        alertDataEl.innerHTML = alerta('warn',
+          `⚠️ O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
+          `<strong>${tipoLabel}</strong>. Não é possível lançar atividades neste dia.`
+        );
+        alertDataEl.style.display = '';
+        document.getElementById('btn-rascunho').disabled = true;
+        document.getElementById('btn-enviar').disabled   = true;
+      } else {
+        alertDataEl.style.display = 'none';
+        // Re-habilita botões (verificarFechamento cuida do estado correto)
+        verificarFechamento();
+      }
+    }
+
+    document.getElementById('f-data').addEventListener('change', verificarDataOcorrencia);
 
     const progressWrap  = document.getElementById('import-progress-wrap');
     const progressLabel = document.getElementById('import-progress-label');

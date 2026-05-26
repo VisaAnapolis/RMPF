@@ -212,6 +212,27 @@
     }
   }
 
+  /**
+   * Retorna objeto agrupado por "mes-ano" com os dias (ISO) da ocorrência.
+   * Lida corretamente com ocorrências que cruzam a virada do mês.
+   */
+  function diasDaOcorrenciaPorMes(dataInicio, dataFim) {
+    const fim = dataFim || dataInicio;
+    const result = {};
+    const cur = new Date(dataInicio + 'T12:00:00');
+    const end = new Date(fim + 'T12:00:00');
+    while (cur <= end) {
+      const iso = cur.toISOString().split('T')[0];
+      const mes = cur.getMonth() + 1;
+      const ano = cur.getFullYear();
+      const key = `${mes}-${ano}`;
+      if (!result[key]) result[key] = { mes, ano, dias: [] };
+      result[key].dias.push(iso);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return result;
+  }
+
   async function registrarOcorrencia() {
     const tipo  = document.getElementById('o-tipo').value;
     const inicio= document.getElementById('o-inicio').value;
@@ -300,15 +321,77 @@
   }
 
   async function revisar(status) {
-    const id  = document.getElementById('rev-id').value;
-    const obs = document.getElementById('rev-obs').value.trim();
+    const id     = document.getElementById('rev-id').value;
+    const obs    = document.getElementById('rev-obs').value.trim();
+    const alertEl = document.getElementById('rev-alert');
+    const o      = _ocorrs.find(x => x.id === id);
+
+    if (status === 'aceito' && o) {
+      alertEl.innerHTML = alerta('info', '🔄 Verificando conflitos de lançamento…');
+
+      const porMes = diasDaOcorrenciaPorMes(o.data_inicio, o.data_fim);
+
+      // ── 1. Verificar conflitos ────────────────────────────
+      for (const { mes, ano, dias } of Object.values(porMes)) {
+        let manuais;
+        try {
+          manuais = await window.db_getManuais(o.fiscal_email, mes, ano);
+        } catch(e) {
+          alertEl.innerHTML = alerta('danger', 'Erro ao verificar lançamentos: ' + escHtml(e.message));
+          return;
+        }
+        for (const dia of dias) {
+          const existentes = manuais.filter(m => m.data === dia);
+          if (existentes.length > 0) {
+            alertEl.innerHTML = alerta('danger',
+              `⚠️ Já existe <strong>${existentes.length}</strong> lançamento(s) no dia ` +
+              `<strong>${fmtData(dia)}</strong> para este fiscal. ` +
+              `Remova os lançamentos deste dia antes de aceitar a ocorrência.`
+            );
+            return;
+          }
+        }
+      }
+
+      // ── 2. Gerar lançamentos de 50 pts/dia ───────────────
+      alertEl.innerHTML = alerta('info', '⏳ Gerando lançamentos de ocorrência…');
+      try {
+        for (const { mes, ano, dias } of Object.values(porMes)) {
+          for (const dia of dias) {
+            await window.db_createManual({
+              controle:       `OCR-${ano}-${String(mes).padStart(2,'0')}-${dia.replace(/-/g,'')}`,
+              fiscal_email:   o.fiscal_email,
+              fiscal_nome:    o.fiscal_nome,
+              mes,
+              ano,
+              data:           dia,
+              tipo_id:        99,
+              tipo_codigo:    'OCR',
+              tipo_nome:      'Ocorrência',
+              item_pontuacao: null,
+              complexidade:   '—',
+              pontos:         50,
+              descricao:      `Ocorrência: ${TIPO_LABELS[o.tipo] || o.tipo} — aceita pelo administrador`,
+              obs:            obs || null,
+              status:         'homologado',
+              origem:         'ocorrencia',
+              ocorrencia_id:  id,
+            });
+          }
+        }
+      } catch(e) {
+        alertEl.innerHTML = alerta('danger', 'Erro ao gerar lançamentos: ' + escHtml(e.message));
+        return;
+      }
+    }
+
     try {
-      await db_updateOcorrencia(id, { status, obs_admin: obs||null });
+      await db_updateOcorrencia(id, { status, obs_admin: obs || null });
       document.getElementById('modal-rev').style.display = 'none';
-      document.getElementById('alert-area').innerHTML = alerta('ok',`Ocorrência <strong>${status}</strong>.`);
+      document.getElementById('alert-area').innerHTML = alerta('ok', `Ocorrência <strong>${status}</strong>.`);
       loadOcorrencias();
     } catch(e) {
-      document.getElementById('rev-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
+      alertEl.innerHTML = alerta('danger', 'Erro: ' + escHtml(e.message));
     }
   }
 

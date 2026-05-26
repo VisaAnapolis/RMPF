@@ -660,6 +660,44 @@ async function getFechamentosTodos() {
   return snap.docs.map(d => d.data());
 }
 
+// ── Lançamentos por data específica ──────────────────────
+async function getManuaisPorData(fiscalEmail, dataISO) {
+  const parts = dataISO.split('-');
+  const ano = Number(parts[0]);
+  const mes = Number(parts[1]);
+  const snap = await window.db.collection('manuais')
+    .where('fiscal_email', '==', fiscalEmail)
+    .where('mes', '==', mes)
+    .where('ano', '==', ano)
+    .get();
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(d => d.data === dataISO);
+}
+
+async function deleteLancamentosDia(fiscalEmail, dataISO) {
+  const docs = await getManuaisPorData(fiscalEmail, dataISO);
+  if (!docs.length) return 0;
+  const BATCH_SIZE = 499;
+  let batch = window.db.batch();
+  let count = 0;
+  for (const doc of docs) {
+    batch.delete(window.db.collection('manuais').doc(doc.id));
+    count++;
+    if (count % BATCH_SIZE === 0) { await batch.commit(); batch = window.db.batch(); }
+  }
+  if (count > 0) await batch.commit();
+  return count;
+}
+
+// Retorna TODAS as ocorrências aceitas (sem filtro de mês/ano) — usado pelo script de migração
+async function getOcorrenciasAceitasTodas() {
+  const snap = await window.db.collection('ocorrencias')
+    .where('status', '==', 'aceito')
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // ── Exports ──────────────────────────────────────────────
 
 window.db_getFechamento         = getFechamento;
@@ -670,14 +708,17 @@ window.db_getProximaCompetencia = getProximaCompetencia;
 window.db_getFechamentosMes     = getFechamentosMes;
 window.db_getManuais          = getManuais;
 window.db_getManuaisTodos     = getManuaisTodos;
+window.db_getManuaisPorData   = getManuaisPorData;
 window.db_getManuaisRecusados = getManuaisRecusados;
 window.db_createManual        = createManual;
 window.db_updateManual        = updateManual;
 window.db_deleteManual        = deleteManual;
+window.db_deleteLancamentosDia = deleteLancamentosDia;
 window.db_deleteManuaisTodosMes = deleteManuaisTodosMes;
 window.db_deleteImportadosMes   = deleteImportadosMes;
 window.db_getOcorrencias      = getOcorrencias;
 window.db_getOcorrenciasTodas = getOcorrenciasTodas;
+window.db_getOcorrenciasAceitasTodas = getOcorrenciasAceitasTodas;
 window.db_createOcorrencia    = createOcorrencia;
 window.db_updateOcorrencia    = updateOcorrencia;
 window.db_getCvsOverride      = getCvsOverride;
