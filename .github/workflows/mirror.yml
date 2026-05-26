@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: mirror-visaanapolis
+  cancel-in-progress: true
+
 jobs:
   mirror:
     name: Mirror to VisaAnapolis/RMPF
@@ -26,3 +30,15 @@ jobs:
         run: |
           cd repo-mirror
           git push --mirror git@github.com:VisaAnapolis/RMPF.git
+      - name: Verify mirror is up-to-date
+        run: |
+          cd repo-mirror
+          LOCAL=$(git rev-parse refs/heads/main)
+          REMOTE=$(git ls-remote git@github.com:VisaAnapolis/RMPF.git refs/heads/main | awk '{print $1}')
+          echo "Local (garrado):       $LOCAL"
+          echo "Remote (VisaAnapolis): $REMOTE"
+          if [ "$LOCAL" != "$REMOTE" ]; then
+            echo "::error::Mirror está fora de sincronia!"
+            exit 1
+          fi
+          echo "✅ Mirror sincronizado."
