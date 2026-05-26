@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.5.7</span>
+            <span class="badge-date">26/05/2026</span>
+          </div>
+          <div class="changelog-title">Ocorrências aceitas com geração de pontos, exclusão de recusados e melhorias no mirror</div>
+          <ul class="changelog-changes">
+            <li><strong>Ocorrências aceitas viram pontos por dia</strong> — novos helpers em <code>js/firestore.js</code>, validação de conflitos ao aceitar ocorrência, bloqueio de lançamentos manuais em dias cobertos, importações VISA/SIM ignorando dias já cobertos e card administrativo para migrar ocorrências aceitas em lançamentos de <strong>50 pontos por dia</strong> (PR #100).</li>
+            <li><strong>Exclusão de lançamentos recusados</strong> — <code>meus-lancamentos.html</code> agora mostra o botão <em>🗑️ Excluir</em> também para itens com status <code>recusado</code>, respeitando a regra de competência não fechada (PR #102).</li>
+            <li><strong>Mirror protegido contra corrida</strong> — o workflow <code>.github/workflows/mirror.yml</code> ganhou <code>concurrency</code> para cancelar execuções antigas e uma verificação final que compara o SHA de <code>main</code> entre origem e mirror, falhando se houver divergência (PR #101).</li>
+            <li><strong>Rebuild automático do GitHub Pages</strong> — após sincronizar o mirror, o workflow agora dispara a reconstrução do Pages em <code>VisaAnapolis/RMPF</code> usando <code>MIRROR_PAT</code>, com aviso caso a API retorne status inesperado (PR #103).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.5.6</span>
             <span class="badge-date">20/05/2026</span>
           </div>
