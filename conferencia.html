@@ -315,11 +315,17 @@
       // ── Célula de Anexo ──
       let anexoCell = '—';
       if (m.anexo_url) {
-        const nomeSeguro = escHtml(m.anexo_nome || 'arquivo.pdf');
+        const nomeSeguro = escHtml(m.anexo_nome || 'arquivo');
+        const nomeAnexo = (m.anexo_nome || '').toLowerCase();
+        const ext = nomeAnexo.includes('.') ? nomeAnexo.split('.').pop() : '';
+        const isImagem = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
+        const iconeAnexo = isImagem ? '🖼️ Imagem' : '📎 PDF';
+        const tituloRemover = isImagem ? 'Remover imagem' : 'Remover PDF';
+        const ariaRemover = isImagem ? 'Remover imagem anexada a este lançamento' : 'Remover anexo PDF deste lançamento';
         anexoCell = `<div style="display:flex;flex-direction:column;align-items:center;gap:3px">
           <a href="${escHtml(m.anexo_url)}" target="_blank" rel="noopener"
-             title="${nomeSeguro}" class="btn btn-outline btn-sm" style="gap:4px">📎 PDF</a>
-          ${isAdmin ? `<button class="btn btn-danger btn-sm js-remover-anexo-admin" data-doc-id="${escHtml(m.id)}" data-anexo-path="${escHtml(m.anexo_path || '')}" title="Remover PDF" aria-label="Remover anexo PDF deste lançamento">🗑️ Remover</button>` : ''}
+             title="${nomeSeguro}" class="btn btn-outline btn-sm" style="gap:4px">${iconeAnexo}</a>
+          ${isAdmin ? `<button class="btn btn-danger btn-sm js-remover-anexo-admin" data-doc-id="${escHtml(m.id)}" data-anexo-path="${escHtml(m.anexo_path || '')}" title="${tituloRemover}" aria-label="${ariaRemover}">🗑️ Remover</button>` : ''}
         </div>`;
       }
 
@@ -371,7 +377,7 @@
       document.getElementById('alert-area').innerHTML = alerta('warn', 'Não foi possível identificar o lançamento do anexo.');
       return;
     }
-    if (!confirm('Remover o PDF anexado a este lançamento?')) return;
+    if (!confirm('Remover o anexo anexado a este lançamento?')) return;
     try {
       await db_removeAnexoManual(docId, anexoPath);
       document.getElementById('alert-area').innerHTML = alerta('ok', 'Anexo removido com sucesso.');
