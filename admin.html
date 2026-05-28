@@ -835,7 +835,7 @@
             return result;
           }
 
-          let totalDias = 0, totalApagados = 0, totalErros = 0;
+          let totalDias = 0, totalApagados = 0, totalErrosConversao = 0;
           let totalFechados = 0, totalIgnorados = 0, totalErrosFechamento = 0;
           const fiscaisProcessados = new Map();
 
@@ -893,7 +893,7 @@
                 totalDias++;
                 fiscalCtx.diasGerados++;
               } catch(e) {
-                totalErros++;
+                totalErrosConversao++;
                 fiscalCtx.erros++;
                 log('danger', `  🚨 Erro no dia ${dia}: ${escHtml(e.message)}`);
               }
@@ -916,7 +916,8 @@
               }
 
               const manuaisDoFiscal = await window.db_getManuais(fiscalEmail, mes, ano);
-              const result = window.calcular([], manuaisDoFiscal, 0);
+              const CVS_ATIVIDADES = [];
+              const result = window.calcular(CVS_ATIVIDADES, manuaisDoFiscal, 0);
               const updates = manuaisDoFiscal
                 .filter(m => m.status === 'aceito' || m.status === 'homologado')
                 .map(m => window.db_updateManual(m.id, { status: 'fechado' }));
@@ -938,19 +939,19 @@
               totalFechados++;
               log('ok', `🔒 ${escHtml(fiscalCtx.nome)}: competência fechada. Apuração: <strong>R$ ${result.apuracao},00</strong>.`);
             } catch (e) {
-              totalErros++;
               totalErrosFechamento++;
               log('danger', `🚨 ${escHtml(fiscalCtx.nome)}: erro ao fechar competência — ${escHtml(e.message)}`);
             }
           }
 
+          const totalErros = totalErrosConversao + totalErrosFechamento;
           logEl.innerHTML = msgs.slice(-20).join('') +
             alerta(totalErros ? 'warn' : 'ok',
               `✅ Concluído: <strong>${totalDias}</strong> dia(s) gerado(s), ` +
               `<strong>${totalApagados}</strong> lançamento(s) substituído(s), ` +
               `<strong>${totalFechados}</strong> competência(s) fechada(s), ` +
               `<strong>${totalIgnorados}</strong> já fechada(s), ` +
-              `<strong>${totalErros}</strong> erro(s) no total (${totalErrosFechamento} no fechamento).`
+              `<strong>${totalErros}</strong> erro(s) no total (${totalErrosConversao} na conversão e ${totalErrosFechamento} no fechamento).`
             );
         } catch(e) {
           logEl.innerHTML = alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
