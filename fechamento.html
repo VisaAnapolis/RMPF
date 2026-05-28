@@ -19,13 +19,25 @@
       .area-relatorio { display: block !important; }
       .nao-imprimir   { display: none !important; }
     }
-    .rel-header { text-align: center; margin-bottom: 24px; border-bottom: 2px solid var(--verde); padding-bottom: 14px; }
-    .rel-header h1 { font-size: 1.1rem; color: var(--verde); }
-    .rel-header h2 { font-size: .95rem; font-weight: 500; }
+    .rel-header { margin-bottom: 24px; }
     .rel-section { margin-bottom: 20px; }
-    .rel-section h3 { font-size: .9rem; font-weight: 700; color: var(--verde); border-bottom: 1px solid var(--cinzaL); padding-bottom: 4px; margin-bottom: 10px; }
+    .rel-section h3 { font-size: .9rem; font-weight: 700; color: #1565c0; border-bottom: 1px solid #1565c0; padding-bottom: 4px; margin-bottom: 10px; }
+    .calc-box { border: 1px solid #90caf9; background: #f8f9fb; padding: 10px 12px; border-radius: 6px; }
+    .calc-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: .86rem; }
+    .calc-row.total { border-top: 1px solid #90caf9; margin-top: 6px; padding-top: 8px; font-weight: 700; color: #1565c0; }
     .signature-block { margin-top: 48px; display: flex; justify-content: space-around; }
     .signature-line { border-top: 1px solid #000; width: 220px; text-align: center; padding-top: 4px; font-size: .8rem; }
+    .rel-table { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .rel-table th, .rel-table td { border:1px solid #9e9e9e; padding:5px 8px; }
+    .rel-table th { background:#e3f2fd; color:#0d47a1; }
+    .rel-footer { font-size:.72rem;color:#666;margin-top:32px;text-align:center }
+    @media print {
+      .area-relatorio { margin: 0 !important; padding: 0 !important; }
+      .rel-section h3 { color: #1565c0 !important; border-bottom-color: #1565c0 !important; }
+      .rel-table th, .rel-table td { border-color: #9e9e9e !important; }
+      .calc-box { border-color: #90caf9 !important; background: #f5f6f8 !important; }
+      .rel-footer { color:#666 !important; }
+    }
   </style>
 </head>
 <body>
@@ -122,23 +134,33 @@
       <!-- ===== PRINT REPORT ===== -->
       <div class="area-relatorio" id="relatorio">
         <div class="rel-header">
-          <h1>Prefeitura Municipal de Anápolis</h1>
-          <h2>Vigilância Sanitária — Divisão de Fiscalização</h2>
-          <h2>Relatório Mensal de Produtividade Fiscal (RMPF)</h2>
-          <p id="rel-comp" style="margin-top:6px;font-weight:600"></p>
-          <p id="rel-fiscal-nome" style="font-size:.9rem"></p>
+          <div style="display:flex;align-items:center;gap:18px;justify-content:center;margin-bottom:12px">
+            <img src="docs/brasao2.jpg" alt="Brasão de Anápolis" style="height:80px;width:auto">
+            <div style="text-align:left;line-height:1.5">
+              <div style="font-size:.95rem;font-weight:700;color:#1565c0;text-transform:uppercase">Prefeitura Municipal de Anápolis</div>
+              <div style="font-size:.82rem;color:#333">Secretaria Municipal de Saúde</div>
+              <div style="font-size:.82rem;color:#333">Diretoria de Vigilância em Saúde</div>
+              <div style="font-size:.82rem;font-weight:600;color:#1565c0">Gerência de Vigilância Sanitária</div>
+            </div>
+          </div>
+          <div style="border-bottom:2px solid #1565c0;margin-bottom:10px"></div>
+          <h2 style="font-size:.95rem;font-weight:700;color:#1565c0;text-align:center;text-transform:uppercase;margin:6px 0 2px">
+            Relatório Mensal de Produtividade Fiscal — RMPF
+          </h2>
+          <p id="rel-comp" style="margin-top:4px;font-weight:600;text-align:center"></p>
+          <p id="rel-fiscal-nome" style="font-size:.9rem;text-align:center"></p>
         </div>
 
         <div class="rel-section">
           <h3>1. Atividades Homologadas</h3>
-          <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+          <table class="rel-table">
             <thead>
-              <tr style="background:#f4f5f7">
-                <th style="border:1px solid #ccc;padding:5px 8px">Controle</th>
-                <th style="border:1px solid #ccc;padding:5px 8px">Data</th>
-                <th style="border:1px solid #ccc;padding:5px 8px">Tipo</th>
-                <th style="border:1px solid #ccc;padding:5px 8px">Descrição</th>
-                <th style="border:1px solid #ccc;padding:5px 8px;text-align:right">Pontos</th>
+              <tr>
+                <th>Controle</th>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Descrição</th>
+                <th style="text-align:right">Pontos</th>
               </tr>
             </thead>
             <tbody id="rel-tbody-ativ"></tbody>
@@ -159,12 +181,12 @@
 
         <div class="rel-section" id="rel-ocorrs-section" style="display:none">
           <h3>3. Ocorrências</h3>
-          <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+          <table class="rel-table">
             <thead>
-              <tr style="background:#f4f5f7">
-                <th style="border:1px solid #ccc;padding:5px 8px">Tipo</th>
-                <th style="border:1px solid #ccc;padding:5px 8px">Período</th>
-                <th style="border:1px solid #ccc;padding:5px 8px">Observação</th>
+              <tr>
+                <th>Tipo</th>
+                <th>Período</th>
+                <th>Observação</th>
               </tr>
             </thead>
             <tbody id="rel-tbody-ocorrs"></tbody>
@@ -181,11 +203,11 @@
             <div class="signature-line" id="rel-fiscal-assin">Fiscal</div>
           </div>
           <div>
-            <div class="signature-line">Chefe da Divisão de Fiscalização</div>
+            <div class="signature-line">Gerência de Vigilância Sanitária</div>
           </div>
         </div>
-        <p style="font-size:.72rem;color:#999;margin-top:32px;text-align:center">
-          Relatório gerado em <span id="rel-dt-geracao"></span> — RMPF / VISA Anápolis
+        <p class="rel-footer">
+          Relatório gerado em <span id="rel-dt-geracao"></span> — RMPF / Gerência de Vigilância Sanitária — Prefeitura Municipal de Anápolis
         </p>
       </div>
 
