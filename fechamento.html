@@ -317,7 +317,7 @@
       .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
     document.getElementById('m-env').textContent = ptosEnviados;
 
-    const aceitas = _manuais.filter(m => m.status === 'aceito' || m.status === 'fechado').sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+    const aceitas = _manuais.filter(m => m.status === 'aceito' || m.status === 'fechado' || m.status === 'homologado').sort((a, b) => (a.data || '').localeCompare(b.data || ''));
     const tbodyAtiv = document.getElementById('tbody-ativ');
     tbodyAtiv.innerHTML = aceitas.length ? aceitas.map(m =>
       `<tr><td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle||'—')}</span></td><td data-label="Data">${fmtData(m.data)}</td>
@@ -392,7 +392,7 @@
           const result = calcular([], manuais, 0);
 
           const updates = manuais
-            .filter(m => m.status === 'aceito')
+            .filter(m => m.status === 'aceito' || m.status === 'homologado')
             .map(m => db_updateManual(m.id, { status: 'fechado' }));
           await Promise.all(updates);
 
@@ -440,7 +440,7 @@
     try {
       // Mark all accepted manuais as fechado
       const updates = _manuais
-        .filter(m => m.status === 'aceito')
+        .filter(m => m.status === 'aceito' || m.status === 'homologado')
         .map(m => db_updateManual(m.id, { status: 'fechado' }));
       await Promise.all(updates);
 
@@ -460,7 +460,7 @@
 
       // Update local manuais list so renderSummary counts them as fechado
       _manuais = _manuais.map(m =>
-        m.status === 'aceito' ? { ...m, status: 'fechado' } : m
+        (m.status === 'aceito' || m.status === 'homologado') ? { ...m, status: 'fechado' } : m
       );
 
       // Show obs in report
