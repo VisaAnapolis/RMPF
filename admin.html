@@ -433,6 +433,7 @@
 <script src="js/firebase-config.js"></script>
 <script src="js/version.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
   <script src="js/db-monitor.js"></script>
 <script src="js/guard.js"></script>
@@ -785,19 +786,19 @@
 
         const ok1 = confirm(
           `⚠️ ATENÇÃO\n\n` +
-          `Você está prestes a converter as ocorrências aceitas de ${nomeMes}/${ano} em pontos.\n` +
+          `Você está prestes a converter as ocorrências aceitas de ${nomeMes}/${ano} em pontos e fechar a competência dos fiscais processados.\n` +
           `Para cada dia coberto, TODOS os lançamentos existentes serão apagados e substituídos por 50 pontos.\n\n` +
           `Esta ação é IRREVERSÍVEL.\n\nDeseja continuar?`
         );
         if (!ok1) return;
 
         const ok2 = confirm(
-          `✅ CONFIRMAÇÃO FINAL\n\nConverte ocorrências aceitas de ${nomeMes}/${ano}?\nOs lançamentos dos dias cobertos serão substituídos.`
+          `✅ CONFIRMAÇÃO FINAL\n\nConverter ocorrências aceitas de ${nomeMes}/${ano} e fechar competência dos fiscais processados?\nOs lançamentos dos dias cobertos serão substituídos.`
         );
         if (!ok2) return;
 
         btn.disabled = true;
-        logEl.innerHTML = alerta('info', `⏳ Processando ocorrências de ${nomeMes}/${ano}…`);
+        logEl.innerHTML = alerta('info', `⏳ Processando ocorrências de ${nomeMes}/${ano}, com fechamento da competência por fiscal…`);
 
         const msgs = [];
         const log = (tipo, msg) => {
@@ -834,7 +835,22 @@
             return result;
           }
 
-          let totalDias = 0, totalApagados = 0, totalErros = 0;
+          let totalDias = 0, totalApagados = 0, totalErrosConversao = 0;
+          let totalFechados = 0, totalIgnorados = 0, totalErrosFechamento = 0;
+          const fiscaisProcessados = new Map();
+
+          const getFiscalCtx = (email, nome) => {
+            if (!fiscaisProcessados.has(email)) {
+              fiscaisProcessados.set(email, {
+                nome: nome || email,
+                diasGerados: 0,
+                erros: 0,
+              });
+            }
+            const ctx = fiscaisProcessados.get(email);
+            if (!ctx.nome && nome) ctx.nome = nome;
+            return ctx;
+          };
 
           for (const o of aceitas) {
             const porMes = diasDaOcorrPorMesSeed(o.data_inicio, o.data_fim);
@@ -844,6 +860,7 @@
               continue;
             }
             const dias = porMes[key].dias;
+            const fiscalCtx = getFiscalCtx(o.fiscal_email, o.fiscal_nome);
             log('info', `👤 ${escHtml(o.fiscal_nome || o.fiscal_email)} — ${TIPO_LABELS_SEED[o.tipo] || o.tipo} — ${dias.length} dia(s)`);
 
             for (const dia of dias) {
@@ -874,18 +891,67 @@
                   ocorrencia_id:  o.id,
                 });
                 totalDias++;
+                fiscalCtx.diasGerados++;
               } catch(e) {
-                totalErros++;
+                totalErrosConversao++;
+                fiscalCtx.erros++;
                 log('danger', `  🚨 Erro no dia ${dia}: ${escHtml(e.message)}`);
               }
             }
           }
 
+          const adminNome = (_todosUsuarios.find(u => (u.email || u.id) === _currentUserEmail)?.nome) || _currentUserEmail;
+          for (const [fiscalEmail, fiscalCtx] of fiscaisProcessados) {
+            if (!fiscalCtx.diasGerados) continue;
+            if (fiscalCtx.erros > 0) {
+              log('warn', `⚠️ ${escHtml(fiscalCtx.nome)}: fechamento não executado por erro(s) na conversão (${fiscalCtx.erros}).`);
+              continue;
+            }
+            try {
+              const jaFechado = await window.db_getFechamento(fiscalEmail, mes, ano);
+              if (jaFechado) {
+                totalIgnorados++;
+                log('warn', `⚠️ ${escHtml(fiscalCtx.nome)}: competência ${escHtml(nomeMes)}/${ano} já estava fechada. Fechamento não sobrescrito.`);
+                continue;
+              }
+
+              const manuaisDoFiscal = await window.db_getManuais(fiscalEmail, mes, ano);
+              const CVS_ATIVIDADES = [];
+              const result = window.calcular(CVS_ATIVIDADES, manuaisDoFiscal, 0);
+              const updates = manuaisDoFiscal
+                .filter(m => m.status === 'aceito' || m.status === 'homologado')
+                .map(m => window.db_updateManual(m.id, { status: 'fechado' }));
+              await Promise.all(updates);
+
+              await window.db_saveFechamento(fiscalEmail, mes, ano, {
+                fiscal_nome:      fiscalCtx.nome || fiscalEmail,
+                pn_extra:         0,
+                obs:              '',
+                apuracao:         result.apuracao,
+                pp:               result.pp,
+                pn:               result.pn,
+                pv:               result.pv,
+                pv_lim:           result.pvLim,
+                fechado_por:      _currentUserEmail,
+                fechado_por_nome: adminNome,
+              });
+
+              totalFechados++;
+              log('ok', `🔒 ${escHtml(fiscalCtx.nome)}: competência fechada. Apuração: <strong>R$ ${result.apuracao},00</strong>.`);
+            } catch (e) {
+              totalErrosFechamento++;
+              log('danger', `🚨 ${escHtml(fiscalCtx.nome)}: erro ao fechar competência — ${escHtml(e.message)}`);
+            }
+          }
+
+          const totalErros = totalErrosConversao + totalErrosFechamento;
           logEl.innerHTML = msgs.slice(-20).join('') +
             alerta(totalErros ? 'warn' : 'ok',
               `✅ Concluído: <strong>${totalDias}</strong> dia(s) gerado(s), ` +
               `<strong>${totalApagados}</strong> lançamento(s) substituído(s), ` +
-              `<strong>${totalErros}</strong> erro(s).`
+              `<strong>${totalFechados}</strong> competência(s) fechada(s), ` +
+              `<strong>${totalIgnorados}</strong> já fechada(s), ` +
+              `<strong>${totalErros}</strong> erro(s) no total (${totalErrosConversao} na conversão e ${totalErrosFechamento} no fechamento).`
             );
         } catch(e) {
           logEl.innerHTML = alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
