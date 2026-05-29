@@ -1,0 +1,175 @@
+name: Resumo Semanal de Pontos (FCM Push)
+
+# Toda segunda-feira às 7h UTC (4h de Brasília) envia um push a cada fiscal
+# informando a quantidade de pontos homologados acumulados até o momento.
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # Segunda-feira, 07:00 UTC
+  workflow_dispatch:        # Permite disparo manual para testes
+
+jobs:
+  weekly-summary:
+    name: Enviar resumo semanal via FCM
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+
+    steps:
+      - name: Consultar Firestore e enviar pushes via FCM HTTP v1
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          pip install google-auth --quiet
+          python3 - <<'EOF'
+          import json, os, sys, urllib.request, urllib.error
+          import google.oauth2.service_account
+          import google.auth.transport.requests
+
+          PROJECT_ID   = 'visam-3a30b'
+          FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+          FCM_URL       = f'https://fcm.googleapis.com/v1/projects/{PROJECT_ID}/messages:send'
+
+          # ── Autenticação OAuth2 (Firestore + FCM) ──────────────────
+          sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
+          creds = google.oauth2.service_account.Credentials.from_service_account_info(
+              sa_info,
+              scopes=[
+                  'https://www.googleapis.com/auth/datastore',
+                  'https://www.googleapis.com/auth/firebase.messaging',
+              ],
+          )
+          creds.refresh(google.auth.transport.requests.Request())
+          headers = {
+              'Authorization': 'Bearer ' + creds.token,
+              'Content-Type': 'application/json',
+          }
+
+          def firestore_get(path):
+              """GET simples de documentos Firestore via REST."""
+              url = f'{FIRESTORE_URL}/{path}'
+              req = urllib.request.Request(url, headers=headers)
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read())
+
+          def firestore_query(collection, filters):
+              """runQuery estruturada no Firestore."""
+              url = f'{FIRESTORE_URL}:runQuery'
+              body = json.dumps({
+                  'structuredQuery': {
+                      'from': [{'collectionId': collection}],
+                      'where': {
+                          'compositeFilter': {
+                              'op': 'AND',
+                              'filters': filters,
+                          }
+                      },
+                  }
+              }).encode()
+              req = urllib.request.Request(url, data=body, method='POST', headers=headers)
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read())
+
+          def field_value(doc, field):
+              """Extrai valor de um campo de um documento Firestore."""
+              fields = doc.get('document', {}).get('fields', {})
+              fv = fields.get(field, {})
+              for t in ('integerValue', 'doubleValue', 'stringValue', 'booleanValue'):
+                  if t in fv:
+                      return fv[t]
+              return None
+
+          # ── 1. Buscar todos os manuais com status 'aceito' ─────────
+          print('Consultando pontos homologados…')
+          results = firestore_query('manuais', [
+              {'fieldFilter': {
+                  'field': {'fieldPath': 'status'},
+                  'op': 'EQUAL',
+                  'value': {'stringValue': 'aceito'},
+              }},
+          ])
+
+          # Agrupa pontos por fiscal
+          pontos_por_fiscal = {}
+          for item in results:
+              doc = item.get('document')
+              if not doc:
+                  continue
+              email = field_value(item, 'fiscal_email')
+              pts   = field_value(item, 'pontos_homologado')
+              if not email:
+                  continue
+              try:
+                  pts = float(pts or 0)
+              except (TypeError, ValueError):
+                  pts = 0.0
+              pontos_por_fiscal[email] = pontos_por_fiscal.get(email, 0.0) + pts
+
+          total_geral = sum(pontos_por_fiscal.values())
+          print(f'Total geral de pontos homologados: {total_geral:.0f}')
+          print(f'Fiscais com pontos: {list(pontos_por_fiscal.keys())}')
+
+          # ── 2. Buscar fiscais com fcm_token ────────────────────────
+          print('Buscando fiscais com token FCM…')
+          fiscais_results = firestore_query('usuarios', [
+              {'fieldFilter': {
+                  'field': {'fieldPath': 'grupo'},
+                  'op': 'EQUAL',
+                  'value': {'stringValue': 'Fiscal'},
+              }},
+          ])
+
+          fiscais = []
+          for item in fiscais_results:
+              doc = item.get('document')
+              if not doc:
+                  continue
+              email     = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
+              fcm_token = field_value(item, 'fcm_token')
+              if fcm_token:
+                  fiscais.append({'email': email, 'fcm_token': fcm_token})
+
+          print(f'Fiscais com token FCM: {len(fiscais)}')
+
+          if not fiscais:
+              print('Nenhum fiscal com token FCM registrado. Encerrando.')
+              sys.exit(0)
+
+          # ── 3. Enviar push personalizado a cada fiscal ─────────────
+          def send_fcm(fcm_token, titulo, corpo):
+              payload = json.dumps({
+                  'message': {
+                      'token': fcm_token,
+                      'notification': {'title': titulo, 'body': corpo},
+                      'webpush': {
+                          'fcm_options': {
+                              'link': 'https://visaanapolis.github.io/RMPF/meus-lancamentos.html',
+                          },
+                      },
+                  },
+              }).encode()
+              req = urllib.request.Request(FCM_URL, data=payload, method='POST', headers=headers)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return True, r.read().decode()
+              except urllib.error.HTTPError as e:
+                  return False, e.read().decode()
+
+          erros = 0
+          for f in fiscais:
+              pts = pontos_por_fiscal.get(f['email'], 0.0)
+              titulo = '📊 Resumo Semanal RMPF'
+              corpo  = (
+                  f"Você tem {pts:.0f} pontos homologados até o momento. "
+                  f"Total geral da equipe: {total_geral:.0f} pts."
+              )
+              ok, resp = send_fcm(f['fcm_token'], titulo, corpo)
+              if ok:
+                  print(f"  ✅ Push enviado para {f['email']}")
+              else:
+                  print(f"  ❌ Falha para {f['email']}: {resp}", file=sys.stderr)
+                  erros += 1
+
+          if erros:
+              print(f'::warning::{erros} notificação(ões) não entregue(s).')
+          else:
+              print(f'✅ Resumo semanal enviado para {len(fiscais)} fiscal(is).')
+          EOF
