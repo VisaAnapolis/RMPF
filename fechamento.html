@@ -469,6 +469,20 @@
     const fiscalEmail = document.getElementById('sel-fiscal').value;
     const mes  = Number(document.getElementById('sel-mes').value);
     const ano  = Number(document.getElementById('sel-ano').value);
+
+    // Guard: disallow reopening when a later month is already closed
+    const posteriores = await db_getFechamentosPosterioresFiscal(fiscalEmail, mes, ano);
+    if (posteriores.length > 0) {
+      const prox = posteriores[0];
+      document.getElementById('alert-area').innerHTML = alerta('warn',
+        `Não é possível reabrir <strong>${MESES[mes-1]}/${ano}</strong> porque o mês ` +
+        `<strong>${MESES[prox.mes-1]}/${prox.ano}</strong> também está fechado. ` +
+        `Reabra os meses em ordem decrescente (do mais recente para o mais antigo).`
+      );
+      window.scrollTo(0, 0);
+      return;
+    }
+
     if (!confirm(`Reabrir a competência ${MESES[mes-1]}/${ano} para ${_fiscalSel?.nome||fiscalEmail}?\n\nOs lançamentos fechados voltarão ao status "aceito" e o fechamento será removido.`)) return;
 
     try {
@@ -487,7 +501,7 @@
       document.getElementById('alert-area').innerHTML = alerta('ok', `Competência <strong>${MESES[mes-1]}/${ano}</strong> reaberta com sucesso.`);
       window.scrollTo(0, 0);
     } catch(e) {
-      document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao reabrir: ' + e.message);
+      document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao reabrir: ' + escHtml(e.message));
     }
   }
 

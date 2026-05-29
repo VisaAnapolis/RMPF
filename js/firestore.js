@@ -423,23 +423,30 @@ async function deleteFechamento(fiscalEmail, mes, ano) {
   await window.db.collection('fechamentos').doc(id).delete();
 }
 
+// Retorna os fechamentos do fiscal que são POSTERIORES ao mês/ano indicado.
+// Usado para impedir a reabertura de uma competência quando existe
+// pelo menos um mês mais recente já fechado para o mesmo fiscal.
+async function getFechamentosPosterioresFiscal(fiscalEmail, mes, ano) {
+  const snap = await window.db.collection('fechamentos')
+    .where('fiscal_email', '==', fiscalEmail)
+    .get();
+  return snap.docs
+    .map(d => d.data())
+    .filter(f =>
+      Number(f.ano) > Number(ano) ||
+      (Number(f.ano) === Number(ano) && Number(f.mes) > Number(mes))
+    )
+    .sort((a, b) => Number(a.ano) - Number(b.ano) || Number(a.mes) - Number(b.mes));
+}
+
 // Retorna true se o mês/ano estiver fechado para o fiscal — seja por fechamento
 // direto daquele mês, seja porque um mês POSTERIOR já foi fechado (tornando
 // todos os anteriores implicitamente fechados).
 async function isMesFechado(fiscalEmail, mes, ano) {
   const direto = await getFechamento(fiscalEmail, mes, ano);
   if (direto) return true;
-  const snap = await window.db.collection('fechamentos')
-    .where('fiscal_email', '==', fiscalEmail)
-    .get();
-  for (const d of snap.docs) {
-    const f = d.data();
-    if (Number(f.ano) > Number(ano) ||
-        (Number(f.ano) === Number(ano) && Number(f.mes) > Number(mes))) {
-      return true;
-    }
-  }
-  return false;
+  const posteriores = await getFechamentosPosterioresFiscal(fiscalEmail, mes, ano);
+  return posteriores.length > 0;
 }
 
 // ── Última competência fechada ────────────────────────────
@@ -746,11 +753,12 @@ async function getOcorrenciasAceitasTodas() {
 
 // ── Exports ──────────────────────────────────────────────
 
-window.db_getFechamento         = getFechamento;
-window.db_saveFechamento        = saveFechamento;
-window.db_deleteFechamento      = deleteFechamento;
-window.db_isMesFechado          = isMesFechado;
-window.db_getUltimoMesFechado   = getUltimoMesFechado;
+window.db_getFechamento                  = getFechamento;
+window.db_saveFechamento                 = saveFechamento;
+window.db_deleteFechamento               = deleteFechamento;
+window.db_isMesFechado                   = isMesFechado;
+window.db_getFechamentosPosterioresFiscal = getFechamentosPosterioresFiscal;
+window.db_getUltimoMesFechado            = getUltimoMesFechado;
 window.db_getUltimoMesAberto    = getUltimoMesAberto; // alias
 window.db_getProximaCompetencia = getProximaCompetencia;
 window.db_getFechamentosMes     = getFechamentosMes;
