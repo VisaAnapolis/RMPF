@@ -44,6 +44,22 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.6.0</span>
+            <span class="badge-date">28/05/2026</span>
+          </div>
+          <div class="changelog-title">PDF de fechamento com nome dinâmico, layout institucional de Anápolis e correções no formulário de lançamentos</div>
+          <ul class="changelog-changes">
+            <li><strong>Nome dinâmico para PDF de fechamento</strong> — o PDF exportado a partir de <code>fechamento.html</code> agora recebe o nome no formato <code>AAAAMM + primeiro nome + inicial do sobrenome</code> do fiscal, facilitando a identificação do arquivo (PR #109).</li>
+            <li><strong>Layout institucional no relatório de fechamento</strong> — cabeçalho, assinatura e estilos de impressão de <code>fechamento.html</code> padronizados com a identidade visual do município de Anápolis, mantendo compatibilidade com o JS existente (PR #107).</li>
+            <li><strong>Lançamentos homologados incluídos no fechamento</strong> — ocorrências aceitas convertidas em lançamentos com <code>status: "homologado"</code> agora aparecem corretamente na apuração e no fechamento da competência (PR #106).</li>
+            <li><strong>Correção de exceção em renderSummary</strong> — referência a elemento DOM inexistente (<code>rel-fiscal-assin</code>) removida; competências fechadas não ficam mais reabertas incorretamente (PR #108).</li>
+            <li><strong>Tipo de anexo correto na conferência</strong> — a tabela de lançamentos em <code>conferencia.html</code> exibe 🖼️ <strong>Imagem</strong> ou 📎 <strong>PDF</strong> de acordo com a extensão do arquivo, alinhado com <code>meus-lancamentos.html</code> (PR #105).</li>
+            <li><strong>Data, mês e ano preservados após salvar lançamento</strong> — o formulário de <code>lancamento.html</code> restaura os três campos após o <code>form.reset()</code>, evitando que o usuário precise reselecionar data/mês/ano entre registros consecutivos (PR #110, #111).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.5.7</span>
             <span class="badge-date">26/05/2026</span>
           </div>
