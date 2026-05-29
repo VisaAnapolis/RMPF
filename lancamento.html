@@ -413,6 +413,7 @@
       }
 
       document.getElementById('form-lancamento').reset();
+      document.getElementById('f-data').value = data;
       document.getElementById('item-group').style.display = 'none';
     } catch (e) {
       showAlert('danger', 'Erro ao salvar: ' + e.message);
