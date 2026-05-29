@@ -4,7 +4,7 @@ name: Resumo Semanal de Pontos (FCM Push)
 # informando a quantidade de pontos homologados acumulados até o momento.
 on:
   schedule:
-    - cron: '0 7 * * 1'   # Segunda-feira, 07:00 UTC
+    - cron: '0 7 * * 1'   # Segunda-feira, 07:00 UTC (04:00 BRT horário padrão / 05:00 BRST horário de verão)
   workflow_dispatch:        # Permite disparo manual para testes
 
 jobs:
@@ -12,6 +12,7 @@ jobs:
     name: Enviar resumo semanal via FCM
     runs-on: ubuntu-latest
     if: github.repository == 'garrado/RMPF'
+    permissions: {}   # Este job não usa o GITHUB_TOKEN — apenas FIREBASE_SERVICE_ACCOUNT_JSON
 
     steps:
       - name: Consultar Firestore e enviar pushes via FCM HTTP v1

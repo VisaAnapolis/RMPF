@@ -3,7 +3,8 @@
 //
 // Fluxo:
 //   1. Busca o fcm_token do fiscal em usuarios/{email}
-//   2. Obtém o PAT do GitHub de app_config/github_token
+//   2. Obtém o PAT do GitHub de app_config/github_token via db_getGitHubToken()
+//      (função definida em js/firestore.js, exportada como window.db_getGitHubToken)
 //   3. Despacha repository_dispatch "notify-fiscal" para o GitHub Actions
 //   4. O workflow notify-fiscal.yml chama FCM HTTP v1 e entrega o push
 //

@@ -51,25 +51,13 @@ window.initFCM = async function initFCM(email) {
 
     const messaging = firebase.messaging();
 
+    // getToken() retorna um token atual ou gera um novo se expirado
     const token = await messaging.getToken({ vapidKey: _FCM_VAPID_KEY });
     if (!token) return;
 
     // Persiste o token no documento do usuário (fire-and-forget)
     window.db.collection('usuarios').doc(email).update({ fcm_token: token })
       .catch(e => console.warn('[FCM] Falha ao salvar token:', e));
-
-    // Atualiza token caso ele seja renovado pelo browser
-    messaging.onTokenRefresh(async () => {
-      try {
-        const newToken = await messaging.getToken({ vapidKey: _FCM_VAPID_KEY });
-        if (newToken) {
-          window.db.collection('usuarios').doc(email).update({ fcm_token: newToken })
-            .catch(e => console.warn('[FCM] Falha ao atualizar token renovado:', e));
-        }
-      } catch (e) {
-        console.warn('[FCM] Erro ao renovar token:', e);
-      }
-    });
   } catch (e) {
     console.warn('[FCM] initFCM erro:', e);
   }
