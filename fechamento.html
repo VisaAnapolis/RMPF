@@ -326,9 +326,12 @@
     const dt = rec.fechado_em?.toDate?.()?.toLocaleString('pt-BR') || '—';
     const por = rec.fechado_por_nome || rec.fechado_por || '—';
     document.getElementById('ja-fechado-banner').innerHTML =
-      alerta('info', `✅ Competência fechada em <strong>${dt}</strong> por <strong>${escHtml(por)}</strong>. Apuração: <strong>R$ ${rec.apuracao},00</strong>.`);
+      alerta('info', `✅ Competência fechada em <strong>${dt}</strong> por <strong>${escHtml(por)}</strong>. Apuração: <strong>R$ ${rec.apuracao},00</strong>.`) +
+      `<div class="btn-group mt-2"><button class="btn btn-warn" id="btn-reabrir">🔓 Reabrir Competência</button></div>`;
     document.getElementById('ja-fechado-banner').style.display = '';
     document.getElementById('admin-form-fields').style.display = 'none';
+
+    document.getElementById('btn-reabrir').addEventListener('click', reabrirCompetencia);
 
     if (rec.obs) {
       document.getElementById('rel-obs-section').style.display = '';
@@ -459,6 +462,46 @@
     } finally {
       btnTodos.disabled = false;
       btnTodos.textContent = '🔒 Fechar para Todos os Fiscais';
+    }
+  }
+
+  async function reabrirCompetencia() {
+    const fiscalEmail = document.getElementById('sel-fiscal').value;
+    const mes  = Number(document.getElementById('sel-mes').value);
+    const ano  = Number(document.getElementById('sel-ano').value);
+
+    // Guard: disallow reopening when a later month is already closed
+    const posteriores = await db_getFechamentosPosterioresFiscal(fiscalEmail, mes, ano);
+    if (posteriores.length > 0) {
+      const prox = posteriores[0];
+      document.getElementById('alert-area').innerHTML = alerta('warn',
+        `Não é possível reabrir <strong>${MESES[mes-1]}/${ano}</strong> porque o mês ` +
+        `<strong>${MESES[prox.mes-1]}/${prox.ano}</strong> também está fechado. ` +
+        `Reabra os meses em ordem decrescente (do mais recente para o mais antigo).`
+      );
+      window.scrollTo(0, 0);
+      return;
+    }
+
+    if (!confirm(`Reabrir a competência ${MESES[mes-1]}/${ano} para ${_fiscalSel?.nome||fiscalEmail}?\n\nOs lançamentos fechados voltarão ao status "aceito" e o fechamento será removido.`)) return;
+
+    try {
+      // Revert all 'fechado' manuais back to 'aceito'
+      const todosLanc = await db_getManuais(fiscalEmail, mes, ano);
+      const updates = todosLanc
+        .filter(m => m.status === 'fechado')
+        .map(m => db_updateManual(m.id, { status: 'aceito' }));
+      await Promise.all(updates);
+
+      // Delete fechamento record
+      await db_deleteFechamento(fiscalEmail, mes, ano);
+
+      // Reload the page state
+      await loadFechamento();
+      document.getElementById('alert-area').innerHTML = alerta('ok', `Competência <strong>${MESES[mes-1]}/${ano}</strong> reaberta com sucesso.`);
+      window.scrollTo(0, 0);
+    } catch(e) {
+      document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao reabrir: ' + escHtml(e.message));
     }
   }
 

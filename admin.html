@@ -281,6 +281,44 @@
       <div id="seed-ocorrencias-log" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── Apagar Lançamentos por Fiscal e Competência ── -->
+    <div class="card" id="card-apagar-lancamentos">
+      <div class="card-title">🗑️ Apagar Lançamentos por Fiscal e Competência</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Remove todos os lançamentos de um determinado fiscal (ou de todos os fiscais) em uma competência específica.
+        Use para corrigir lançamentos realizados por engano em meses já fechados.
+      </p>
+      <div style="background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+        <strong style="color:#7c5800">⚠️ ATENÇÃO — Operação irreversível</strong>
+        <p style="margin:4px 0 0;font-size:.85rem;color:#7c5800">
+          Os lançamentos apagados não poderão ser recuperados. Confirme antes de prosseguir.
+        </p>
+      </div>
+      <div class="form-row cols-3" style="max-width:560px;margin-bottom:14px">
+        <div class="form-group">
+          <label class="form-label" for="del-lanc-fiscal">Fiscal</label>
+          <select class="form-control" id="del-lanc-fiscal">
+            <option value="">— Todos os fiscais —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="del-lanc-mes">Mês</label>
+          <select class="form-control" id="del-lanc-mes"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="del-lanc-ano">Ano</label>
+          <select class="form-control" id="del-lanc-ano"></select>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-outline" id="btn-apagar-lancamentos" type="button"
+                style="color:var(--verm);border-color:var(--verm)">
+          🗑️ Apagar Lançamentos
+        </button>
+      </div>
+      <div id="apagar-lancamentos-log" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── Tabela de usuários ── -->
     <div class="card">
       <div class="card-title d-flex justify-between align-center">
@@ -955,6 +993,78 @@
             );
         } catch(e) {
           logEl.innerHTML = alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
+
+    // ── Apagar Lançamentos por Fiscal e Competência ───────
+    (function() {
+      const selF = document.getElementById('del-lanc-fiscal');
+      const selM = document.getElementById('del-lanc-mes');
+      const selA = document.getElementById('del-lanc-ano');
+      if (!selF || !selM || !selA) return;
+
+      // Popular fiscais
+      (async () => {
+        try {
+          const fiscais = await window.db_getTodosFiscais();
+          fiscais.forEach(f => {
+            const o = document.createElement('option');
+            o.value = f.email || f.id;
+            o.textContent = f.nome || f.id;
+            selF.appendChild(o);
+          });
+        } catch (_) {}
+      })();
+
+      // Popular mês
+      (window.MESES || []).forEach((m, i) => {
+        const o = document.createElement('option');
+        o.value = i + 1; o.textContent = m;
+        if (i === new Date().getMonth()) o.selected = true;
+        selM.appendChild(o);
+      });
+      // Popular ano
+      const yy = new Date().getFullYear();
+      for (let i = yy - 2; i <= yy + 1; i++) {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = i;
+        if (i === yy) o.selected = true;
+        selA.appendChild(o);
+      }
+
+      document.getElementById('btn-apagar-lancamentos').addEventListener('click', async () => {
+        const btn     = document.getElementById('btn-apagar-lancamentos');
+        const logEl   = document.getElementById('apagar-lancamentos-log');
+        const fiscal  = selF.value;
+        const mes     = Number(selM.value);
+        const ano     = Number(selA.value);
+        const nomeMes = (window.MESES || [])[mes - 1] || mes;
+        const nomeFiscal = fiscal
+          ? (selF.options[selF.selectedIndex]?.textContent || fiscal)
+          : 'TODOS os fiscais';
+
+        if (!confirm(
+          `⚠️ ATENÇÃO — Operação irreversível!\n\n` +
+          `Apagar TODOS os lançamentos de ${nomeFiscal} na competência ${nomeMes}/${ano}?\n\n` +
+          `Esta ação não pode ser desfeita.`
+        )) return;
+
+        btn.disabled = true;
+        logEl.innerHTML = alerta('info', `⏳ Apagando lançamentos de ${escHtml(nomeFiscal)} em ${escHtml(nomeMes)}/${ano}…`);
+
+        try {
+          let total = 0;
+          if (fiscal) {
+            total = await window.db_deleteManuaisFiscalMes(fiscal, mes, ano);
+          } else {
+            total = await window.db_deleteManuaisTodosMes(mes, ano);
+          }
+          logEl.innerHTML = alerta('ok', `✅ <strong>${total}</strong> lançamento(s) apagado(s) de ${escHtml(nomeFiscal)} em ${escHtml(nomeMes)}/${ano}.`);
+        } catch(e) {
+          logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar lançamentos: ' + escHtml(e.message));
         } finally {
           btn.disabled = false;
         }

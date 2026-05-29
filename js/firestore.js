@@ -202,6 +202,28 @@ async function deleteManuaisTodosMes(mes, ano) {
   return count;
 }
 
+// ── Delete manuais for a specific fiscal in a month ──────
+async function deleteManuaisFiscalMes(fiscalEmail, mes, ano) {
+  const snap = await window.db.collection('manuais')
+    .where('fiscal_email', '==', fiscalEmail)
+    .where('mes', '==', Number(mes))
+    .where('ano', '==', Number(ano))
+    .get();
+  const BATCH_SIZE = 499;
+  let batch = window.db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    batch.delete(doc.ref);
+    count++;
+    if (count % BATCH_SIZE === 0) {
+      await batch.commit();
+      batch = window.db.batch();
+    }
+  }
+  if (count % BATCH_SIZE !== 0 && count > 0) await batch.commit();
+  return count;
+}
+
 // ── Delete only imported (VISA/SIM) manuais for a month ──
 // Lançamentos manuais feitos pelos fiscais NÃO são apagados.
 // Identificação: IDs de importação sempre começam com "visa_" ou "sim_".
@@ -394,6 +416,37 @@ async function saveFechamento(fiscalEmail, mes, ano, data) {
     fechado_em:   firebase.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
   return id;
+}
+
+async function deleteFechamento(fiscalEmail, mes, ano) {
+  const id = _fechamentoDocId(fiscalEmail, mes, ano);
+  await window.db.collection('fechamentos').doc(id).delete();
+}
+
+// Retorna os fechamentos do fiscal que são POSTERIORES ao mês/ano indicado.
+// Usado para impedir a reabertura de uma competência quando existe
+// pelo menos um mês mais recente já fechado para o mesmo fiscal.
+async function getFechamentosPosterioresFiscal(fiscalEmail, mes, ano) {
+  const snap = await window.db.collection('fechamentos')
+    .where('fiscal_email', '==', fiscalEmail)
+    .get();
+  return snap.docs
+    .map(d => d.data())
+    .filter(f =>
+      Number(f.ano) > Number(ano) ||
+      (Number(f.ano) === Number(ano) && Number(f.mes) > Number(mes))
+    )
+    .sort((a, b) => Number(a.ano) - Number(b.ano) || Number(a.mes) - Number(b.mes));
+}
+
+// Retorna true se o mês/ano estiver fechado para o fiscal — seja por fechamento
+// direto daquele mês, seja porque um mês POSTERIOR já foi fechado (tornando
+// todos os anteriores implicitamente fechados).
+async function isMesFechado(fiscalEmail, mes, ano) {
+  const direto = await getFechamento(fiscalEmail, mes, ano);
+  if (direto) return true;
+  const posteriores = await getFechamentosPosterioresFiscal(fiscalEmail, mes, ano);
+  return posteriores.length > 0;
 }
 
 // ── Última competência fechada ────────────────────────────
@@ -700,9 +753,12 @@ async function getOcorrenciasAceitasTodas() {
 
 // ── Exports ──────────────────────────────────────────────
 
-window.db_getFechamento         = getFechamento;
-window.db_saveFechamento        = saveFechamento;
-window.db_getUltimoMesFechado   = getUltimoMesFechado;
+window.db_getFechamento                  = getFechamento;
+window.db_saveFechamento                 = saveFechamento;
+window.db_deleteFechamento               = deleteFechamento;
+window.db_isMesFechado                   = isMesFechado;
+window.db_getFechamentosPosterioresFiscal = getFechamentosPosterioresFiscal;
+window.db_getUltimoMesFechado            = getUltimoMesFechado;
 window.db_getUltimoMesAberto    = getUltimoMesAberto; // alias
 window.db_getProximaCompetencia = getProximaCompetencia;
 window.db_getFechamentosMes     = getFechamentosMes;
@@ -715,6 +771,7 @@ window.db_updateManual        = updateManual;
 window.db_deleteManual        = deleteManual;
 window.db_deleteLancamentosDia = deleteLancamentosDia;
 window.db_deleteManuaisTodosMes = deleteManuaisTodosMes;
+window.db_deleteManuaisFiscalMes = deleteManuaisFiscalMes;
 window.db_deleteImportadosMes   = deleteImportadosMes;
 window.db_getOcorrencias      = getOcorrencias;
 window.db_getOcorrenciasTodas = getOcorrenciasTodas;

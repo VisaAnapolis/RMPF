@@ -364,9 +364,9 @@
     const btns = document.querySelectorAll('#btn-rascunho, #btn-enviar');
     btns.forEach(b => { b.disabled = true; });
 
-    // Verificar se a competência já foi fechada
-    const fechamento = await db_getFechamento(user.email, mes, ano);
-    if (fechamento) {
+    // Verificar se a competência já foi fechada (direta ou implicitamente)
+    const fechado = await db_isMesFechado(user.email, mes, ano);
+    if (fechado) {
       showAlert('warn', `A competência <strong>${MESES[mes-1]}/${ano}</strong> já foi fechada e não aceita novos lançamentos.`);
       btns.forEach(b => { b.disabled = false; });
       return;
@@ -451,8 +451,8 @@
       const btnVisa     = document.getElementById('btn-import-visa');
       const btnSim      = document.getElementById('btn-import-sim');
       [btnRascunho, btnEnviar, btnVisa, btnSim].forEach(b => { b.disabled = true; });
-      const fechamento = await db_getFechamento(user.email, mes, ano);
-      if (fechamento) {
+      const fechado = await db_isMesFechado(user.email, mes, ano);
+      if (fechado) {
         document.getElementById('comp-fechado-alert').innerHTML =
           alerta('warn', `A competência <strong>${MESES[mes-1]}/${ano}</strong> já foi fechada e não aceita novos lançamentos.`);
         document.getElementById('comp-fechado-alert').style.display = '';
@@ -484,8 +484,8 @@
       const alertDataEl = document.getElementById('comp-fechado-alert');
 
       // Se a competência já está fechada, não sobrescrever esse alerta
-      const fechamento = await db_getFechamento(user.email, mes, ano);
-      if (fechamento) return;
+      const fechado = await db_isMesFechado(user.email, mes, ano);
+      if (fechado) return;
 
       if (!data) { alertDataEl.style.display = 'none'; return; }
 
