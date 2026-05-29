@@ -414,6 +414,7 @@
 
       document.getElementById('form-lancamento').reset();
       document.getElementById('item-group').style.display = 'none';
+      document.getElementById('f-data').value = data;
     } catch (e) {
       showAlert('danger', 'Erro ao salvar: ' + e.message);
     } finally {
