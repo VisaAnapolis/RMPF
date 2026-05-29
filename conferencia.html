@@ -269,7 +269,7 @@
     tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="spinner"></div></td></tr>';
 
     try {
-      _manuais = await db_getManuais(fiscalEmail, mes, ano);
+      _manuais = (await db_getManuais(fiscalEmail, mes, ano)).filter(m => m.status !== 'rascunho');
       const result = calcular([], _manuais, 0);
       document.getElementById('m-pp').textContent   = result.pp;
       document.getElementById('m-pn').textContent   = result.pn;
