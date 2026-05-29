@@ -63,6 +63,12 @@
         })();
 
         attachIdleListeners();
+
+        // Solicita permissão e captura token FCM para notificações push (fire-and-forget)
+        if (typeof window.initFCM === 'function') {
+          window.initFCM(user.email).catch(() => {});
+        }
+
         resolve(window.currentUser);
       } catch (e) {
         console.error('Auth guard error:', e);

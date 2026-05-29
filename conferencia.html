@@ -195,6 +195,7 @@
 <script src="js/guard.js"></script>
 <script src="js/visa-import.js"></script>
 <script src="js/sim-import.js"></script>
+<script src="js/notifications.js"></script>
 <script>
   let _user        = null;
   let _manuais     = [];
@@ -402,6 +403,11 @@
     // o lançamento deve ir para 'enviado' (entrando no fluxo normal de homologação),
     // não direto para 'aceito'.
     const statusFinal = (status === 'aceito' && _homPendente) ? 'enviado' : status;
+
+    // Captura dados do lançamento antes de atualizar (para a notificação)
+    const manual = _manuais.find(x => x.id === id);
+    const prevStatus = manual ? manual.status : null;
+
     try {
       await db_updateManual(id, {
         status: statusFinal,
@@ -415,6 +421,25 @@
         : `Lançamento <strong>${statusFinal}</strong>.`;
       document.getElementById('alert-area').innerHTML = alerta('ok', msg);
       loadConferencia();
+
+      // ── Notificações push (fire-and-forget) ──────────────────
+      if (manual && typeof window.dispararNotificacaoFiscal === 'function') {
+        const controle = manual.controle || id;
+        if (statusFinal === 'recusado') {
+          window.dispararNotificacaoFiscal(
+            manual.fiscal_email,
+            '⚠️ Lançamento Recusado',
+            `O lançamento ${controle} foi recusado. Motivo: ${motivo}`
+          );
+        } else if (statusFinal === 'aceito' && (prevStatus === 'aceito' || prevStatus === 'recusado')) {
+          // Revisão de lançamento já avaliado — sobrescrita
+          window.dispararNotificacaoFiscal(
+            manual.fiscal_email,
+            '📝 Lançamento Sobrescrito',
+            `O lançamento ${controle} foi revisado e está agora como aceito (${ponHom} pts).`
+          );
+        }
+      }
     } catch(e) {
       document.getElementById('hom-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
     }
