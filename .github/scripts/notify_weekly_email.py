@@ -211,7 +211,7 @@ for item in usuarios_raw:
     nome  = field_value(item, "nome") or email
     if grupo != "Fiscal":
         continue
-    if ativo == False:
+    if ativo is False:
         continue
     if not email or "@" not in email:
         print(f"  ⚠️  Fiscal '{nome}' sem e-mail cadastrado.")

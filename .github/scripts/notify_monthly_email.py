@@ -229,7 +229,7 @@ for item in usuarios_raw:
     grupo = field_value(item, "grupo") or ""
     ativo = field_value(item, "ativo")
     nome  = field_value(item, "nome") or email
-    if ativo == False:
+    if ativo is False:
         continue
     if not email or "@" not in email:
         continue
