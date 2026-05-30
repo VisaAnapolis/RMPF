@@ -2,7 +2,7 @@
 // Disparador de notificações push via GitHub Actions + FCM HTTP v1.
 //
 // Fluxo:
-//   1. Busca o campo fcm_token do fiscal em usuarios/{email}
+//   1. Busca os campos fcmTokens (array) / fcm_token (legado) em usuarios/{email}
 //   2. Obtém o PAT do GitHub de app_config/github_token via db_getGitHubToken()
 //      (função definida em js/firestore.js, exportada como window.db_getGitHubToken)
 //   3. Despacha um repository_dispatch "notify-fiscal" por token
@@ -25,9 +25,17 @@ async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
     const snap = await window.db.collection('usuarios').doc(fiscalEmail).get();
     if (!snap.exists) return;
 
-    const rawToken = snap.data().fcm_token;
-    if (!rawToken) return; // Fiscal ainda não habilitou notificações
-    const tokens = [rawToken];
+    const data = snap.data() || {};
+    const tokens = Array.isArray(data.fcmTokens)
+      ? data.fcmTokens.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim())
+      : [];
+
+    if (!tokens.length) {
+      const legacyToken = (typeof data.fcm_token === 'string' ? data.fcm_token : '').trim();
+      if (legacyToken) tokens.push(legacyToken);
+    }
+
+    if (!tokens.length) return; // Fiscal ainda não habilitou notificações
 
     const ghToken = await window.db_getGitHubToken();
     if (!ghToken) {
@@ -36,7 +44,7 @@ async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
     }
 
     // Dispara um repository_dispatch por token (um por dispositivo registrado)
-    await Promise.all(tokens.map(async (fcm_token) => {
+    await Promise.all([...new Set(tokens)].map(async (fcm_token) => {
       const resp = await fetch(`https://api.github.com/repos/${_NOTIF_REPO}/dispatches`, {
         method: 'POST',
         headers: {
