@@ -715,9 +715,10 @@ async function removeAnexoManual(docId, anexoPath) {
 
 async function getAnexosPorMes() {
   // Filtra server-side apenas manuais com anexo_bytes > 0, evitando full scan.
+  // Usa source:'server' para garantir dados atualizados após exclusões recentes.
   const snap = await window.db.collection('manuais')
     .where('anexo_bytes', '>', 0)
-    .get();
+    .get({ source: 'server' });
   const porMes = {};
   let totalBytes = 0;
   snap.docs.forEach(d => {

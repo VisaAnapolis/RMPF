@@ -1205,13 +1205,16 @@
           .where('mes', '==', Number(mes))
           .where('ano', '==', Number(ano))
           .get();
-        const comAnexo = snap.docs.filter(d => d.data().anexo_path && d.data().anexo_bytes);
+        // Inclui docs com anexo_bytes > 0 OU com caminho de Storage — garante que
+        // qualquer doc contabilizado por getAnexosPorMes seja limpo.
+        const comAnexo = snap.docs.filter(d => d.data().anexo_bytes > 0 || d.data().anexo_path);
 
         let apagados = 0;
         let bytesLiberados = 0;
 
         for (const doc of comAnexo) {
           const data = doc.data();
+          if (!data.anexo_path) continue; // sem caminho no Storage, nada a apagar
           try {
             await firebase.storage().ref(data.anexo_path).delete();
             apagados++;
@@ -1224,7 +1227,7 @@
           }
         }
 
-        // Batch Firestore update — limpa campos de anexo
+        // Batch Firestore update — limpa campos de anexo em todos os docs relevantes
         const serverTimestamp = firebase.firestore.FieldValue.serverTimestamp;
         const BATCH_MAX = 500;
         for (let i = 0; i < comAnexo.length; i += BATCH_MAX) {
@@ -1241,11 +1244,14 @@
           await batch.commit();
         }
 
+        await carregarStorageStats();
         logEl.innerHTML = alerta('ok',
           `✅ ${apagados} PDF(s) apagado(s). Espaço liberado: ${fmtBytes(bytesLiberados)}.`);
-        await carregarStorageStats();
       } catch(e) {
         logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar PDFs: ' + escHtml(e.message));
+      } finally {
+        // Reabilita botões caso o refresh não os recrie (ex.: erro na recarga)
+        document.querySelectorAll('#storage-tbody button').forEach(b => { b.disabled = false; });
       }
     }
 
@@ -1352,15 +1358,17 @@
             .where('mes', '==', mes)
             .where('ano', '==', ano)
             .get();
-          const comAnexo = snap.docs.filter(d => d.data().anexo_path && d.data().anexo_bytes);
+          const comAnexo = snap.docs.filter(d => d.data().anexo_bytes > 0 || d.data().anexo_path);
+          // Apenas docs com caminho de Storage são enviados para exclusão no Storage
+          const comStorage = comAnexo.filter(d => d.data().anexo_path);
 
           const deleteResults = await Promise.allSettled(
-            comAnexo.map(doc => firebase.storage().ref(doc.data().anexo_path).delete())
+            comStorage.map(doc => firebase.storage().ref(doc.data().anexo_path).delete())
           );
           deleteResults.forEach((result, idx) => {
             if (result.status === 'fulfilled') {
               totalApagados++;
-              totalBytes += comAnexo[idx].data().anexo_bytes || 0;
+              totalBytes += comStorage[idx].data().anexo_bytes || 0;
             } else {
               const err = result.reason;
               if (err.code !== 'storage/object-not-found') {
@@ -1386,10 +1394,10 @@
         }
 
         const erroTxt = erros > 0 ? ` (${erros} erro(s) ignorado(s))` : '';
+        await carregarStorageStats();
         logEl.innerHTML = alerta('ok',
           `✅ ${totalApagados} PDF(s) excluído(s) em ${meses.length} competência(s). ` +
           `Espaço liberado: ${fmtBytes(totalBytes)}.${erroTxt}`);
-        await carregarStorageStats();
       } catch(e) {
         logEl.innerHTML = alerta('danger', '🚨 Erro ao excluir PDFs: ' + escHtml(e.message));
       } finally {
