@@ -35,18 +35,14 @@ jobs:
           )
           creds.refresh(google.auth.transport.requests.Request())
 
-          # ── Payload FCM ────────────────────────────────────────────
+          # ── Payload FCM (data-only para evitar notificação duplicada no VISA) ──
           payload = json.dumps({
               'message': {
                   'token': os.environ['FCM_TOKEN'],
-                  'notification': {
+                  'data': {
                       'title': os.environ['TITULO'],
                       'body':  os.environ['CORPO'],
-                  },
-                  'webpush': {
-                      'fcm_options': {
-                          'link': 'https://visaanapolis.github.io/RMPF/dashboard.html',
-                      },
+                      'link':  'https://visaanapolis.github.io/RMPF/dashboard.html',
                   },
               },
           }).encode()
