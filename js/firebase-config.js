@@ -35,8 +35,10 @@ window.googleProvider.setCustomParameters({ prompt: 'select_account' });
 //   nenhum token FCM é gerado/salvo.
 //   Preferencialmente mantenha a chave no Firestore em app_config/vapid_key
 //   (campo "value"), para evitar hardcode em repositório público.
-const _FCM_VAPID_KEY = 'BIQDXzL0tE6YpIk_PLACEHOLDER_SUBSTITUA_PELA_CHAVE_VAPID_DO_FIREBASE_CONSOLE';
-const _FCM_VAPID_PLACEHOLDER_FLAG = 'PLACEHOLDER_SUBSTITUA';
+// Mantido null por padrão para evitar hardcode de chave pública em repositório.
+// Produção deve preferir app_config/vapid_key (campo "value") no Firestore.
+const _FCM_VAPID_KEY = null;
+const _FCM_VAPID_PLACEHOLDER_FLAGS = ['PLACEHOLDER_SUBSTITUA'];
 
 async function db_getVapidKey() {
   const snap = await window.db.collection('app_config').doc('vapid_key').get();
@@ -54,7 +56,7 @@ async function resolveVapidKey() {
   }
 
   const fromConst = (_FCM_VAPID_KEY || '').trim();
-  if (!fromConst || fromConst.includes(_FCM_VAPID_PLACEHOLDER_FLAG)) return null;
+  if (!fromConst || _FCM_VAPID_PLACEHOLDER_FLAGS.some(flag => fromConst === flag || fromConst.includes(flag))) return null;
   return fromConst;
 }
 
@@ -67,7 +69,10 @@ async function resolveVapidKey() {
  */
 window.initFCM = async function initFCM(email) {
   try {
-    if (!email) return;
+    if (!email) {
+      console.warn('[FCM] initFCM chamado sem email.');
+      return;
+    }
     if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
     if (typeof firebase.messaging !== 'function') return; // SDK não carregado nesta página
 
@@ -91,17 +96,16 @@ window.initFCM = async function initFCM(email) {
     const data = snap.exists ? (snap.data() || {}) : {};
 
     const existing = Array.isArray(data.fcmTokens)
-      ? data.fcmTokens.filter(t => typeof t === 'string' && t.trim())
+      ? [...new Set(data.fcmTokens.filter(t => typeof t === 'string' && t.trim()))]
       : [];
     const legacy = (typeof data.fcm_token === 'string' ? data.fcm_token : '').trim();
-    if (legacy) existing.push(legacy);
+    if (legacy && !existing.includes(legacy)) existing.push(legacy);
     if (!existing.includes(token)) existing.push(token);
 
-    const deduped = [...new Set(existing)];
-    const payload = { fcmTokens: deduped };
-    if ('fcm_token' in data) {
-      payload.fcm_token = firebase.firestore.FieldValue.delete();
-    }
+    const payload = {
+      fcmTokens: existing,
+      fcm_token: firebase.firestore.FieldValue.delete(),
+    };
 
     // Persiste tokens sem sobrescrever os demais campos do usuário
     await userRef.set(payload, { merge: true });
