@@ -2,7 +2,7 @@
 // Disparador de notificações push via GitHub Actions + FCM HTTP v1.
 //
 // Fluxo:
-//   1. Busca o array fcmTokens do fiscal em usuarios/{email}
+//   1. Busca o campo fcm_token do fiscal em usuarios/{email}
 //   2. Obtém o PAT do GitHub de app_config/github_token via db_getGitHubToken()
 //      (função definida em js/firestore.js, exportada como window.db_getGitHubToken)
 //   3. Despacha um repository_dispatch "notify-fiscal" por token
@@ -14,7 +14,6 @@ const _NOTIF_REPO = 'garrado/RMPF';
 
 /**
  * Envia uma notificação push a um fiscal específico.
- * Envia para todos os dispositivos registrados em fcmTokens.
  * Falha silenciosamente — nunca lança exceção.
  *
  * @param {string} fiscalEmail  E-mail do fiscal destinatário
@@ -26,8 +25,9 @@ async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
     const snap = await window.db.collection('usuarios').doc(fiscalEmail).get();
     if (!snap.exists) return;
 
-    const tokens = snap.data().fcmTokens;
-    if (!tokens || !tokens.length) return; // Fiscal ainda não habilitou notificações
+    const rawToken = snap.data().fcm_token;
+    if (!rawToken) return; // Fiscal ainda não habilitou notificações
+    const tokens = [rawToken];
 
     const ghToken = await window.db_getGitHubToken();
     if (!ghToken) {
