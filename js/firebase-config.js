@@ -67,14 +67,17 @@ async function resolveVapidKey() {
 
 const _FCM_REMINDER_KEY   = 'fcmReminderLastShown';
 const _FCM_REMINDER_DAYS  = 15;
+let   _fcmReminderShownThisSession = false; // evita re-exibição se localStorage falhar
 
 function _fcmReminder_shouldShow() {
+  if (_fcmReminderShownThisSession) return false;
   try {
     const last = parseInt(localStorage.getItem(_FCM_REMINDER_KEY) || '0', 10);
+    if (!last) return true; // primeira vez — mostra uma vez e registra
     const elapsed = Date.now() - last;
     return elapsed >= _FCM_REMINDER_DAYS * 24 * 60 * 60 * 1000;
   } catch (e) {
-    return true; // se localStorage não disponível, exibe por segurança
+    return true;
   }
 }
 
@@ -86,6 +89,7 @@ function maybeShowFCMReminderBanner() {
   if (!_fcmReminder_shouldShow()) return;
   if (document.getElementById('fcm-reminder-banner')) return; // já visível
 
+  _fcmReminderShownThisSession = true;
   _fcmReminder_markShown();
 
   const banner = document.createElement('div');
@@ -121,8 +125,8 @@ function maybeShowFCMReminderBanner() {
 
   const dismiss = () => banner.remove();
   document.body.appendChild(banner);
-  document.getElementById('fcm-reminder-close').addEventListener('click', dismiss);
-  document.getElementById('fcm-reminder-x').addEventListener('click', dismiss);
+  document.getElementById('fcm-reminder-close')?.addEventListener('click', dismiss);
+  document.getElementById('fcm-reminder-x')?.addEventListener('click', dismiss);
 }
 
 /**
