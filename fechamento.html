@@ -409,7 +409,7 @@
     const ano = Number(document.getElementById('sel-ano').value);
     const compLabel = `${MESES[mes-1]}/${ano}`;
 
-    if (!confirm(`Reabrir a competência ${compLabel} para TODOS os fiscais?\n\nOs lançamentos fechados voltarão ao status "aceito" e os fechamentos serão removidos. Fiscais que não possuem fechamento neste mês serão ignorados.\n\nAtenção: esta ação será bloqueada para fiscais que possuam meses posteriores fechados.\n\nTem certeza?`)) return;
+    if (!confirm(`Reabrir a competência ${compLabel} para TODOS os fiscais?\n\nOs lançamentos fechados voltarão ao status "aceito" e os fechamentos serão removidos. Fiscais que não possuem fechamento neste mês serão ignorados.\n\nAtenção: esta ação será bloqueada para fiscais que possuíam meses posteriores fechados.\n\nTem certeza?`)) return;
 
     const btnTodos = document.getElementById('btn-reabrir-todos');
     btnTodos.disabled = true;
@@ -459,7 +459,7 @@
         await loadFechamento();
       }
     } catch (e) {
-      document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao reabrir todos: ' + e.message);
+      document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao reabrir todos: ' + escHtml(e.message));
     } finally {
       btnTodos.disabled = false;
       btnTodos.textContent = '🔓 Reabrir para Todos os Fiscais';

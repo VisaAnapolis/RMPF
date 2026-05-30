@@ -1061,11 +1061,11 @@
           if (fiscal) {
             total = await window.db_deleteManuaisFiscalMes(fiscal, mes, ano);
             // Remove o fechamento correspondente para manter consistência
-            try { await window.db_deleteFechamento(fiscal, mes, ano); fechamentosApagados = 1; } catch (_) {}
+            try { await window.db_deleteFechamento(fiscal, mes, ano); fechamentosApagados = 1; } catch (fe) { console.warn('[Apagar] Não foi possível remover fechamento:', fe); }
           } else {
             total = await window.db_deleteManuaisTodosMes(mes, ano);
             // Remove todos os fechamentos do mês para manter consistência
-            try { fechamentosApagados = await window.db_deleteFechamentosMes(mes, ano); } catch (_) {}
+            try { fechamentosApagados = await window.db_deleteFechamentosMes(mes, ano); } catch (fe) { console.warn('[Apagar] Não foi possível remover fechamentos do mês:', fe); }
           }
           const fechMsg = fechamentosApagados > 0
             ? ` ${fechamentosApagados} fechamento(s) também removido(s).`
