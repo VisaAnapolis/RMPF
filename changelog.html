@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.7.0</span>
+            <span class="badge-date">30/05/2026</span>
+          </div>
+          <div class="changelog-title">Notificações FCM: novo resumo mensal, resolução dinâmica do Firestore e correções no fluxo de autenticação</div>
+          <ul class="changelog-changes">
+            <li><strong>Novo workflow de resumo mensal (<code>notify-monthly-summary.yml</code>)</strong> — disparo automático todo dia 1º do mês (07h BRT); envia a cada fiscal o total de pontos homologados no mês corrente e notifica administradores com a quantidade de fiscais com menos de 1.000 pontos acumulados. (PR #120)</li>
+            <li><strong>Resolução dinâmica do <code>databaseId</code> do Firestore nos workflows</strong> — os três workflows de notificação (<code>notify-fiscal.yml</code>, <code>notify-weekly.yml</code>, <code>notify-monthly-summary.yml</code>) passaram a consultar a API do Firestore para identificar o banco correto (preferindo a região <code>southamerica-east1</code>) em vez de assumir <code>(default)</code>; variável de ambiente <code>FIRESTORE_DATABASE_ID</code> permite sobrescrever manualmente. (PR #124)</li>
+            <li><strong>Busca de token FCM por campo <code>email</code> como fallback</strong> — <code>notify-fiscal.yml</code> e <code>js/notifications.js</code> adicionaram consulta secundária via campo <code>email</code> quando o documento não é encontrado pelo ID; o <code>fiscal_email</code> agora também é enviado no <code>client_payload</code> do <code>repository_dispatch</code> para que o workflow possa buscar o token diretamente no Firestore quando ausente no payload. (PR #124)</li>
+            <li><strong>Consulta de tokens FCM via <code>IS_NOT_NULL</code></strong> — <code>notify-weekly.yml</code> e <code>notify-monthly-summary.yml</code> substituíram filtros por grupo (<code>Fiscal</code>/<code>Administrador</code>) por uma consulta única que retorna todos os usuários com <code>fcm_token</code> registrado, classificando-os pelo campo <code>grupo</code> após a leitura; corrige cenário em que tokens existentes não eram encontrados por divergência de grupo. (PR #121)</li>
+            <li><strong>Login sempre cancela a sessão anterior</strong> — removida a lógica condicional que mantinha sessão ativa em dispositivos móveis/PWA; <code>firebase.auth().signOut()</code> é chamado em todos os dispositivos na abertura da tela de login, garantindo autenticação explícita e evitando reaproveitamento indevido de sessão em dispositivos compartilhados. (PR #126)</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.6.0</span>
             <span class="badge-date">28/05/2026</span>
           </div>
