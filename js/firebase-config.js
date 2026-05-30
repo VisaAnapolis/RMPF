@@ -104,7 +104,6 @@ window.initFCM = async function initFCM(email) {
 
     const payload = {
       fcmTokens: existing,
-      fcm_token: firebase.firestore.FieldValue.delete(),
     };
 
     // Persiste tokens sem sobrescrever os demais campos do usuário

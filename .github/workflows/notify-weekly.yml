@@ -71,6 +71,13 @@ jobs:
                       return fv[t]
               return None
 
+          def field_array(item, field):
+              """Extrai valores string de um campo array de um documento Firestore."""
+              fields = item.get('document', {}).get('fields', {})
+              fv = fields.get(field, {})
+              arr = fv.get('arrayValue', {}).get('values', [])
+              return [v.get('stringValue', '') for v in arr if v.get('stringValue', '').strip()]
+
           # ── 1. Buscar todos os manuais com status 'aceito' ─────────
           print('Consultando pontos homologados…')
           results = firestore_query('manuais', [
@@ -101,21 +108,13 @@ jobs:
           print(f'Total geral de pontos homologados: {total_geral:.0f}')
           print(f'Fiscais com pontos: {list(pontos_por_fiscal.keys())}')
 
-          # ── 2. Buscar todos os usuários com fcm_token registrado ──
-          # Usa fieldFilter GREATER_THAN '' para localizar tokens não-vazios
-          # (IS_NOT_NULL não é suportado de forma confiável na REST API v1)
+          # ── 2. Buscar todos os usuários e extrair tokens FCM ─────
+          # Lê tanto fcmTokens (array, usado pelo RMPF) quanto fcm_token (string, usado pelo VISA)
           print('Buscando usuários com token FCM…')
           url_q = f'{FIRESTORE_URL}:runQuery'
           body_q = json.dumps({
               'structuredQuery': {
                   'from': [{'collectionId': 'usuarios'}],
-                  'where': {
-                      'fieldFilter': {
-                          'field': {'fieldPath': 'fcm_token'},
-                          'op': 'GREATER_THAN',
-                          'value': {'stringValue': ''},
-                      },
-                  },
               }
           }).encode()
           req_q = urllib.request.Request(url_q, data=body_q, method='POST', headers=headers)
@@ -128,11 +127,18 @@ jobs:
               if not doc:
                   continue
               email     = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
-              fcm_token = field_value(item, 'fcm_token')
               grupo     = field_value(item, 'grupo') or ''
+              # Coleta tokens de ambos os campos (fcmTokens array + fcm_token string legado)
+              tokens = field_array(item, 'fcmTokens')
+              legacy = (field_value(item, 'fcm_token') or '').strip()
+              if legacy and legacy not in tokens:
+                  tokens.append(legacy)
+              if not tokens:
+                  continue
               # Envia a todos que não são Administrador (inclui Fiscal e usuários sem grupo)
-              if fcm_token and grupo != 'Administrador':
-                  fiscais.append({'email': email, 'fcm_token': fcm_token})
+              if grupo != 'Administrador':
+                  for t in tokens:
+                      fiscais.append({'email': email, 'fcm_token': t})
 
           print(f'Usuários com token FCM: {len(fiscais)}')
 
