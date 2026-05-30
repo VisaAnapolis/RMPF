@@ -1,0 +1,30 @@
+name: Resumo Semanal de Pontos (E-mail)
+
+# Toda segunda-feira às 10h UTC (7h BRT) envia e-mail a cada fiscal ativo
+# com seus pontos homologados da semana e o total da equipe.
+on:
+  schedule:
+    - cron: '0 10 * * 1'
+  workflow_dispatch:
+
+jobs:
+  notify:
+    name: Enviar resumo semanal por e-mail
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install -r .github/scripts/requirements.txt
+
+      - name: Executar script
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: python .github/scripts/notify_weekly_email.py
