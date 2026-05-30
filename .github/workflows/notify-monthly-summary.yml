@@ -92,10 +92,7 @@ jobs:
               payload = json.dumps({
                   'message': {
                       'token': fcm_token,
-                      'notification': {'title': titulo, 'body': corpo},
-                      'webpush': {
-                          'fcm_options': {'link': link},
-                      },
+                      'data': {'title': titulo, 'body': corpo, 'link': link},
                   },
               }).encode()
               req = urllib.request.Request(FCM_URL, data=payload, method='POST', headers=headers)
@@ -254,12 +251,12 @@ jobs:
 
           # — Push para cada fiscal —
           for f in fiscais:
-              pts = pontos_mes_por_fiscal.get(f['email'], 0.0)
+              pts = pontos_total_por_fiscal.get(f['email'], 0.0)
               titulo = '📊 Pontuação Mensal RMPF'
-              corpo  = f"Sua pontuação homologada em {MES:02d}/{ANO} é de {pts:.0f} ponto(s)."
+              corpo  = f"Seu total homologado é de {pts:.0f} ponto(s)."
               ok, resp = send_fcm(
                   f['fcm_token'], titulo, corpo,
-                  'https://visaanapolis.github.io/RMPF/meus-lancamentos.html',
+                  'https://visaanapolis.github.io/RMPF/dashboard.html',
               )
               if ok:
                   print(f"  ✅ Push enviado para fiscal {f['email']}")
@@ -279,7 +276,7 @@ jobs:
               )
               ok, resp = send_fcm(
                   a['fcm_token'], titulo, corpo,
-                  'https://visaanapolis.github.io/RMPF/admin.html',
+                  'https://visaanapolis.github.io/RMPF/dashboard.html',
               )
               if ok:
                   print(f"  ✅ Push enviado para admin {a['email']}")
