@@ -108,30 +108,40 @@ jobs:
           print(f'Total geral de pontos homologados: {total_geral:.0f}')
           print(f'Fiscais com pontos: {list(pontos_por_fiscal.keys())}')
 
-          # ── 2. Buscar fiscais com fcm_token ────────────────────────
-          print('Buscando fiscais com token FCM…')
-          fiscais_results = firestore_query('usuarios', [
-              {'fieldFilter': {
-                  'field': {'fieldPath': 'grupo'},
-                  'op': 'EQUAL',
-                  'value': {'stringValue': 'Fiscal'},
-              }},
-          ])
+          # ── 2. Buscar todos os usuários com fcm_token registrado ──
+          print('Buscando usuários com token FCM…')
+          url_q = f'{FIRESTORE_URL}:runQuery'
+          body_q = json.dumps({
+              'structuredQuery': {
+                  'from': [{'collectionId': 'usuarios'}],
+                  'where': {
+                      'unaryFilter': {
+                          'op': 'IS_NOT_NULL',
+                          'field': {'fieldPath': 'fcm_token'},
+                      },
+                  },
+              }
+          }).encode()
+          req_q = urllib.request.Request(url_q, data=body_q, method='POST', headers=headers)
+          with urllib.request.urlopen(req_q) as r:
+              usuarios_results = json.loads(r.read())
 
           fiscais = []
-          for item in fiscais_results:
+          for item in usuarios_results:
               doc = item.get('document')
               if not doc:
                   continue
               email     = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
               fcm_token = field_value(item, 'fcm_token')
-              if fcm_token:
+              grupo     = field_value(item, 'grupo') or ''
+              # Envia a todos que não são Administrador (inclui Fiscal e usuários sem grupo)
+              if fcm_token and grupo != 'Administrador':
                   fiscais.append({'email': email, 'fcm_token': fcm_token})
 
-          print(f'Fiscais com token FCM: {len(fiscais)}')
+          print(f'Usuários com token FCM: {len(fiscais)}')
 
           if not fiscais:
-              print('Nenhum fiscal com token FCM registrado. Encerrando.')
+              print('Nenhum usuário com token FCM registrado. Encerrando.')
               sys.exit(0)
 
           # ── 3. Enviar push personalizado a cada fiscal ─────────────

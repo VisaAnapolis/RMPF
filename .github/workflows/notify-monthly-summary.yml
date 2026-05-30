@@ -169,38 +169,38 @@ jobs:
           # PARTE 3 — Buscar usuários com fcm_token (Fiscal e Administrador)
           # ══════════════════════════════════════════════════════════════
           print('Buscando usuários com token FCM…')
-          fiscais_results = firestore_query('usuarios', [
-              {'fieldFilter': {
-                  'field': {'fieldPath': 'grupo'},
-                  'op': 'EQUAL',
-                  'value': {'stringValue': 'Fiscal'},
-              }},
-          ])
-          admins_results = firestore_query('usuarios', [
-              {'fieldFilter': {
-                  'field': {'fieldPath': 'grupo'},
-                  'op': 'EQUAL',
-                  'value': {'stringValue': 'Administrador'},
-              }},
-          ])
+          url_q = f'{FIRESTORE_URL}:runQuery'
+          body_q = json.dumps({
+              'structuredQuery': {
+                  'from': [{'collectionId': 'usuarios'}],
+                  'where': {
+                      'unaryFilter': {
+                          'op': 'IS_NOT_NULL',
+                          'field': {'fieldPath': 'fcm_token'},
+                      },
+                  },
+              }
+          }).encode()
+          req_q = urllib.request.Request(url_q, data=body_q, method='POST', headers=headers)
+          with urllib.request.urlopen(req_q) as r:
+              todos_results = json.loads(r.read())
 
           fiscais = []
-          for item in fiscais_results:
-              if not item.get('document'):
+          admins  = []
+          for item in todos_results:
+              doc = item.get('document')
+              if not doc:
                   continue
-              email     = field_value(item, 'email') or item.get('document', {}).get('name', '').split('/')[-1]
+              email     = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
               fcm_token = field_value(item, 'fcm_token')
-              if fcm_token:
-                  fiscais.append({'email': email, 'fcm_token': fcm_token})
-
-          admins = []
-          for item in admins_results:
-              if not item.get('document'):
+              grupo     = field_value(item, 'grupo') or ''
+              if not fcm_token:
                   continue
-              email     = field_value(item, 'email') or item.get('document', {}).get('name', '').split('/')[-1]
-              fcm_token = field_value(item, 'fcm_token')
-              if fcm_token:
+              if grupo == 'Administrador':
                   admins.append({'email': email, 'fcm_token': fcm_token})
+              else:
+                  # Inclui Fiscal e usuários sem grupo definido (ex: usuários do VISA)
+                  fiscais.append({'email': email, 'fcm_token': fcm_token})
 
           print(f'Fiscais com token FCM: {len(fiscais)}')
           print(f'Administradores com token FCM: {len(admins)}')
