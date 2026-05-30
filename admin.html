@@ -1227,7 +1227,8 @@
           }
         }
 
-        // Batch Firestore update — limpa campos de anexo em todos os docs relevantes
+        // Batch Firestore update — limpa campos de anexo em todos os docs relevantes,
+        // incluindo docs sem caminho de Storage (ex.: dados inconsistentes sem anexo_path).
         const serverTimestamp = firebase.firestore.FieldValue.serverTimestamp;
         const BATCH_MAX = 500;
         for (let i = 0; i < comAnexo.length; i += BATCH_MAX) {
@@ -1250,7 +1251,8 @@
       } catch(e) {
         logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar PDFs: ' + escHtml(e.message));
       } finally {
-        // Reabilita botões caso o refresh não os recrie (ex.: erro na recarga)
+        // Reabilita botões que porventura ainda existam no tbody (ex.: erro antes de carregarStorageStats).
+        // Se carregarStorageStats() já recriou a tabela, esta operação é inócua.
         document.querySelectorAll('#storage-tbody button').forEach(b => { b.disabled = false; });
       }
     }
