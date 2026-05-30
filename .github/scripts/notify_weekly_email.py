@@ -6,14 +6,13 @@ filtra pelos status válidos, agrupa pontos por fiscal e envia um e-mail
 com cards de desempenho individual e total da equipe.
 """
 
-import json, os, sys, base64
+import json, os, sys, smtplib
 from datetime import datetime, timezone, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import requests
 from google.oauth2 import service_account
-from googleapiclient.discovery import build
 from google.auth.transport.requests import Request as AuthRequest
 
 SENDER_EMAIL    = "visa@anapolis.go.gov.br"
@@ -27,12 +26,6 @@ DASHBOARD_URL   = "https://visaanapolis.github.io/RMPF/dashboard.html"
 
 # ── Autenticação ──────────────────────────────────────────────────────────────
 sa_info = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
-
-gmail_creds = service_account.Credentials.from_service_account_info(
-    sa_info,
-    scopes=["https://www.googleapis.com/auth/gmail.send"],
-).with_subject(SENDER_EMAIL)
-gmail_service = build("gmail", "v1", credentials=gmail_creds)
 
 fs_creds = service_account.Credentials.from_service_account_info(
     sa_info,
@@ -90,10 +83,10 @@ def send_email(to: str, subject: str, html_body: str):
     msg["To"]      = to
     msg["Subject"] = subject
     msg.attach(MIMEText(html_body, "html", "utf-8"))
-    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-    gmail_service.users().messages().send(
-        userId=SENDER_EMAIL, body={"raw": raw}
-    ).execute()
+    with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+        smtp.starttls()
+        smtp.login(SENDER_EMAIL, os.environ["GMAIL_APP_PASSWORD"])
+        smtp.sendmail(SENDER_EMAIL, to, msg.as_string())
 
 
 def card(label: str, valor: str, cor: str = "#1a237e") -> str:
