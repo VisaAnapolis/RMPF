@@ -22,12 +22,25 @@ const _NOTIF_REPO = 'garrado/RMPF';
  */
 async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
   try {
-    const snap = await window.db.collection('usuarios').doc(fiscalEmail).get();
-    if (!snap.exists) return;
+    const email = String(fiscalEmail || '').trim();
+    if (!email) return;
 
-    const rawToken = snap.data().fcm_token;
-    if (!rawToken) return; // Fiscal ainda não habilitou notificações
-    const tokens = [rawToken];
+    let rawToken = null;
+    const snap = await window.db.collection('usuarios').doc(email).get();
+    if (snap.exists) {
+      rawToken = snap.data().fcm_token || null;
+    }
+
+    if (!rawToken) {
+      // Fallback para bases onde o ID do documento não é o e-mail.
+      const q = await window.db.collection('usuarios')
+        .where('email', '==', email)
+        .limit(1)
+        .get();
+      if (!q.empty) rawToken = q.docs[0].data().fcm_token || null;
+    }
+
+    const tokens = rawToken ? [rawToken] : [null];
 
     const ghToken = await window.db_getGitHubToken();
     if (!ghToken) {
@@ -47,7 +60,7 @@ async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
         },
         body: JSON.stringify({
           event_type: 'notify-fiscal',
-          client_payload: { fcm_token, titulo, corpo },
+          client_payload: { fcm_token: fcm_token || '', fiscal_email: email, titulo, corpo },
         }),
       });
 

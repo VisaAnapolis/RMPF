@@ -18,12 +18,13 @@ jobs:
         env:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           FCM_TOKEN:        ${{ github.event.client_payload.fcm_token }}
+          FISCAL_EMAIL:     ${{ github.event.client_payload.fiscal_email }}
           TITULO:           ${{ github.event.client_payload.titulo }}
           CORPO:            ${{ github.event.client_payload.corpo }}
         run: |
           pip install google-auth --quiet
           python3 - <<'EOF'
-          import json, os, sys, urllib.request, urllib.error
+          import json, os, sys, urllib.request, urllib.error, urllib.parse
           import google.oauth2.service_account
           import google.auth.transport.requests
 
@@ -31,14 +32,114 @@ jobs:
           sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
           creds = google.oauth2.service_account.Credentials.from_service_account_info(
               sa_info,
-              scopes=['https://www.googleapis.com/auth/firebase.messaging'],
+              scopes=[
+                  'https://www.googleapis.com/auth/firebase.messaging',
+                  'https://www.googleapis.com/auth/datastore',
+              ],
           )
           creds.refresh(google.auth.transport.requests.Request())
+
+          PROJECT_ID = 'visam-3a30b'
+          FIRESTORE_REGION = 'southamerica-east1'
+          FIRESTORE_DATABASE_ID = os.environ.get('FIRESTORE_DATABASE_ID', '').strip()
+          auth_header = {'Authorization': 'Bearer ' + creds.token}
+
+          def resolve_firestore_url():
+              if FIRESTORE_DATABASE_ID:
+                  db_id = FIRESTORE_DATABASE_ID
+                  print(f'Usando Firestore databaseId via env: {db_id}')
+                  return f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{db_id}/documents'
+              try:
+                  req = urllib.request.Request(
+                      f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases',
+                      method='GET',
+                      headers=auth_header,
+                  )
+                  with urllib.request.urlopen(req) as r:
+                      dbs = json.loads(r.read()).get('databases', [])
+              except Exception as e:
+                  print(f'::warning::Falha ao listar databases do Firestore, usando (default): {e}')
+                  return f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+
+              if not dbs:
+                  return f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+
+              chosen = None
+              for db in dbs:
+                  if db.get('locationId') == FIRESTORE_REGION:
+                      chosen = db
+                      break
+              if not chosen:
+                  chosen = dbs[0]
+              name = chosen.get('name', '')
+              db_id = name.rsplit('/', 1)[-1] if name else '(default)'
+              print(f'Firestore databaseId resolvido: {db_id} (locationId={chosen.get("locationId", "n/a")})')
+              return f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{db_id}/documents'
+
+          FIRESTORE_URL = resolve_firestore_url()
+
+          def firestore_get_token_by_email(email):
+              safe_email = urllib.parse.quote(email, safe='')
+              req = urllib.request.Request(f'{FIRESTORE_URL}/usuarios/{safe_email}', method='GET', headers=auth_header)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      doc = json.loads(r.read())
+                  return doc.get('fields', {}).get('fcm_token', {}).get('stringValue')
+              except urllib.error.HTTPError:
+                  return None
+              except Exception:
+                  return None
+
+          def firestore_query_token_by_email_field(email):
+              url = f'{FIRESTORE_URL}:runQuery'
+              body = json.dumps({
+                  'structuredQuery': {
+                      'from': [{'collectionId': 'usuarios'}],
+                      'where': {
+                          'fieldFilter': {
+                              'field': {'fieldPath': 'email'},
+                              'op': 'EQUAL',
+                              'value': {'stringValue': email},
+                          }
+                      },
+                      'limit': 1,
+                  }
+              }).encode()
+              req = urllib.request.Request(
+                  url,
+                  data=body,
+                  method='POST',
+                  headers={**auth_header, 'Content-Type': 'application/json'},
+              )
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      rows = json.loads(r.read())
+                  for row in rows:
+                      token = row.get('document', {}).get('fields', {}).get('fcm_token', {}).get('stringValue')
+                      if token:
+                          return token
+              except Exception:
+                  pass
+              return None
+
+          fcm_token = (os.environ.get('FCM_TOKEN') or '').strip()
+          fiscal_email = (os.environ.get('FISCAL_EMAIL') or '').strip()
+          if not fcm_token and fiscal_email:
+              print('FCM_TOKEN ausente no payload; consultando Firestore...')
+              fcm_token = (
+                  firestore_get_token_by_email(fiscal_email)
+                  or firestore_query_token_by_email_field(fiscal_email)
+                  or firestore_query_token_by_email_field(fiscal_email.lower())
+              ) or ''
+
+          if not fcm_token:
+              print('::warning::Token FCM não informado/encontrado. Notificação não enviada.')
+              sys.exit(0)
 
           # ── Payload FCM ────────────────────────────────────────────
           payload = json.dumps({
               'message': {
-                  'token': os.environ['FCM_TOKEN'],
+                  'token': fcm_token,
                   'notification': {
                       'title': os.environ['TITULO'],
                       'body':  os.environ['CORPO'],
@@ -52,7 +153,7 @@ jobs:
           }).encode()
 
           # ── Envio via FCM HTTP v1 ──────────────────────────────────
-          url = 'https://fcm.googleapis.com/v1/projects/visam-3a30b/messages:send'
+          url = f'https://fcm.googleapis.com/v1/projects/{PROJECT_ID}/messages:send'
           req = urllib.request.Request(url, data=payload, method='POST')
           req.add_header('Authorization', 'Bearer ' + creds.token)
           req.add_header('Content-Type', 'application/json')

@@ -26,7 +26,8 @@ jobs:
           import google.auth.transport.requests
 
           PROJECT_ID   = 'visam-3a30b'
-          FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+          FIRESTORE_REGION = 'southamerica-east1'
+          FIRESTORE_DATABASE_ID = os.environ.get('FIRESTORE_DATABASE_ID', '').strip()
           FCM_URL       = f'https://fcm.googleapis.com/v1/projects/{PROJECT_ID}/messages:send'
 
           # ── Autenticação OAuth2 (Firestore + FCM) ──────────────────
@@ -43,6 +44,45 @@ jobs:
               'Authorization': 'Bearer ' + creds.token,
               'Content-Type': 'application/json',
           }
+
+          def resolve_firestore_url():
+              """Resolve o databaseId do Firestore (fallback: (default))."""
+              if FIRESTORE_DATABASE_ID:
+                  db_id = FIRESTORE_DATABASE_ID
+                  print(f'Usando Firestore databaseId via env: {db_id}')
+                  return f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{db_id}/documents'
+
+              try:
+                  db_req = urllib.request.Request(
+                      f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases',
+                      method='GET',
+                      headers={'Authorization': headers['Authorization']},
+                  )
+                  with urllib.request.urlopen(db_req) as r:
+                      dbs = json.loads(r.read()).get('databases', [])
+              except Exception as e:
+                  print(f'::warning::Falha ao listar databases do Firestore, usando (default): {e}')
+                  return f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+
+              if not dbs:
+                  print('::warning::Nenhum database retornado pela API; usando (default).')
+                  return f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+
+              # Preferência: banco da região informada.
+              chosen = None
+              for db in dbs:
+                  if db.get('locationId') == FIRESTORE_REGION:
+                      chosen = db
+                      break
+              if not chosen:
+                  chosen = dbs[0]
+
+              name = chosen.get('name', '')
+              db_id = name.rsplit('/', 1)[-1] if name else '(default)'
+              print(f'Firestore databaseId resolvido: {db_id} (locationId={chosen.get("locationId", "n/a")})')
+              return f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/{db_id}/documents'
+
+          FIRESTORE_URL = resolve_firestore_url()
 
           def firestore_query(collection, filters):
               """runQuery estruturada no Firestore."""
