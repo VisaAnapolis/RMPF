@@ -105,6 +105,42 @@ jobs:
               except urllib.error.HTTPError as e:
                   return False, e.read().decode()
 
+          def is_unregistered(resp_str):
+              """Retorna True se o erro FCM indicar token não registrado."""
+              try:
+                  err = json.loads(resp_str)
+                  for detail in err.get('error', {}).get('details', []):
+                      if detail.get('errorCode') == 'UNREGISTERED':
+                          return True
+              except Exception:
+                  pass
+              return False
+
+          def remove_fcm_token(doc_name, token):
+              """Remove um token FCM inválido do array fcmTokens no Firestore."""
+              commit_url = f'{FIRESTORE_URL}:commit'
+              body = json.dumps({
+                  'writes': [{
+                      'transform': {
+                          'document': doc_name,
+                          'fieldTransforms': [{
+                              'fieldPath': 'fcmTokens',
+                              'removeAllFromArray': {
+                                  'values': [{'stringValue': token}]
+                              }
+                          }]
+                      }
+                  }]
+              }).encode()
+              req = urllib.request.Request(commit_url, data=body, method='POST', headers=headers)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      r.read()
+                      return True
+              except urllib.error.HTTPError as e:
+                  print(f"  ⚠️  Falha ao remover token de {doc_name}: {e.read().decode()}", file=sys.stderr)
+                  return False
+
           # ═════════════════════════════════════════════════════════════
           # PARTE 1 — Pontos dos fiscais no mês corrente
           # ═════════════════════════════════════════════════════════════
@@ -195,17 +231,18 @@ jobs:
               doc = item.get('document')
               if not doc:
                   continue
-              email  = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
-              grupo  = field_value(item, 'grupo') or ''
-              tokens = field_array(item, 'fcmTokens')
+              email    = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
+              grupo    = field_value(item, 'grupo') or ''
+              tokens   = field_array(item, 'fcmTokens')
+              doc_name = doc.get('name', '')
               if not tokens:
                   continue
               if grupo == 'Administrador':
                   for t in tokens:
-                      admins.append({'email': email, 'fcm_token': t})
+                      admins.append({'email': email, 'fcm_token': t, 'doc_name': doc_name})
               else:
                   for t in tokens:
-                      fiscais.append({'email': email, 'fcm_token': t})
+                      fiscais.append({'email': email, 'fcm_token': t, 'doc_name': doc_name})
 
           print(f'Fiscais com token FCM: {len(fiscais)}')
           print(f'Administradores com token FCM: {len(admins)}')
@@ -229,6 +266,9 @@ jobs:
               else:
                   print(f"  ❌ Falha para fiscal {f['email']}: {resp}", file=sys.stderr)
                   erros += 1
+                  if is_unregistered(resp):
+                      remove_fcm_token(f['doc_name'], f['fcm_token'])
+                      print(f"  🗑️  Token inválido removido para {f['email']}")
 
           # — Push para cada administrador —
           for a in admins:
@@ -246,6 +286,9 @@ jobs:
               else:
                   print(f"  ❌ Falha para admin {a['email']}: {resp}", file=sys.stderr)
                   erros += 1
+                  if is_unregistered(resp):
+                      remove_fcm_token(a['doc_name'], a['fcm_token'])
+                      print(f"  🗑️  Token inválido removido para {a['email']}")
 
           # ── Resumo final ───────────────────────────────────────────────
           total_enviados = len(fiscais) + len(admins) - erros
