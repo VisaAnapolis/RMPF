@@ -98,9 +98,9 @@ jobs:
               except urllib.error.HTTPError as e:
                   return False, e.read().decode()
 
-          # ══════════════════════════════════════════════════════════════
+          # ═════════════════════════════════════════════════════════════
           # PARTE 1 — Pontos dos fiscais no mês corrente
-          # ══════════════════════════════════════════════════════════════
+          # ═════════════════════════════════════════════════════════════
           print('Consultando pontos do mês corrente…')
           manuais_mes = firestore_query('manuais', [
               {'fieldFilter': {
@@ -136,9 +136,9 @@ jobs:
 
           print(f'Fiscais com pontos no mês {MES}/{ANO}: {len(pontos_mes_por_fiscal)}')
 
-          # ══════════════════════════════════════════════════════════════
+          # ═════════════════════════════════════════════════════════════
           # PARTE 2 — Pontos acumulados totais (para calcular < 1000)
-          # ══════════════════════════════════════════════════════════════
+          # ═════════════════════════════════════════════════════════════
           print('Consultando pontos homologados totais…')
           manuais_todos = firestore_query('manuais', [
               {'fieldFilter': {
@@ -165,18 +165,21 @@ jobs:
           fiscais_abaixo_1000 = sum(1 for p in pontos_total_por_fiscal.values() if p < 1000)
           print(f'Fiscais com menos de 1000 pts homologados (total): {fiscais_abaixo_1000}')
 
-          # ══════════════════════════════════════════════════════════════
+          # ═════════════════════════════════════════════════════════════
           # PARTE 3 — Buscar usuários com fcm_token (Fiscal e Administrador)
-          # ══════════════════════════════════════════════════════════════
+          # Usa fieldFilter GREATER_THAN '' para localizar tokens não-vazios
+          # (IS_NOT_NULL não é suportado de forma confiável na REST API v1)
+          # ═════════════════════════════════════════════════════════════
           print('Buscando usuários com token FCM…')
           url_q = f'{FIRESTORE_URL}:runQuery'
           body_q = json.dumps({
               'structuredQuery': {
                   'from': [{'collectionId': 'usuarios'}],
                   'where': {
-                      'unaryFilter': {
-                          'op': 'IS_NOT_NULL',
+                      'fieldFilter': {
                           'field': {'fieldPath': 'fcm_token'},
+                          'op': 'GREATER_THAN',
+                          'value': {'stringValue': ''},
                       },
                   },
               }
@@ -205,9 +208,9 @@ jobs:
           print(f'Fiscais com token FCM: {len(fiscais)}')
           print(f'Administradores com token FCM: {len(admins)}')
 
-          # ══════════════════════════════════════════════════════════════
+          # ═════════════════════════════════════════════════════════════
           # PARTE 4 — Enviar pushes
-          # ══════════════════════════════════════════════════════════════
+          # ═════════════════════════════════════════════════════════════
           erros = 0
 
           # — Push para cada fiscal —
