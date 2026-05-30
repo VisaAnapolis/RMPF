@@ -174,8 +174,9 @@ window.initFCM = async function initFCM(email) {
     const existing = Array.isArray(data.fcmTokens)
       ? [...new Set(data.fcmTokens.filter(t => typeof t === 'string' && t.trim()))]
       : [];
-    const legacy = (typeof data.fcm_token === 'string' ? data.fcm_token : '').trim();
-    if (legacy && !existing.includes(legacy)) existing.push(legacy);
+    // NOTE: NÃO copiar data.fcm_token (campo do VISA) para fcmTokens.
+    // Esse token pertence ao service worker do VISA e enviar push para ele
+    // causa notificações duplicadas no escopo do app VISA.
     if (!existing.includes(token)) existing.push(token);
 
     const payload = {
