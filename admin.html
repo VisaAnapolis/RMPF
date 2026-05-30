@@ -971,7 +971,7 @@
                 pv:               result.pv,
                 pv_lim:           result.pvLim,
                 fechado_por:      _currentUserEmail,
-                fechado_por_nome: adminNome,
+                fechado_por_nome: adminNome + ' (Migração OCR)',
               });
 
               totalFechados++;
@@ -1057,12 +1057,20 @@
 
         try {
           let total = 0;
+          let fechamentosApagados = 0;
           if (fiscal) {
             total = await window.db_deleteManuaisFiscalMes(fiscal, mes, ano);
+            // Remove o fechamento correspondente para manter consistência
+            try { await window.db_deleteFechamento(fiscal, mes, ano); fechamentosApagados = 1; } catch (_) {}
           } else {
             total = await window.db_deleteManuaisTodosMes(mes, ano);
+            // Remove todos os fechamentos do mês para manter consistência
+            try { fechamentosApagados = await window.db_deleteFechamentosMes(mes, ano); } catch (_) {}
           }
-          logEl.innerHTML = alerta('ok', `✅ <strong>${total}</strong> lançamento(s) apagado(s) de ${escHtml(nomeFiscal)} em ${escHtml(nomeMes)}/${ano}.`);
+          const fechMsg = fechamentosApagados > 0
+            ? ` ${fechamentosApagados} fechamento(s) também removido(s).`
+            : '';
+          logEl.innerHTML = alerta('ok', `✅ <strong>${total}</strong> lançamento(s) apagado(s) de ${escHtml(nomeFiscal)} em ${escHtml(nomeMes)}/${ano}.${fechMsg}`);
         } catch(e) {
           logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar lançamentos: ' + escHtml(e.message));
         } finally {

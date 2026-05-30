@@ -560,6 +560,31 @@ async function getFechamentosMes(mes, ano) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// ── Apaga todos os fechamentos de um mês/ano ──────────────
+// Usado ao deletar lançamentos para manter consistência com a
+// coleção `manuais` (se não há lançamentos, não deve haver fechamento).
+
+async function deleteFechamentosMes(mes, ano) {
+  const snap = await window.db.collection('fechamentos')
+    .where('mes', '==', Number(mes))
+    .where('ano', '==', Number(ano))
+    .get();
+  if (!snap.docs.length) return 0;
+  const BATCH_SIZE = 499;
+  let batch = window.db.batch();
+  let count = 0;
+  for (const doc of snap.docs) {
+    batch.delete(doc.ref);
+    count++;
+    if (count % BATCH_SIZE === 0) {
+      await batch.commit();
+      batch = window.db.batch();
+    }
+  }
+  if (count % BATCH_SIZE !== 0) await batch.commit();
+  return count;
+}
+
 // ── App Config / GitHub Token ─────────────────────────────
 
 async function db_getGitHubToken() {
@@ -762,6 +787,7 @@ window.db_getUltimoMesFechado            = getUltimoMesFechado;
 window.db_getUltimoMesAberto    = getUltimoMesAberto; // alias
 window.db_getProximaCompetencia = getProximaCompetencia;
 window.db_getFechamentosMes     = getFechamentosMes;
+window.db_deleteFechamentosMes  = deleteFechamentosMes;
 window.db_getManuais          = getManuais;
 window.db_getManuaisTodos     = getManuaisTodos;
 window.db_getManuaisPorData   = getManuaisPorData;

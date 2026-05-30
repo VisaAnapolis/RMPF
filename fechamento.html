@@ -111,8 +111,12 @@
           <div class="btn-group mt-2">
             <button class="btn btn-warn" id="btn-recalc">🔄 Recalcular</button>
             <button class="btn btn-primary" id="btn-fechar">🔒 Fechar Competência e Gerar Relatório</button>
-            <button class="btn btn-danger" id="btn-fechar-todos">🔒 Fechar para Todos os Fiscais</button>
           </div>
+        </div>
+        <!-- Operações em lote — sempre visíveis para admin -->
+        <div class="btn-group mt-2" id="admin-batch-buttons">
+          <button class="btn btn-danger" id="btn-fechar-todos">🔒 Fechar para Todos os Fiscais</button>
+          <button class="btn btn-warn" id="btn-reabrir-todos">🔓 Reabrir para Todos os Fiscais</button>
         </div>
       </div>
 
@@ -400,6 +404,68 @@
     document.getElementById('rel-dt-geracao').textContent = new Date().toLocaleString('pt-BR');
   }
 
+  async function reabrirTodosOsFiscais() {
+    const mes = Number(document.getElementById('sel-mes').value);
+    const ano = Number(document.getElementById('sel-ano').value);
+    const compLabel = `${MESES[mes-1]}/${ano}`;
+
+    if (!confirm(`Reabrir a competência ${compLabel} para TODOS os fiscais?\n\nOs lançamentos fechados voltarão ao status "aceito" e os fechamentos serão removidos. Fiscais que não possuem fechamento neste mês serão ignorados.\n\nAtenção: esta ação será bloqueada para fiscais que possuam meses posteriores fechados.\n\nTem certeza?`)) return;
+
+    const btnTodos = document.getElementById('btn-reabrir-todos');
+    btnTodos.disabled = true;
+    btnTodos.textContent = '⏳ Processando…';
+    document.getElementById('alert-area').innerHTML = '';
+
+    try {
+      const fiscais = await db_getTodosFiscais();
+      let reabertos = 0, ignorados = 0;
+      const erros = [];
+
+      for (const fiscal of fiscais) {
+        const email = fiscal.email || fiscal.id;
+        try {
+          const fechamento = await db_getFechamento(email, mes, ano);
+          if (!fechamento) { ignorados++; continue; }
+
+          const posteriores = await db_getFechamentosPosterioresFiscal(email, mes, ano);
+          if (posteriores.length > 0) {
+            const prox = posteriores[0];
+            erros.push(`${fiscal.nome || email}: mês posterior fechado (${MESES[prox.mes-1]}/${prox.ano})`);
+            continue;
+          }
+
+          const manuais = await db_getManuais(email, mes, ano);
+          const updates = manuais
+            .filter(m => m.status === 'fechado')
+            .map(m => db_updateManual(m.id, { status: 'aceito' }));
+          await Promise.all(updates);
+
+          await db_deleteFechamento(email, mes, ano);
+          reabertos++;
+        } catch (err) {
+          erros.push(`${fiscal.nome || email}: ${err.message}`);
+        }
+      }
+
+      let msg = `Competência <strong>${compLabel}</strong> reaberta para <strong>${reabertos}</strong> fiscal(is).`;
+      if (ignorados) msg += ` ${ignorados} não tinham fechamento (ignorados).`;
+      if (erros.length) msg += `<br>⚠️ Bloqueios/Erros: ${erros.map(e => escHtml(e)).join('; ')}`;
+
+      document.getElementById('alert-area').innerHTML = alerta(erros.length ? 'warn' : 'ok', msg);
+      window.scrollTo(0, 0);
+
+      // Reload if a fiscal is selected, so the UI reflects the updated state
+      if (document.getElementById('sel-fiscal').value) {
+        await loadFechamento();
+      }
+    } catch (e) {
+      document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao reabrir todos: ' + e.message);
+    } finally {
+      btnTodos.disabled = false;
+      btnTodos.textContent = '🔓 Reabrir para Todos os Fiscais';
+    }
+  }
+
   async function fecharTodosOsFiscais() {
     const mes = Number(document.getElementById('sel-mes').value);
     const ano = Number(document.getElementById('sel-ano').value);
@@ -594,6 +660,7 @@
     if (user.grupo === 'Administrador') {
       document.getElementById('btn-fechar').addEventListener('click', fecharCompetencia);
       document.getElementById('btn-fechar-todos').addEventListener('click', fecharTodosOsFiscais);
+      document.getElementById('btn-reabrir-todos').addEventListener('click', reabrirTodosOsFiscais);
       document.getElementById('btn-recalc').addEventListener('click', () => {
         const pn = Number(document.getElementById('pn-extra').value || 0);
         const mes = Number(document.getElementById('sel-mes').value);
