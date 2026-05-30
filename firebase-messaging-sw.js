@@ -21,12 +21,16 @@ const messaging = firebase.messaging();
 
 // Exibe a notificação quando o app está em background ou fechado
 messaging.onBackgroundMessage((payload) => {
-  const { title, body } = payload.notification || {};
-  self.registration.showNotification(title || 'RMPF', {
-    body:  body  || '',
+  const notif = payload.notification || {};
+  const data  = payload.data || {};
+  const title = notif.title || data.title || 'RMPF';
+  const body  = notif.body  || data.body  || '';
+  const url   = data.link || '/dashboard.html';
+  self.registration.showNotification(title, {
+    body,
     icon:  '/icons/favicon-192.png',
     badge: '/icons/favicon-192.png',
-    data:  { url: payload.data?.link || '/dashboard.html' },
+    data:  { url },
   });
 });
 
