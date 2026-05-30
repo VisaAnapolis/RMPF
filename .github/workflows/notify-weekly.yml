@@ -150,11 +150,10 @@ jobs:
               payload = json.dumps({
                   'message': {
                       'token': fcm_token,
-                      'notification': {'title': titulo, 'body': corpo},
-                      'webpush': {
-                          'fcm_options': {
-                              'link': 'https://visaanapolis.github.io/RMPF/meus-lancamentos.html',
-                          },
+                      'data': {
+                          'title': titulo,
+                          'body':  corpo,
+                          'link':  'https://visaanapolis.github.io/RMPF/dashboard.html',
                       },
                   },
               }).encode()
