@@ -44,13 +44,6 @@ jobs:
               'Content-Type': 'application/json',
           }
 
-          def firestore_get(path):
-              """GET simples de documentos Firestore via REST."""
-              url = f'{FIRESTORE_URL}/{path}'
-              req = urllib.request.Request(url, headers=headers)
-              with urllib.request.urlopen(req) as r:
-                  return json.loads(r.read())
-
           def firestore_query(collection, filters):
               """runQuery estruturada no Firestore."""
               url = f'{FIRESTORE_URL}:runQuery'
@@ -109,15 +102,18 @@ jobs:
           print(f'Fiscais com pontos: {list(pontos_por_fiscal.keys())}')
 
           # ── 2. Buscar todos os usuários com fcm_token registrado ──
+          # Usa fieldFilter GREATER_THAN '' para localizar tokens não-vazios
+          # (IS_NOT_NULL não é suportado de forma confiável na REST API v1)
           print('Buscando usuários com token FCM…')
           url_q = f'{FIRESTORE_URL}:runQuery'
           body_q = json.dumps({
               'structuredQuery': {
                   'from': [{'collectionId': 'usuarios'}],
                   'where': {
-                      'unaryFilter': {
-                          'op': 'IS_NOT_NULL',
+                      'fieldFilter': {
                           'field': {'fieldPath': 'fcm_token'},
+                          'op': 'GREATER_THAN',
+                          'value': {'stringValue': ''},
                       },
                   },
               }
