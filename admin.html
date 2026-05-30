@@ -201,7 +201,7 @@
           <button class="btn btn-outline btn-sm" id="btn-refresh-storage">🔄 Atualizar</button>
           <button class="btn btn-outline btn-sm" id="btn-excluir-periodo-storage"
                   style="color:var(--verm);border-color:var(--verm)"
-                  title="Excluir permanentemente todos os PDFs de um intervalo de meses para liberar espaço no Firebase Storage. Realize backup antes!">
+                  title="Excluir permanentemente todos os anexos (PDFs e imagens) de um intervalo de meses para liberar espaço no Firebase Storage. Realize backup antes!">
             🗑️ Excluir por Período
           </button>
         </div>
@@ -424,7 +424,7 @@
       <div style="background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:16px">
         <strong style="color:#7c5800">⚠️ ATENÇÃO — Realize um backup antes de prosseguir!</strong>
         <p style="margin:6px 0 0;font-size:.85rem;color:#7c5800">
-          Esta operação exclui <strong>permanentemente</strong> todos os arquivos PDF do Firebase Storage
+          Esta operação exclui <strong>permanentemente</strong> todos os anexos (PDFs e imagens) do Firebase Storage
           e limpa os metadados de anexo no Firestore para o período escolhido.
           <strong>A ação é irreversível e não pode ser desfeita.</strong>
           Certifique-se de ter baixado ou exportado todos os arquivos importantes antes de continuar.
@@ -447,7 +447,7 @@
 
       <!-- Dica explicativa -->
       <p style="font-size:.82rem;color:var(--cinzaT);margin:12px 0 0;line-height:1.5">
-        ℹ️ Todos os PDFs vinculados a lançamentos cujo mês de referência esteja dentro do intervalo
+        ℹ️ Todos os anexos vinculados a lançamentos cujo mês de referência esteja dentro do intervalo
         <em>De–Até</em> (ambos inclusive) serão excluídos do Firebase Storage.
         Os campos de anexo nos respectivos registros do Firestore também serão apagados.
         Competências abertas e fechadas são igualmente afetadas pelo período selecionado.
@@ -459,7 +459,7 @@
       <button class="btn btn-default" id="modal-periodo-cancel">Cancelar</button>
       <button class="btn btn-outline" id="btn-confirmar-periodo"
               style="color:var(--verm);border-color:var(--verm)">
-        🗑️ Excluir PDFs do Período
+        🗑️ Excluir Anexos do Período
       </button>
     </div>
   </div>
@@ -1116,7 +1116,7 @@
         const pct = totalBytes / LIMITE_BYTES * 100;
         const corBarra = pct < 50 ? 'var(--verde)' : pct < 80 ? '#f59e0b' : 'var(--verm)';
         const alertaCritico = pct >= 80
-          ? `<div style="margin-top:8px;font-size:.84rem;color:var(--verm);font-weight:600">⚠️ Espaço crítico! Apague PDFs de meses antigos.</div>`
+          ? `<div style="margin-top:8px;font-size:.84rem;color:var(--verm);font-weight:600">⚠️ Espaço crítico! Apague anexos de meses antigos.</div>`
           : '';
         overviewEl.innerHTML =
           `<div style="font-size:.9rem;color:var(--cinzaT);margin-bottom:4px">
@@ -1172,9 +1172,9 @@
           : '<span class="badge" style="background:var(--verdeP);color:var(--verde)">Aberto</span>';
         const btn = isFechado
           ? `<button class="btn btn-outline btn-sm" style="color:var(--verm);border-color:var(--verm)"
-               onclick="confirmarApagarAnexos(${v.mes}, ${v.ano}, '${escHtml(nomeMes)}')">🗑️ Apagar PDFs</button>`
+               onclick="confirmarApagarAnexos(${v.mes}, ${v.ano}, '${escHtml(nomeMes)}')">🗑️ Apagar Anexos</button>`
           : `<button class="btn btn-outline btn-sm" disabled
-               title="Só é possível apagar PDFs de competências fechadas">🗑️ Apagar PDFs</button>`;
+               title="Só é possível apagar anexos de competências fechadas">🗑️ Apagar Anexos</button>`;
         return `<tr>
           <td data-label="Competência">${escHtml(nomeMes)}/${v.ano}</td>
           <td data-label="Anexos">${v.count}</td>
@@ -1187,14 +1187,14 @@
 
     window.confirmarApagarAnexos = function(mes, ano, nomeMes) {
       const ok = confirm(
-        `Deseja apagar TODOS os PDFs de ${nomeMes}/${ano}?\nEsta operação é irreversível.`
+        `Deseja apagar TODOS os anexos de ${nomeMes}/${ano}?\nEsta operação é irreversível.`
       );
       if (ok) apagarAnexosMes(mes, ano);
     };
 
     async function apagarAnexosMes(mes, ano) {
       const logEl = document.getElementById('storage-log');
-      logEl.innerHTML = alerta('info', '🗑️ Apagando PDFs…');
+      logEl.innerHTML = alerta('info', '🗑️ Apagando anexos…');
 
       // Disable the button for this month while deleting
       const btns = document.querySelectorAll('#storage-tbody button');
@@ -1247,9 +1247,9 @@
 
         await carregarStorageStats();
         logEl.innerHTML = alerta('ok',
-          `✅ ${apagados} PDF(s) apagado(s). Espaço liberado: ${fmtBytes(bytesLiberados)}.`);
+          `✅ ${apagados} anexo(s) apagado(s). Espaço liberado: ${fmtBytes(bytesLiberados)}.`);
       } catch(e) {
-        logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar PDFs: ' + escHtml(e.message));
+        logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar anexos: ' + escHtml(e.message));
       } finally {
         // Reabilita botões que porventura ainda existam no tbody (ex.: erro antes de carregarStorageStats).
         // Se carregarStorageStats() já recriou a tabela, esta operação é inócua.
@@ -1317,7 +1317,7 @@
       // 1ª confirmação — lembrete de backup
       const confirmBackup = confirm(
         `⚠️ ATENÇÃO — BACKUP OBRIGATÓRIO\n\n` +
-        `Você está prestes a excluir PERMANENTEMENTE todos os PDFs do período:\n` +
+        `Você está prestes a excluir PERMANENTEMENTE todos os anexos do período:\n` +
         `📅 De: ${deLabel}  →  Até: ${ateLabel}  (${mesesDoRange.length} competência(s))\n\n` +
         `Antes de continuar, certifique-se de ter realizado backup dos arquivos relevantes.\n` +
         `Esta ação NÃO pode ser desfeita.\n\n` +
@@ -1328,7 +1328,7 @@
       // 2ª confirmação — confirmação final
       const confirmFinal = confirm(
         `🗑️ CONFIRMAÇÃO FINAL\n\n` +
-        `Serão excluídos TODOS os PDFs e metadados de anexo dos lançamentos de\n` +
+        `Serão excluídos TODOS os anexos e metadados de anexo dos lançamentos de\n` +
         `${deLabel} a ${ateLabel} (${mesesDoRange.length} competência(s)).\n\n` +
         `Os arquivos no Firebase Storage e os campos de anexo no Firestore\n` +
         `serão removidos definitivamente.\n\n` +
@@ -1342,7 +1342,7 @@
 
     async function apagarAnexosPorPeriodo(meses) {
       const logEl = document.getElementById('storage-log');
-      logEl.innerHTML = alerta('info', `⏳ Excluindo PDFs de ${meses.length} competência(s)… aguarde.`);
+      logEl.innerHTML = alerta('info', `⏳ Excluindo anexos de ${meses.length} competência(s)… aguarde.`);
 
       document.querySelectorAll('#storage-tbody button').forEach(b => { b.disabled = true; });
       document.getElementById('btn-excluir-periodo-storage').disabled = true;
@@ -1398,10 +1398,10 @@
         const erroTxt = erros > 0 ? ` (${erros} erro(s) ignorado(s))` : '';
         await carregarStorageStats();
         logEl.innerHTML = alerta('ok',
-          `✅ ${totalApagados} PDF(s) excluído(s) em ${meses.length} competência(s). ` +
+          `✅ ${totalApagados} anexo(s) excluído(s) em ${meses.length} competência(s). ` +
           `Espaço liberado: ${fmtBytes(totalBytes)}.${erroTxt}`);
       } catch(e) {
-        logEl.innerHTML = alerta('danger', '🚨 Erro ao excluir PDFs: ' + escHtml(e.message));
+        logEl.innerHTML = alerta('danger', '🚨 Erro ao excluir anexos: ' + escHtml(e.message));
       } finally {
         document.getElementById('btn-excluir-periodo-storage').disabled = false;
         document.querySelectorAll('#storage-tbody button').forEach(b => { b.disabled = false; });
