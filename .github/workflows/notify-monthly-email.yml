@@ -1,0 +1,347 @@
+name: Resumo Mensal de Pontos (E-mail)
+
+# Envia e-mails mensais:
+#   - Fiscais: total de pontos homologados no mês corrente + progresso meta 1000
+#   - Administradores: lista de fiscais com menos de 1000 pontos (nome + pontuação)
+on:
+  schedule:
+    - cron: '0 10 1 * *'   # Todo dia 1º do mês às 10:00 UTC (07:00 BRT)
+  workflow_dispatch:        # Permite disparo manual para testes
+
+jobs:
+  monthly-email:
+    name: Enviar resumo mensal por e-mail
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}
+
+    steps:
+      - name: Consultar Firestore e enviar e-mails via Gmail API
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          SENDER_EMAIL: visa@anapolis.go.gov.br
+        run: |
+          pip install google-auth --quiet
+          python3 - <<'EOF'
+          import json, os, sys, urllib.request, urllib.error, base64
+          from email.mime.multipart import MIMEMultipart
+          from email.mime.text import MIMEText
+          from datetime import datetime, timezone
+          import google.oauth2.service_account
+          import google.auth.transport.requests
+
+          PROJECT_ID    = 'visam-3a30b'
+          FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+          SENDER_EMAIL  = os.environ['SENDER_EMAIL']
+
+          hoje = datetime.now(timezone.utc)
+          MES, ANO = hoje.month, hoje.year
+          MES_NOME = f'{MES:02d}/{ANO}'
+
+          print(f'Mês de referência: {MES_NOME}')
+
+          # ── Autenticação OAuth2 (Firestore) ──────────────────────────
+          sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
+          creds_firestore = google.oauth2.service_account.Credentials.from_service_account_info(
+              sa_info,
+              scopes=['https://www.googleapis.com/auth/datastore'],
+          )
+          creds_firestore.refresh(google.auth.transport.requests.Request())
+
+          # ── Autenticação Gmail API (delegação de domínio) ────────────
+          creds_gmail = google.oauth2.service_account.Credentials.from_service_account_info(
+              sa_info,
+              scopes=['https://www.googleapis.com/auth/gmail.send'],
+              subject=SENDER_EMAIL,
+          )
+          creds_gmail.refresh(google.auth.transport.requests.Request())
+
+          headers_fs = {
+              'Authorization': 'Bearer ' + creds_firestore.token,
+              'Content-Type': 'application/json',
+          }
+
+          def firestore_query(collection, filters=None):
+              """runQuery estruturada no Firestore."""
+              url = f'{FIRESTORE_URL}:runQuery'
+              query = {'structuredQuery': {'from': [{'collectionId': collection}]}}
+              if filters:
+                  query['structuredQuery']['where'] = {
+                      'compositeFilter': {'op': 'AND', 'filters': filters}
+                  }
+              body = json.dumps(query).encode()
+              req = urllib.request.Request(url, data=body, method='POST', headers=headers_fs)
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read())
+
+          def field_value(item, field):
+              """Extrai valor de um campo de um documento Firestore."""
+              fields = item.get('document', {}).get('fields', {})
+              fv = fields.get(field, {})
+              for t in ('integerValue', 'doubleValue', 'stringValue', 'booleanValue'):
+                  if t in fv:
+                      return fv[t]
+              return None
+
+          def send_email(to, subject, html_body):
+              """Envia e-mail via Gmail API (delegação de domínio)."""
+              msg = MIMEMultipart('alternative')
+              msg['From'] = f'VISA Anápolis - RMPF <{SENDER_EMAIL}>'
+              msg['To'] = to
+              msg['Subject'] = subject
+              msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+              raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+              payload = json.dumps({'raw': raw}).encode()
+              url = f'https://gmail.googleapis.com/gmail/v1/users/{SENDER_EMAIL}/messages/send'
+              req = urllib.request.Request(url, data=payload, method='POST')
+              req.add_header('Authorization', 'Bearer ' + creds_gmail.token)
+              req.add_header('Content-Type', 'application/json')
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return True, r.read().decode()
+              except urllib.error.HTTPError as e:
+                  return False, e.read().decode()
+
+          def email_template(conteudo_central):
+              """Template HTML padrão para e-mails RMPF."""
+              return f'''<!DOCTYPE html>
+          <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+          <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:24px 0;">
+          <tr><td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <!-- Header -->
+            <tr><td style="background:#1a237e;padding:28px 32px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">&#127963;&#65039; VISA Anápolis — RMPF</h1>
+              <p style="color:#b3c0ff;margin:6px 0 0;font-size:13px;">Relatório de Metas e Produtividade Fiscal</p>
+            </td></tr>
+            <!-- Body -->
+            <tr><td style="padding:32px;">
+              {conteudo_central}
+            </td></tr>
+            <!-- Footer -->
+            <tr><td style="background:#f0f0f0;padding:18px 32px;text-align:center;font-size:11px;color:#666;">
+              VISA — Vigilância Sanitária de Anápolis<br>
+              Este e-mail é automático, não responda.
+            </td></tr>
+          </table>
+          </td></tr></table>
+          </body></html>'''
+
+          # ═══════════════════════════════════════════════════════════════
+          # PARTE 1 — Pontos dos fiscais no mês corrente
+          # ═══════════════════════════════════════════════════════════════
+          print('Consultando pontos do mês corrente…')
+          VALID_STATUSES = ('aceito', 'fechado', 'homologado')
+
+          manuais_mes = firestore_query('manuais', [
+              {'fieldFilter': {'field': {'fieldPath': 'mes'}, 'op': 'EQUAL', 'value': {'integerValue': str(MES)}}},
+              {'fieldFilter': {'field': {'fieldPath': 'ano'}, 'op': 'EQUAL', 'value': {'integerValue': str(ANO)}}},
+          ])
+
+          pontos_mes = {}
+          for item in manuais_mes:
+              if not item.get('document'):
+                  continue
+              status = field_value(item, 'status') or ''
+              if status not in VALID_STATUSES:
+                  continue
+              email = field_value(item, 'fiscal_email')
+              if not email:
+                  continue
+              pts_hom = field_value(item, 'pontos_homologado')
+              pts_raw = field_value(item, 'pontos')
+              pts = pts_hom if pts_hom is not None else pts_raw
+              try:
+                  pts = float(pts or 0)
+              except (TypeError, ValueError):
+                  pts = 0.0
+              pontos_mes[email] = pontos_mes.get(email, 0.0) + pts
+
+          print(f'Fiscais com pontos no mês {MES_NOME}: {len(pontos_mes)}')
+
+          # ═══════════════════════════════════════════════════════════════
+          # PARTE 2 — Pontos acumulados totais (para meta 1000 e relatório admin)
+          # ═══════════════════════════════════════════════════════════════
+          print('Consultando pontos homologados totais…')
+          manuais_todos = firestore_query('manuais')
+
+          pontos_total = {}
+          for item in manuais_todos:
+              if not item.get('document'):
+                  continue
+              status = field_value(item, 'status') or ''
+              if status not in VALID_STATUSES:
+                  continue
+              email = field_value(item, 'fiscal_email')
+              if not email:
+                  continue
+              pts_hom = field_value(item, 'pontos_homologado')
+              pts_raw = field_value(item, 'pontos')
+              pts = pts_hom if pts_hom is not None else pts_raw
+              try:
+                  pts = float(pts or 0)
+              except (TypeError, ValueError):
+                  pts = 0.0
+              pontos_total[email] = pontos_total.get(email, 0.0) + pts
+
+          # ═══════════════════════════════════════════════════════════════
+          # PARTE 3 — Buscar usuários (Fiscal e Administrador)
+          # ═══════════════════════════════════════════════════════════════
+          print('Buscando usuários…')
+          usuarios_results = firestore_query('usuarios')
+
+          fiscais = []
+          admins  = []
+          nomes_por_email = {}
+
+          for item in usuarios_results:
+              doc = item.get('document')
+              if not doc:
+                  continue
+              email = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
+              grupo = field_value(item, 'grupo') or ''
+              nome  = field_value(item, 'nome') or email.split('@')[0]
+              if not email or '@' not in email:
+                  continue
+              nomes_por_email[email] = nome
+              if grupo == 'Administrador':
+                  admins.append({'email': email, 'nome': nome})
+              else:
+                  fiscais.append({'email': email, 'nome': nome})
+
+          print(f'Fiscais: {len(fiscais)} | Admins: {len(admins)}')
+
+          # ═══════════════════════════════════════════════════════════════
+          # PARTE 4 — Enviar e-mails para fiscais
+          # ═══════════════════════════════════════════════════════════════
+          erros = 0
+
+          for f in fiscais:
+              pts_m = pontos_mes.get(f['email'], 0.0)
+              pts_t = pontos_total.get(f['email'], 0.0)
+              progresso = min(pts_t / 1000 * 100, 100) if pts_t > 0 else 0
+              blocos_cheios = int(progresso / 10)
+              barra_html = (
+                  '<span style="color:#1a237e;">' + '\u2588' * blocos_cheios + '</span>'
+                  '<span style="color:#ccc;">' + '\u2591' * (10 - blocos_cheios) + '</span>'
+              )
+
+              conteudo = f'''
+              <p style="font-size:16px;color:#333;">Olá, <strong>{f["nome"]}</strong>!</p>
+              <p style="color:#555;">Sua pontuação referente a <strong>{MES_NOME}</strong>:</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8eaf6;border-radius:6px;margin:16px 0;">
+                <tr><td style="padding:20px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#333;">
+                    <tr>
+                      <td style="padding:8px 0;">Pontos no mês:</td>
+                      <td style="padding:8px 0;text-align:right;font-size:20px;font-weight:bold;color:#1a237e;">{pts_m:.0f}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:8px 0;">Pontos acumulados (total):</td>
+                      <td style="padding:8px 0;text-align:right;font-weight:bold;">{pts_t:.0f}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:8px 0;">Meta anual:</td>
+                      <td style="padding:8px 0;text-align:right;">1.000 pts</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:8px 0;">Progresso:</td>
+                      <td style="padding:8px 0;text-align:right;font-family:monospace;font-size:16px;">{barra_html} {progresso:.0f}%</td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+              <p style="color:#555;">&#128161; Mantenha seus lançamentos em dia para evitar acúmulo no final do período.</p>
+              <p style="text-align:center;margin:28px 0 8px;">
+                <a href="https://visaanapolis.github.io/RMPF/meus-lancamentos.html"
+                   style="background:#1a237e;color:#ffffff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;display:inline-block;">
+                  Ver Meus Lançamentos
+                </a>
+              </p>'''
+
+              ok, resp = send_email(f['email'], f'\U0001f4ca Pontuação Mensal RMPF — {MES_NOME}', email_template(conteudo))
+              if ok:
+                  print(f"  \u2705 {f['email']}")
+              else:
+                  print(f"  \u274c {f['email']}: {resp}", file=sys.stderr)
+                  erros += 1
+
+          # ═══════════════════════════════════════════════════════════════
+          # PARTE 5 — Enviar e-mail para administradores (lista de fiscais)
+          # ═══════════════════════════════════════════════════════════════
+          fiscais_abaixo = [(email, pts) for email, pts in pontos_total.items() if pts < 1000]
+          fiscais_abaixo.sort(key=lambda x: x[1])  # Menor pontuação primeiro
+          fiscais_acima = len(pontos_total) - len(fiscais_abaixo)
+          total_equipe = sum(pontos_total.values())
+
+          # Montar linhas da tabela
+          linhas_tabela = ''
+          for email, pts in fiscais_abaixo:
+              nome_fiscal = nomes_por_email.get(email, email.split('@')[0])
+              cor = '#c62828' if pts < 500 else '#f57c00'
+              linhas_tabela += f'''<tr>
+                <td style="padding:10px 12px;border-bottom:1px solid #eee;font-size:13px;">{nome_fiscal}</td>
+                <td style="padding:10px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:bold;color:{cor};font-size:13px;">{pts:.0f} pts</td>
+              </tr>'''
+
+          if not linhas_tabela:
+              linhas_tabela = '<tr><td colspan="2" style="padding:12px;text-align:center;color:#2e7d32;">Todos os fiscais atingiram a meta! &#127881;</td></tr>'
+
+          conteudo_admin = f'''
+          <p style="font-size:16px;color:#333;">Olá, Administrador(a)!</p>
+          <p style="color:#555;">Resumo da equipe referente a <strong>{MES_NOME}</strong>:</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8eaf6;border-radius:6px;margin:16px 0;">
+            <tr><td style="padding:20px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#333;">
+                <tr>
+                  <td style="padding:8px 0;">Total de fiscais:</td>
+                  <td style="padding:8px 0;text-align:right;font-weight:bold;">{len(pontos_total)}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;">Fiscais &lt; 1.000 pts:</td>
+                  <td style="padding:8px 0;text-align:right;font-weight:bold;color:#c62828;">{len(fiscais_abaixo)}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;">Fiscais ≥ 1.000 pts:</td>
+                  <td style="padding:8px 0;text-align:right;font-weight:bold;color:#2e7d32;">{fiscais_acima}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;">Pontuação total equipe:</td>
+                  <td style="padding:8px 0;text-align:right;font-weight:bold;">{total_equipe:.0f} pts</td>
+                </tr>
+              </table>
+            </td></tr>
+          </table>
+          <p style="color:#333;font-weight:bold;margin-top:24px;">&#9888;&#65039; Fiscais com menos de 1.000 pontos:</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #ddd;border-radius:6px;overflow:hidden;margin:12px 0;font-size:13px;">
+            <tr style="background:#1a237e;">
+              <th style="padding:12px;text-align:left;color:#fff;font-weight:600;">Fiscal</th>
+              <th style="padding:12px;text-align:right;color:#fff;font-weight:600;">Pontos</th>
+            </tr>
+            {linhas_tabela}
+          </table>
+          <p style="text-align:center;margin:28px 0 8px;">
+            <a href="https://visaanapolis.github.io/RMPF/admin.html"
+               style="background:#1a237e;color:#ffffff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;display:inline-block;">
+              Acessar Painel Administrativo
+            </a>
+          </p>'''
+
+          for a in admins:
+              ok, resp = send_email(a['email'], f'\U0001f4cb Resumo Gerencial RMPF — {MES_NOME}', email_template(conteudo_admin))
+              if ok:
+                  print(f"  \u2705 Admin: {a['email']}")
+              else:
+                  print(f"  \u274c Admin: {a['email']}: {resp}", file=sys.stderr)
+                  erros += 1
+
+          # ── Resumo final ─────────────────────────────────────────────
+          if erros:
+              print(f'::warning::{erros} e-mail(s) não entregue(s).')
+          else:
+              print(f'\u2705 E-mails enviados: {len(fiscais)} fiscal(is), {len(admins)} admin(s).')
+
+          if not fiscais and not admins:
+              print('Nenhum usuário encontrado.')
+          EOF

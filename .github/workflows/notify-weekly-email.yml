@@ -1,0 +1,218 @@
+name: Resumo Semanal de Pontos (E-mail)
+
+# Toda segunda-feira às 7h UTC envia um e-mail a cada fiscal informando
+# a quantidade de pontos homologados acumulados até o momento.
+on:
+  schedule:
+    - cron: '0 7 * * 1'   # Segunda-feira, 07:00 UTC
+  workflow_dispatch:        # Permite disparo manual para testes
+
+jobs:
+  weekly-email:
+    name: Enviar resumo semanal por e-mail
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}
+
+    steps:
+      - name: Consultar Firestore e enviar e-mails via Gmail API
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          SENDER_EMAIL: visa@anapolis.go.gov.br
+        run: |
+          pip install google-auth --quiet
+          python3 - <<'EOF'
+          import json, os, sys, urllib.request, urllib.error, base64
+          from email.mime.multipart import MIMEMultipart
+          from email.mime.text import MIMEText
+          import google.oauth2.service_account
+          import google.auth.transport.requests
+
+          PROJECT_ID    = 'visam-3a30b'
+          FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+          SENDER_EMAIL  = os.environ['SENDER_EMAIL']
+
+          # ── Autenticação OAuth2 (Firestore) ──────────────────────────
+          sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
+          creds_firestore = google.oauth2.service_account.Credentials.from_service_account_info(
+              sa_info,
+              scopes=['https://www.googleapis.com/auth/datastore'],
+          )
+          creds_firestore.refresh(google.auth.transport.requests.Request())
+
+          # ── Autenticação Gmail API (delegação de domínio) ────────────
+          creds_gmail = google.oauth2.service_account.Credentials.from_service_account_info(
+              sa_info,
+              scopes=['https://www.googleapis.com/auth/gmail.send'],
+              subject=SENDER_EMAIL,
+          )
+          creds_gmail.refresh(google.auth.transport.requests.Request())
+
+          headers_fs = {
+              'Authorization': 'Bearer ' + creds_firestore.token,
+              'Content-Type': 'application/json',
+          }
+
+          def firestore_query(collection, filters=None):
+              """runQuery estruturada no Firestore."""
+              url = f'{FIRESTORE_URL}:runQuery'
+              query = {'structuredQuery': {'from': [{'collectionId': collection}]}}
+              if filters:
+                  query['structuredQuery']['where'] = {
+                      'compositeFilter': {'op': 'AND', 'filters': filters}
+                  }
+              body = json.dumps(query).encode()
+              req = urllib.request.Request(url, data=body, method='POST', headers=headers_fs)
+              with urllib.request.urlopen(req) as r:
+                  return json.loads(r.read())
+
+          def field_value(item, field):
+              """Extrai valor de um campo de um documento Firestore."""
+              fields = item.get('document', {}).get('fields', {})
+              fv = fields.get(field, {})
+              for t in ('integerValue', 'doubleValue', 'stringValue', 'booleanValue'):
+                  if t in fv:
+                      return fv[t]
+              return None
+
+          def send_email(to, subject, html_body):
+              """Envia e-mail via Gmail API (delegação de domínio)."""
+              msg = MIMEMultipart('alternative')
+              msg['From'] = f'VISA Anápolis - RMPF <{SENDER_EMAIL}>'
+              msg['To'] = to
+              msg['Subject'] = subject
+              msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+              raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+              payload = json.dumps({'raw': raw}).encode()
+              url = f'https://gmail.googleapis.com/gmail/v1/users/{SENDER_EMAIL}/messages/send'
+              req = urllib.request.Request(url, data=payload, method='POST')
+              req.add_header('Authorization', 'Bearer ' + creds_gmail.token)
+              req.add_header('Content-Type', 'application/json')
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return True, r.read().decode()
+              except urllib.error.HTTPError as e:
+                  return False, e.read().decode()
+
+          def email_template(conteudo_central):
+              """Template HTML padrão para e-mails RMPF."""
+              return f'''<!DOCTYPE html>
+          <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+          <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:24px 0;">
+          <tr><td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <!-- Header -->
+            <tr><td style="background:#1a237e;padding:28px 32px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">&#127963;&#65039; VISA Anápolis — RMPF</h1>
+              <p style="color:#b3c0ff;margin:6px 0 0;font-size:13px;">Relatório de Metas e Produtividade Fiscal</p>
+            </td></tr>
+            <!-- Body -->
+            <tr><td style="padding:32px;">
+              {conteudo_central}
+            </td></tr>
+            <!-- Footer -->
+            <tr><td style="background:#f0f0f0;padding:18px 32px;text-align:center;font-size:11px;color:#666;">
+              VISA — Vigilância Sanitária de Anápolis<br>
+              Este e-mail é automático, não responda.
+            </td></tr>
+          </table>
+          </td></tr></table>
+          </body></html>'''
+
+          # ── 1. Buscar todos os manuais com status 'aceito' ──────────
+          print('Consultando pontos homologados…')
+          results = firestore_query('manuais', [
+              {'fieldFilter': {
+                  'field': {'fieldPath': 'status'},
+                  'op': 'EQUAL',
+                  'value': {'stringValue': 'aceito'},
+              }},
+          ])
+
+          pontos_por_fiscal = {}
+          for item in results:
+              if not item.get('document'):
+                  continue
+              email = field_value(item, 'fiscal_email')
+              pts   = field_value(item, 'pontos_homologado')
+              if not email:
+                  continue
+              try:
+                  pts = float(pts or 0)
+              except (TypeError, ValueError):
+                  pts = 0.0
+              pontos_por_fiscal[email] = pontos_por_fiscal.get(email, 0.0) + pts
+
+          total_geral = sum(pontos_por_fiscal.values())
+          print(f'Total geral de pontos homologados: {total_geral:.0f}')
+
+          # ── 2. Buscar todos os usuários (fiscais) ───────────────────
+          print('Buscando usuários…')
+          usuarios_results = firestore_query('usuarios')
+
+          fiscais_email = []
+          for item in usuarios_results:
+              doc = item.get('document')
+              if not doc:
+                  continue
+              email = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
+              grupo = field_value(item, 'grupo') or ''
+              nome  = field_value(item, 'nome') or email.split('@')[0]
+              if grupo != 'Administrador' and email and '@' in email:
+                  fiscais_email.append({'email': email, 'nome': nome})
+
+          print(f'Fiscais para enviar e-mail: {len(fiscais_email)}')
+
+          if not fiscais_email:
+              print('Nenhum fiscal encontrado. Encerrando.')
+              sys.exit(0)
+
+          # ── 3. Enviar e-mails ───────────────────────────────────────
+          erros = 0
+          for f in fiscais_email:
+              pts = pontos_por_fiscal.get(f['email'], 0.0)
+              participacao = (pts / total_geral * 100) if total_geral > 0 else 0
+
+              conteudo = f'''
+              <p style="font-size:16px;color:#333;">Olá, <strong>{f["nome"]}</strong>!</p>
+              <p style="color:#555;">Segue seu resumo semanal de pontuação:</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#e8eaf6;border-radius:6px;margin:16px 0;">
+                <tr><td style="padding:20px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#333;">
+                    <tr>
+                      <td style="padding:8px 0;">&#128202; Seus pontos homologados:</td>
+                      <td style="padding:8px 0;text-align:right;font-size:22px;font-weight:bold;color:#1a237e;">{pts:.0f}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:8px 0;">&#128101; Total da equipe:</td>
+                      <td style="padding:8px 0;text-align:right;font-weight:bold;">{total_geral:.0f} pts</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:8px 0;">&#128200; Sua participação:</td>
+                      <td style="padding:8px 0;text-align:right;font-weight:bold;">{participacao:.1f}%</td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+              <p style="color:#555;">Continue registrando suas atividades para manter sua produtividade em dia!</p>
+              <p style="text-align:center;margin:28px 0 8px;">
+                <a href="https://visaanapolis.github.io/RMPF/dashboard.html"
+                   style="background:#1a237e;color:#ffffff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;display:inline-block;">
+                  Acessar Dashboard
+                </a>
+              </p>'''
+
+              subject = '\U0001f4ca Resumo Semanal RMPF — Seus Pontos Homologados'
+              ok, resp = send_email(f['email'], subject, email_template(conteudo))
+              if ok:
+                  print(f"  \u2705 E-mail enviado para {f['email']}")
+              else:
+                  print(f"  \u274c Falha para {f['email']}: {resp}", file=sys.stderr)
+                  erros += 1
+
+          if erros:
+              print(f'::warning::{erros} e-mail(s) não entregue(s).')
+          else:
+              print(f'\u2705 Resumo semanal enviado para {len(fiscais_email)} fiscal(is).')
+          EOF

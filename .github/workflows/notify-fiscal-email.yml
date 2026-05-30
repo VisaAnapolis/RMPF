@@ -1,0 +1,131 @@
+name: Notificar Fiscal (E-mail)
+
+# Disparado pelo cliente JS (js/notifications.js) via repository_dispatch
+# quando um lançamento ou ocorrência é recusado/sobrescrito.
+on:
+  repository_dispatch:
+    types: [notify-fiscal-email]
+
+jobs:
+  send-email:
+    name: Enviar e-mail ao fiscal
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}
+
+    steps:
+      - name: Enviar notificação por e-mail via Gmail API
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          SENDER_EMAIL: visa@anapolis.go.gov.br
+          FISCAL_EMAIL: ${{ github.event.client_payload.fiscal_email }}
+          FISCAL_NOME: ${{ github.event.client_payload.fiscal_nome }}
+          TITULO: ${{ github.event.client_payload.titulo }}
+          CORPO: ${{ github.event.client_payload.corpo }}
+        run: |
+          pip install google-auth --quiet
+          python3 - <<'EOF'
+          import json, os, sys, urllib.request, urllib.error, base64
+          from email.mime.multipart import MIMEMultipart
+          from email.mime.text import MIMEText
+          from datetime import datetime, timezone
+          import google.oauth2.service_account
+          import google.auth.transport.requests
+
+          SENDER_EMAIL = os.environ['SENDER_EMAIL']
+          FISCAL_EMAIL = os.environ.get('FISCAL_EMAIL', '')
+          FISCAL_NOME  = os.environ.get('FISCAL_NOME', '')
+          TITULO       = os.environ.get('TITULO', 'Notificação RMPF')
+          CORPO        = os.environ.get('CORPO', '')
+
+          if not FISCAL_EMAIL:
+              print('❌ fiscal_email não fornecido no payload.', file=sys.stderr)
+              sys.exit(1)
+
+          if not FISCAL_NOME:
+              FISCAL_NOME = FISCAL_EMAIL.split('@')[0]
+
+          # ── Autenticação Gmail API (delegação de domínio) ────────────
+          sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
+          creds_gmail = google.oauth2.service_account.Credentials.from_service_account_info(
+              sa_info,
+              scopes=['https://www.googleapis.com/auth/gmail.send'],
+              subject=SENDER_EMAIL,
+          )
+          creds_gmail.refresh(google.auth.transport.requests.Request())
+
+          agora = datetime.now(timezone.utc).strftime('%d/%m/%Y às %H:%M UTC')
+
+          # ── Template HTML ────────────────────────────────────────────
+          html = f'''<!DOCTYPE html>
+          <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+          <body style="margin:0;padding:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f9;padding:24px 0;">
+          <tr><td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+            <!-- Header -->
+            <tr><td style="background:#1a237e;padding:28px 32px;text-align:center;">
+              <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">&#127963;&#65039; VISA Anápolis — RMPF</h1>
+              <p style="color:#b3c0ff;margin:6px 0 0;font-size:13px;">Notificação de Alteração</p>
+            </td></tr>
+            <!-- Body -->
+            <tr><td style="padding:32px;">
+              <p style="font-size:16px;color:#333;">Olá, <strong>{FISCAL_NOME}</strong>!</p>
+              <p style="color:#555;">Um de seus lançamentos foi alterado:</p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff3e0;border-left:4px solid #f57c00;border-radius:4px;margin:16px 0;">
+                <tr><td style="padding:20px;">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;color:#333;">
+                    <tr>
+                      <td style="padding:8px 0;font-weight:bold;width:100px;vertical-align:top;">Assunto:</td>
+                      <td style="padding:8px 0;">{TITULO}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:8px 0;font-weight:bold;vertical-align:top;">Detalhes:</td>
+                      <td style="padding:8px 0;">{CORPO}</td>
+                    </tr>
+                    <tr>
+                      <td style="padding:8px 0;font-weight:bold;vertical-align:top;">Data/hora:</td>
+                      <td style="padding:8px 0;">{agora}</td>
+                    </tr>
+                  </table>
+                </td></tr>
+              </table>
+              <p style="color:#555;">Por favor, verifique o lançamento e tome as providências necessárias.</p>
+              <p style="text-align:center;margin:28px 0 8px;">
+                <a href="https://visaanapolis.github.io/RMPF/meus-lancamentos.html"
+                   style="background:#1a237e;color:#ffffff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;font-size:14px;display:inline-block;">
+                  Ver Meus Lançamentos
+                </a>
+              </p>
+            </td></tr>
+            <!-- Footer -->
+            <tr><td style="background:#f0f0f0;padding:18px 32px;text-align:center;font-size:11px;color:#666;">
+              VISA — Vigilância Sanitária de Anápolis<br>
+              Este e-mail é automático, não responda.
+            </td></tr>
+          </table>
+          </td></tr></table>
+          </body></html>'''
+
+          # ── Enviar e-mail ────────────────────────────────────────────
+          msg = MIMEMultipart('alternative')
+          msg['From'] = f'VISA Anápolis - RMPF <{SENDER_EMAIL}>'
+          msg['To'] = FISCAL_EMAIL
+          msg['Subject'] = f'\u26a0\ufe0f RMPF — {TITULO}'
+          msg.attach(MIMEText(html, 'html', 'utf-8'))
+
+          raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+          payload = json.dumps({'raw': raw}).encode()
+          url = f'https://gmail.googleapis.com/gmail/v1/users/{SENDER_EMAIL}/messages/send'
+          req = urllib.request.Request(url, data=payload, method='POST')
+          req.add_header('Authorization', 'Bearer ' + creds_gmail.token)
+          req.add_header('Content-Type', 'application/json')
+
+          try:
+              with urllib.request.urlopen(req) as r:
+                  print(f'\u2705 E-mail enviado para {FISCAL_EMAIL}')
+          except urllib.error.HTTPError as e:
+              body = e.read().decode()
+              print(f'::error::Gmail API retornou HTTP {e.code}: {body}', file=sys.stderr)
+              sys.exit(1)
+          EOF
