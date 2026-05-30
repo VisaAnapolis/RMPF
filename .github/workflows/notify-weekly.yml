@@ -109,7 +109,9 @@ jobs:
           print(f'Fiscais com pontos: {list(pontos_por_fiscal.keys())}')
 
           # ── 2. Buscar todos os usuários e extrair tokens FCM ─────
-          # Lê tanto fcmTokens (array, usado pelo RMPF) quanto fcm_token (string, usado pelo VISA)
+          # Lê apenas fcmTokens (array), que é o campo exclusivo do RMPF.
+          # Não lê fcm_token (campo do VISA) para evitar disparar notificações
+          # no service worker do VISA.
           print('Buscando usuários com token FCM…')
           url_q = f'{FIRESTORE_URL}:runQuery'
           body_q = json.dumps({
@@ -126,13 +128,9 @@ jobs:
               doc = item.get('document')
               if not doc:
                   continue
-              email     = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
-              grupo     = field_value(item, 'grupo') or ''
-              # Coleta tokens de ambos os campos (fcmTokens array + fcm_token string legado)
+              email  = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
+              grupo  = field_value(item, 'grupo') or ''
               tokens = field_array(item, 'fcmTokens')
-              legacy = (field_value(item, 'fcm_token') or '').strip()
-              if legacy and legacy not in tokens:
-                  tokens.append(legacy)
               if not tokens:
                   continue
               # Envia a todos que não são Administrador (inclui Fiscal e usuários sem grupo)
