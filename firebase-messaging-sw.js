@@ -26,14 +26,14 @@ messaging.onBackgroundMessage((payload) => {
     body:  body  || '',
     icon:  '/icons/favicon-192.png',
     badge: '/icons/favicon-192.png',
-    data:  { url: payload.data?.link || '/meus-lancamentos.html' },
+    data:  { url: payload.data?.link || '/dashboard.html' },
   });
 });
 
 // Abre/foca a aba correta ao clicar na notificação
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data || {}).url || '/meus-lancamentos.html';
+  const url = (event.notification.data || {}).url || '/dashboard.html';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {

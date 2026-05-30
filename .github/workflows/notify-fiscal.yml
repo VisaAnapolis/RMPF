@@ -45,7 +45,7 @@ jobs:
                   },
                   'webpush': {
                       'fcm_options': {
-                          'link': 'https://visaanapolis.github.io/RMPF/meus-lancamentos.html',
+                          'link': 'https://visaanapolis.github.io/RMPF/dashboard.html',
                       },
                   },
               },
