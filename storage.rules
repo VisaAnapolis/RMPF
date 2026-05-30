@@ -4,15 +4,16 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // PDFs anexados a lançamentos — caminho: anexos/{docId}/{arquivo.pdf}
+    // Anexos de lançamentos (PDF ou imagem) — caminho: anexos/{docId}/{arquivo}
     match /anexos/{docId}/{fileName} {
       // Qualquer usuário autenticado pode baixar
       allow read: if request.auth != null;
 
-      // Upload: autenticado + apenas PDF + máximo 10 MB
+      // Upload: autenticado + PDF ou imagem + máximo 10 MB
       allow write: if request.auth != null
         && request.resource.size <= 10 * 1024 * 1024
-        && request.resource.contentType == 'application/pdf';
+        && (request.resource.contentType == 'application/pdf'
+            || request.resource.contentType.matches('image/.*'));
 
       // Deleção: qualquer usuário autenticado
       // (a validação de "quem pode apagar" é feita no client-side)
