@@ -1,0 +1,35 @@
+name: Notificar Fiscal por E-mail
+
+# Disparado pelo cliente JS (js/notifications.js) via repository_dispatch
+# para enviar um e-mail HTML a um fiscal específico.
+on:
+  repository_dispatch:
+    types: [notify-fiscal-email]
+
+env:
+  FISCAL_EMAIL: ${{ github.event.client_payload.fiscal_email }}
+  FISCAL_NOME:  ${{ github.event.client_payload.fiscal_nome }}
+  TITULO:       ${{ github.event.client_payload.titulo }}
+  CORPO:        ${{ github.event.client_payload.corpo }}
+
+jobs:
+  notify:
+    name: Enviar e-mail ao fiscal via Gmail API
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install -r .github/scripts/requirements.txt
+
+      - name: Executar script
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: python .github/scripts/notify_fiscal_email.py

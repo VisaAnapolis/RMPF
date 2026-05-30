@@ -1,0 +1,31 @@
+name: Resumo Mensal de Pontos (E-mail)
+
+# Todo dia 1º do mês às 13h UTC (10h BRT) envia:
+#   - Cada fiscal: seus pontos do mês anterior + barra de progresso
+#   - Cada administrador: relatório consolidado dos fiscais abaixo de 1000 pts
+on:
+  schedule:
+    - cron: '0 13 1 * *'
+  workflow_dispatch:
+
+jobs:
+  notify:
+    name: Enviar resumo mensal por e-mail
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install -r .github/scripts/requirements.txt
+
+      - name: Executar script
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: python .github/scripts/notify_monthly_email.py
