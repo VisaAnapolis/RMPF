@@ -60,6 +60,95 @@ async function resolveVapidKey() {
   return fromConst;
 }
 
+// ── Banner promocional de notificações ───────────────────────────────────────
+// Exibido quando o usuário ainda não tomou decisão sobre notificações push
+// (permission === 'default'). Oferece um convite amigável para ativar antes de
+// exibir o diálogo nativo do browser, explicando o benefício de acompanhar a
+// pontuação em tempo real. Reexibido a cada 7 dias se dispensado.
+
+const _FCM_PROMO_KEY  = 'fcmPromoLastShown';
+const _FCM_PROMO_DAYS = 7;
+let   _fcmPromoShownThisSession = false;
+
+function _fcmPromo_shouldShow() {
+  if (_fcmPromoShownThisSession) return false;
+  try {
+    const last = parseInt(localStorage.getItem(_FCM_PROMO_KEY) || '0', 10);
+    if (!last) return true;
+    return (Date.now() - last) >= _FCM_PROMO_DAYS * 24 * 60 * 60 * 1000;
+  } catch (e) {
+    return true;
+  }
+}
+
+function _fcmPromo_markShown() {
+  try { localStorage.setItem(_FCM_PROMO_KEY, String(Date.now())); } catch (e) { /* noop */ }
+}
+
+/**
+ * Exibe um banner convidando o usuário a ativar notificações push.
+ * Só exibe quando Notification.permission === 'default' e o throttle permitir.
+ *
+ * @param {string} email  E-mail do usuário autenticado (passado ao initFCM ao clicar em Ativar)
+ */
+function maybeShowFCMPromoBanner(email) {
+  if (Notification.permission !== 'default') return;
+  if (!_fcmPromo_shouldShow()) return;
+  if (document.getElementById('fcm-promo-banner')) return;
+
+  _fcmPromoShownThisSession = true;
+  _fcmPromo_markShown();
+
+  const banner = document.createElement('div');
+  banner.id = 'fcm-promo-banner';
+  banner.style.cssText = [
+    'position:fixed', 'bottom:16px', 'left:50%', 'transform:translateX(-50%)',
+    'z-index:9999', 'max-width:480px', 'width:calc(100% - 32px)',
+    'background:#fff', 'border:1.5px solid #1565c0',
+    'border-radius:10px', 'box-shadow:0 4px 18px rgba(0,0,0,.18)',
+    'padding:14px 16px 12px', 'display:flex', 'align-items:flex-start',
+    'gap:10px', 'font-size:.9rem', 'color:#0d3a7a',
+  ].join(';');
+
+  banner.innerHTML = `
+    <span style="font-size:1.3rem;flex-shrink:0;margin-top:1px">🔔</span>
+    <div style="flex:1">
+      <strong>Ativar notificações</strong>
+      <p style="margin:4px 0 8px">
+        Ative as notificações para acompanhar sua pontuação e ser avisado sobre
+        homologações e novidades em tempo real.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="fcm-promo-btn"
+          style="background:#1565c0;color:#fff;border:none;border-radius:6px;
+                 padding:5px 14px;cursor:pointer;font-size:.85rem">
+          Ativar 🔔
+        </button>
+        <button id="fcm-promo-close"
+          style="background:none;border:1px solid #1565c0;color:#1565c0;
+                 border-radius:6px;padding:5px 14px;cursor:pointer;font-size:.85rem">
+          Agora não
+        </button>
+      </div>
+    </div>
+    <button aria-label="Fechar"
+      style="background:none;border:none;cursor:pointer;font-size:1.1rem;
+             color:#0d3a7a;padding:0 2px;flex-shrink:0"
+      id="fcm-promo-x">✕</button>`;
+
+  document.body.appendChild(banner);
+
+  const dismiss = () => banner.remove();
+  document.getElementById('fcm-promo-close')?.addEventListener('click', dismiss);
+  document.getElementById('fcm-promo-x')?.addEventListener('click', dismiss);
+  document.getElementById('fcm-promo-btn')?.addEventListener('click', async () => {
+    dismiss();
+    if (typeof window.initFCM === 'function' && email) {
+      await window.initFCM(email, true); // _skipPromo=true → vai direto ao requestPermission
+    }
+  });
+}
+
 // ── Banner de lembrete de notificações ───────────────────────────────────────
 // Exibido quando o usuário negou a permissão de notificação e 15 dias se
 // passaram desde o último lembrete. O browser não permite re-exibir o diálogo
@@ -176,7 +265,7 @@ async function _registerFcmServiceWorker() {
  *
  * @param {string} email  E-mail do usuário autenticado
  */
-window.initFCM = async function initFCM(email) {
+window.initFCM = async function initFCM(email, _skipPromo = false) {
   try {
     if (!email) {
       console.warn('[FCM] initFCM chamado sem email.');
@@ -204,6 +293,14 @@ window.initFCM = async function initFCM(email) {
     if (Notification.permission === 'denied') {
       await salvarPermissao('denied');
       maybeShowFCMReminderBanner();
+      return;
+    }
+
+    // Se o usuário ainda não decidiu, exibe o banner promocional convidando-o
+    // a ativar notificações. O clique em "Ativar" chama initFCM novamente com
+    // _skipPromo=true para ir diretamente ao requestPermission nativo.
+    if (Notification.permission === 'default' && !_skipPromo) {
+      maybeShowFCMPromoBanner(email);
       return;
     }
 
