@@ -201,7 +201,14 @@
           });
         } catch (e) { console.warn('Falha ao registrar dados do dispositivo:', e); }
 
-        window.location.href = 'dashboard.html';
+        const grupo = (data.grupo || '').trim();
+        if (grupo === 'Fiscal') {
+          window.location.href = 'lancamento.html';
+        } else if (grupo === 'Administrador') {
+          window.location.href = 'conferencia.html';
+        } else {
+          window.location.href = 'dashboard.html';
+        }
       } catch (err) {
         btn.disabled = false;
         btn.innerHTML = GOOGLE_BTN_CONTENT;
