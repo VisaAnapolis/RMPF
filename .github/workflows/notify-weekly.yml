@@ -78,15 +78,19 @@ jobs:
               arr = fv.get('arrayValue', {}).get('values', [])
               return [v.get('stringValue', '') for v in arr if v.get('stringValue', '').strip()]
 
-          # ── 1. Buscar todos os manuais com status 'aceito' ─────────
+          # ── 1. Buscar todos os manuais e filtrar por status válido ──
           print('Consultando pontos homologados…')
-          results = firestore_query('manuais', [
-              {'fieldFilter': {
-                  'field': {'fieldPath': 'status'},
-                  'op': 'EQUAL',
-                  'value': {'stringValue': 'aceito'},
-              }},
-          ])
+          url_m = f'{FIRESTORE_URL}:runQuery'
+          body_m = json.dumps({
+              'structuredQuery': {
+                  'from': [{'collectionId': 'manuais'}],
+              }
+          }).encode()
+          req_m = urllib.request.Request(url_m, data=body_m, method='POST', headers=headers)
+          with urllib.request.urlopen(req_m) as r:
+              results = json.loads(r.read())
+
+          VALID_STATUSES = ('aceito', 'fechado', 'homologado')
 
           # Agrupa pontos por fiscal
           pontos_por_fiscal = {}
@@ -94,8 +98,13 @@ jobs:
               doc = item.get('document')
               if not doc:
                   continue
-              email = field_value(item, 'fiscal_email')
-              pts   = field_value(item, 'pontos_homologado')
+              status = field_value(item, 'status') or ''
+              if status not in VALID_STATUSES:
+                  continue
+              email    = field_value(item, 'fiscal_email')
+              pts_hom  = field_value(item, 'pontos_homologado')
+              pts_raw  = field_value(item, 'pontos')
+              pts      = pts_hom if pts_hom is not None else pts_raw
               if not email:
                   continue
               try:
@@ -148,15 +157,11 @@ jobs:
               sys.exit(0)
 
           # ── 3. Enviar push personalizado a cada fiscal ─────────────
-          def send_fcm(fcm_token, titulo, corpo):
+          def send_fcm(fcm_token, titulo, corpo, link):
               payload = json.dumps({
                   'message': {
                       'token': fcm_token,
-                      'data': {
-                          'title': titulo,
-                          'body':  corpo,
-                          'link':  'https://visaanapolis.github.io/RMPF/dashboard.html',
-                      },
+                      'data': {'title': titulo, 'body': corpo, 'link': link},
                   },
               }).encode()
               req = urllib.request.Request(FCM_URL, data=payload, method='POST', headers=headers)
@@ -210,7 +215,10 @@ jobs:
                   f"Você tem {pts:.0f} pontos homologados até o momento. "
                   f"Total geral da equipe: {total_geral:.0f} pts."
               )
-              ok, resp = send_fcm(f['fcm_token'], titulo, corpo)
+              ok, resp = send_fcm(
+                  f['fcm_token'], titulo, corpo,
+                  'https://visaanapolis.github.io/RMPF/dashboard.html',
+              )
               if ok:
                   print(f"  ✅ Push enviado para {f['email']}")
               else:
