@@ -53,7 +53,7 @@ async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
         },
         body: JSON.stringify({
           event_type: 'notify-fiscal',
-          client_payload: { fcm_token, titulo, corpo },
+          client_payload: { fcm_token, fiscal_email: fiscalEmail, titulo, corpo },
         }),
       });
 

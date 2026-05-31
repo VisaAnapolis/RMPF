@@ -18,6 +18,7 @@ jobs:
         env:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           FCM_TOKEN:        ${{ github.event.client_payload.fcm_token }}
+          FISCAL_EMAIL:     ${{ github.event.client_payload.fiscal_email }}
           TITULO:           ${{ github.event.client_payload.titulo }}
           CORPO:            ${{ github.event.client_payload.corpo }}
         run: |
@@ -27,18 +28,71 @@ jobs:
           import google.oauth2.service_account
           import google.auth.transport.requests
 
+          PROJECT_ID    = 'visam-3a30b'
+          FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+
+          fcm_token    = os.environ.get('FCM_TOKEN', '').strip()
+          fiscal_email = os.environ.get('FISCAL_EMAIL', '').strip()
+
+          if not fcm_token:
+              print('::error::FCM_TOKEN ausente no payload — notificação não enviada.', file=sys.stderr)
+              sys.exit(1)
+
           # ── Autenticação OAuth2 com a Service Account do Firebase ──
           sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
           creds = google.oauth2.service_account.Credentials.from_service_account_info(
               sa_info,
-              scopes=['https://www.googleapis.com/auth/firebase.messaging'],
+              scopes=[
+                  'https://www.googleapis.com/auth/firebase.messaging',
+                  'https://www.googleapis.com/auth/datastore',
+              ],
           )
           creds.refresh(google.auth.transport.requests.Request())
+
+          def is_unregistered(resp_str):
+              """Retorna True se o erro FCM indicar token não registrado."""
+              try:
+                  err = json.loads(resp_str)
+                  for detail in err.get('error', {}).get('details', []):
+                      if detail.get('errorCode') == 'UNREGISTERED':
+                          return True
+              except Exception:
+                  pass
+              return False
+
+          def remove_fcm_token(email, token):
+              """Remove um token FCM inválido de rmpf_fcmTokens no Firestore."""
+              if not email:
+                  return
+              doc_name   = f'projects/{PROJECT_ID}/databases/(default)/documents/usuarios/{email}'
+              commit_url = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents:commit'
+              body = json.dumps({
+                  'writes': [{
+                      'transform': {
+                          'document': doc_name,
+                          'fieldTransforms': [{
+                              'fieldPath': 'rmpf_fcmTokens',
+                              'removeAllFromArray': {
+                                  'values': [{'stringValue': token}]
+                              }
+                          }]
+                      }
+                  }]
+              }).encode()
+              req = urllib.request.Request(commit_url, data=body, method='POST')
+              req.add_header('Authorization', 'Bearer ' + creds.token)
+              req.add_header('Content-Type', 'application/json')
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      r.read()
+                      print(f'🗑️  Token inválido removido para {email}')
+              except urllib.error.HTTPError as e:
+                  print(f'⚠️  Falha ao remover token de {email}: {e.read().decode()}', file=sys.stderr)
 
           # ── Payload FCM (data-only para evitar notificação duplicada no VISA) ──
           payload = json.dumps({
               'message': {
-                  'token': os.environ['FCM_TOKEN'],
+                  'token': fcm_token,
                   'data': {
                       'title': os.environ['TITULO'],
                       'body':  os.environ['CORPO'],
@@ -48,7 +102,7 @@ jobs:
           }).encode()
 
           # ── Envio via FCM HTTP v1 ──────────────────────────────────
-          url = 'https://fcm.googleapis.com/v1/projects/visam-3a30b/messages:send'
+          url = f'https://fcm.googleapis.com/v1/projects/{PROJECT_ID}/messages:send'
           req = urllib.request.Request(url, data=payload, method='POST')
           req.add_header('Authorization', 'Bearer ' + creds.token)
           req.add_header('Content-Type', 'application/json')
@@ -59,6 +113,10 @@ jobs:
                   print(f'✅ Notificação enviada com sucesso: {body}')
           except urllib.error.HTTPError as e:
               body = e.read().decode()
-              print(f'::error::FCM retornou HTTP {e.code}: {body}', file=sys.stderr)
-              sys.exit(1)
+              if is_unregistered(body):
+                  print(f'⚠️  Token não registrado para {fiscal_email or fcm_token[:20]}…', file=sys.stderr)
+                  remove_fcm_token(fiscal_email, fcm_token)
+              else:
+                  print(f'::error::FCM retornou HTTP {e.code}: {body}', file=sys.stderr)
+                  sys.exit(1)
           EOF
