@@ -44,6 +44,17 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.8.1</span>
+            <span class="badge-date">31/05/2026</span>
+          </div>
+          <div class="changelog-title">Remover fallback ao campo legado fcmTokens nas notificações push</div>
+          <ul class="changelog-changes">
+            <li><strong>Tokens legados fcmTokens removidos do envio de notificações</strong> — os tokens do campo <code>fcmTokens</code> estão irrevogavelmente vinculados ao service worker do app VISA; continuar utilizá-los como fallback fazia as notificações aparecerem como "OS do VISA". A partir desta versão, somente <code>rmpf_fcmTokens</code> é usado por <code>notify-weekly.yml</code>, <code>notify-monthly-summary.yml</code> e <code>js/notifications.js</code>. Usuários sem <code>rmpf_fcmTokens</code> precisam fazer login uma vez no RMPF para registrar o token correto.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.8.0</span>
             <span class="badge-date">31/05/2026</span>
           </div>

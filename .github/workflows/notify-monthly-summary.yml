@@ -215,10 +215,11 @@ jobs:
 
           # ═════════════════════════════════════════════════════════════
           # PARTE 3 — Buscar usuários com tokens FCM (Fiscal e Administrador)
-          # Lê apenas rmpf_fcmTokens (array, campo EXCLUSIVO do RMPF), com
-          # fallback ao legado fcmTokens para usuários ainda não migrados.
-          # Não lê fcm_token (campo do VISA) para evitar disparar notificações
-          # no service worker do VISA.
+          # Lê apenas rmpf_fcmTokens (campo EXCLUSIVO do RMPF).
+          # Tokens legados fcmTokens e fcm_token NÃO são usados: ambos estão
+          # vinculados ao service worker do VISA e fariam a notificação abrir
+          # o app VISA. Usuários sem rmpf_fcmTokens precisam fazer login
+          # novamente no RMPF para registrar o token correto.
           # ═════════════════════════════════════════════════════════════
           print('Buscando usuários com token FCM…')
           url_q = f'{FIRESTORE_URL}:runQuery'
@@ -240,19 +241,15 @@ jobs:
               email    = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
               grupo    = field_value(item, 'grupo') or ''
               tokens   = field_array(item, 'rmpf_fcmTokens')
-              campo    = 'rmpf_fcmTokens'
-              if not tokens:
-                  tokens = field_array(item, 'fcmTokens')
-                  campo  = 'fcmTokens'
               doc_name = doc.get('name', '')
               if not tokens:
                   continue
               if grupo == 'Administrador':
                   for t in tokens:
-                      admins.append({'email': email, 'fcm_token': t, 'doc_name': doc_name, 'campo': campo})
+                      admins.append({'email': email, 'fcm_token': t, 'doc_name': doc_name, 'campo': 'rmpf_fcmTokens'})
               else:
                   for t in tokens:
-                      fiscais.append({'email': email, 'fcm_token': t, 'doc_name': doc_name, 'campo': campo})
+                      fiscais.append({'email': email, 'fcm_token': t, 'doc_name': doc_name, 'campo': 'rmpf_fcmTokens'})
 
           print(f'Fiscais com token FCM: {len(fiscais)}')
           print(f'Administradores com token FCM: {len(admins)}')
