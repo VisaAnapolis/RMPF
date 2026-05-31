@@ -157,12 +157,18 @@
 
     <!-- ── Token do GitHub (repositório VISA privado) ── -->
     <div class="card" id="card-github-token">
-      <div class="card-title">🔑 Token do GitHub (Repositório VISA Privado)</div>
+      <div class="card-title">🔑 Token do GitHub</div>
       <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
-        Configure um Personal Access Token (PAT) com permissão de leitura no repositório privado
-        <code>garrado/VISA</code>. Este token é necessário para importar os CSVs de inspeções,
-        auditorias e a tabela CNAE. Crie um token Fine-Grained com permissão
-        <strong>Contents → Read-only</strong>.
+        Configure um Personal Access Token (PAT) Fine-Grained com as permissões abaixo.
+        Este token é usado para importar CSVs de inspeções, auditorias e CNAE do repositório
+        privado <code>garrado/VISA</code>, e também para disparar workflows manualmente nesta
+        página.<br><br>
+        Permissões necessárias ao criar o token (selecione <em>Only selected repositories</em>
+        e inclua <strong>garrado/VISA</strong> e <strong>garrado/RMPF</strong>):
+        <ul style="margin:.6rem 0 0 1.2rem;line-height:1.8">
+          <li><code>garrado/VISA</code> — <strong>Contents → Read-only</strong></li>
+          <li><code>garrado/RMPF</code> — <strong>Actions → Read and write</strong></li>
+        </ul>
       </p>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <input type="password" class="form-control" id="input-github-token"
