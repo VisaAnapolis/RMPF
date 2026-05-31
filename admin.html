@@ -176,6 +176,23 @@
       <div id="github-token-log" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── Notificações Manuais (Workflows) ── -->
+    <div class="card" id="card-workflows-notificacao">
+      <div class="card-title">📣 Disparo Manual de Notificações</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Execute manualmente os workflows mensais de notificação.
+      </p>
+      <div class="btn-group">
+        <button class="btn btn-outline" id="btn-run-monthly-email" type="button">
+          ✉️ Rodar Mensal por E-mail
+        </button>
+        <button class="btn btn-outline" id="btn-run-monthly-push" type="button">
+          📲 Rodar Mensal Push
+        </button>
+      </div>
+      <div id="workflow-notify-log" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── CNAE Complexidade — Seed ── -->
     <div class="card" id="card-seed-cnae">
       <div class="card-title">🧬 Tabela CNAE / Complexidade</div>
@@ -761,6 +778,59 @@
       } finally {
         btn.disabled = false;
       }
+    });
+
+    // ── Disparo manual de workflows de notificação ─────────
+    const WORKFLOW_REPO = 'garrado/RMPF';
+    const WORKFLOW_REF = 'main';
+
+    async function dispatchWorkflow(workflowFile, btn, label) {
+      const logEl = document.getElementById('workflow-notify-log');
+      const ghToken = await window.db_getGitHubToken();
+      if (!ghToken) {
+        logEl.innerHTML = alerta('warn', '⚠️ Configure o token do GitHub antes de rodar os workflows.');
+        return;
+      }
+
+      btn.disabled = true;
+      logEl.innerHTML = alerta('info', `⏳ Disparando workflow: ${escHtml(label)}...`);
+
+      try {
+        const resp = await fetch(
+          `https://api.github.com/repos/${WORKFLOW_REPO}/actions/workflows/${encodeURIComponent(workflowFile)}/dispatches`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + ghToken,
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ref: WORKFLOW_REF }),
+          }
+        );
+
+        if (!resp.ok && resp.status !== 204) {
+          const msg = await resp.text();
+          throw new Error(`HTTP ${resp.status}${msg ? ` — ${msg}` : ''}`);
+        }
+
+        logEl.innerHTML = alerta('ok', `✅ Workflow disparado com sucesso: ${escHtml(label)}.`);
+      } catch (e) {
+        logEl.innerHTML = alerta('danger', `🚨 Erro ao disparar ${escHtml(label)}: ${escHtml(e.message)}`);
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById('btn-run-monthly-email').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-run-monthly-email');
+      await dispatchWorkflow('notify-monthly-email.yml', btn, 'Resumo Mensal por E-mail');
+    });
+
+    document.getElementById('btn-run-monthly-push').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-run-monthly-push');
+      await dispatchWorkflow('notify-monthly-summary.yml', btn, 'Resumo Mensal Push');
     });
 
     // ── Seed CNAE ────────────────────────────────────────
