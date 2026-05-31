@@ -787,10 +787,10 @@
     });
 
     // ── Disparo manual de workflows de notificação ─────────
+    // Usa repository_dispatch (requer apenas escopo "repo" no PAT).
     const WORKFLOW_REPO = 'garrado/RMPF';
-    const WORKFLOW_REF = 'main';
 
-    async function dispatchWorkflow(workflowFile, btn, label) {
+    async function dispatchWorkflow(eventType, btn, label) {
       const logEl = document.getElementById('workflow-notify-log');
       const ghToken = await window.db_getGitHubToken();
       if (!ghToken) {
@@ -803,7 +803,7 @@
 
       try {
         const resp = await fetch(
-          `https://api.github.com/repos/${WORKFLOW_REPO}/actions/workflows/${encodeURIComponent(workflowFile)}/dispatches`,
+          `https://api.github.com/repos/${WORKFLOW_REPO}/dispatches`,
           {
             method: 'POST',
             headers: {
@@ -812,7 +812,7 @@
               'X-GitHub-Api-Version': '2022-11-28',
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ ref: WORKFLOW_REF }),
+            body: JSON.stringify({ event_type: eventType }),
           }
         );
 
@@ -831,12 +831,12 @@
 
     document.getElementById('btn-run-monthly-email').addEventListener('click', async () => {
       const btn = document.getElementById('btn-run-monthly-email');
-      await dispatchWorkflow('notify-monthly-email.yml', btn, 'Resumo Mensal por E-mail');
+      await dispatchWorkflow('monthly-email-summary', btn, 'Resumo Mensal por E-mail');
     });
 
     document.getElementById('btn-run-monthly-push').addEventListener('click', async () => {
       const btn = document.getElementById('btn-run-monthly-push');
-      await dispatchWorkflow('notify-monthly-summary.yml', btn, 'Resumo Mensal Push');
+      await dispatchWorkflow('monthly-push-summary', btn, 'Resumo Mensal Push');
     });
 
     // ── Seed CNAE ────────────────────────────────────────
