@@ -2,9 +2,10 @@
 // Disparador de notificações push via GitHub Actions + FCM HTTP v1.
 //
 // Fluxo:
-//   1. Busca o campo rmpf_fcmTokens (array, exclusivo do RMPF) em usuarios/{email}
-//      (fallback ao legado fcmTokens para usuários ainda não migrados; nunca
-//       usa fcm_token, que pertence ao app VISA)
+//   1. Busca o campo rmpf_fcmTokens (array, exclusivo do RMPF) em usuarios/{email}.
+//      Tokens legados fcmTokens e fcm_token NÃO são usados: ambos estão vinculados
+//      ao service worker do VISA e fariam a notificação abrir o app VISA.
+//      Usuários sem rmpf_fcmTokens precisam fazer login novamente no RMPF.
 //   2. Obtém o PAT do GitHub de app_config/github_token via db_getGitHubToken()
 //      (função definida em js/firestore.js, exportada como window.db_getGitHubToken)
 //   3. Despacha um repository_dispatch "notify-fiscal" por token
@@ -32,16 +33,7 @@ async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
       ? data.rmpf_fcmTokens.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim())
       : [];
 
-    if (!tokens.length) {
-      // Fallback ao campo legado fcmTokens (usuários ainda não migrados).
-      // NUNCA usa fcm_token (campo do app VISA).
-      const legacy = Array.isArray(data.fcmTokens)
-        ? data.fcmTokens.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim())
-        : [];
-      legacy.forEach(t => tokens.push(t));
-    }
-
-    if (!tokens.length) return; // Fiscal ainda não habilitou notificações
+    if (!tokens.length) return; // Fiscal sem rmpf_fcmTokens — precisa fazer login no RMPF para registrar
 
     const ghToken = await window.db_getGitHubToken();
     if (!ghToken) {
