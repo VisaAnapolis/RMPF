@@ -6,7 +6,9 @@ name: Resumo Mensal de Pontos (E-mail)
 on:
   schedule:
     - cron: '0 13 1 * *'
-  workflow_dispatch:
+  workflow_dispatch:        # Permite disparo manual via interface do GitHub
+  repository_dispatch:
+    types: [monthly-email-summary]  # Disparado pelo botão no admin.html
 
 jobs:
   notify:
