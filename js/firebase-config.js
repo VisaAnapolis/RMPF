@@ -92,6 +92,7 @@ function _fcmPromo_markShown() {
  * @param {string} email  E-mail do usuário autenticado (passado ao initFCM ao clicar em Ativar)
  */
 function maybeShowFCMPromoBanner(email) {
+  if (!email || typeof email !== 'string') return;
   if (Notification.permission !== 'default') return;
   if (!_fcmPromo_shouldShow()) return;
   if (document.getElementById('fcm-promo-banner')) return;
