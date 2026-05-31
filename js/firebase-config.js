@@ -129,9 +129,49 @@ function maybeShowFCMReminderBanner() {
   document.getElementById('fcm-reminder-x')?.addEventListener('click', dismiss);
 }
 
+// ── Service Worker dedicado do FCM (escopo isolado do RMPF) ──────────────────
+// O RMPF e o VISA são servidos na MESMA origem (visaanapolis.github.io) e usam
+// o MESMO projeto Firebase. Se o getToken() for chamado sem
+// serviceWorkerRegistration, o SDK registra/usa o firebase-messaging-sw.js da
+// RAIZ da origem — que pertence ao app VISA — e o token gerado fica atrelado ao
+// service worker do VISA. Resultado: pushes do RMPF eram exibidos pelo SW do
+// VISA (com identidade de "OS do VISA").
+//
+// Para evitar isso, registramos o firebase-messaging-sw.js do próprio RMPF em
+// um escopo dedicado dentro de /RMPF/ e passamos esse registro ao getToken().
+// O escopo é distinto do service-worker.js principal (que controla /RMPF/),
+// evitando que um sobrescreva o outro.
+const _FCM_SW_PATH  = './firebase-messaging-sw.js';
+const _FCM_SW_SCOPE = './firebase-cloud-messaging-push-scope';
+
+async function _registerFcmServiceWorker() {
+  // Reaproveita um registro existente no escopo dedicado, se houver.
+  try {
+    const existing = await navigator.serviceWorker.getRegistration(_FCM_SW_SCOPE);
+    if (existing && existing.active && existing.active.scriptURL.endsWith('firebase-messaging-sw.js')) {
+      return existing;
+    }
+  } catch (e) { /* segue para registrar */ }
+  return navigator.serviceWorker.register(_FCM_SW_PATH, { scope: _FCM_SW_SCOPE });
+}
+
 /**
- * Solicita permissão de notificação, obtém o token FCM e o persiste
- * em usuarios/{email}.fcmTokens no Firestore.
+ * Solicita permissão de notificação, obtém o token FCM (vinculado ao service
+ * worker do RMPF) e o persiste em campos EXCLUSIVOS do RMPF no Firestore:
+ *   - usuarios/{email}.rmpf_fcmTokens        (array de tokens deste app)
+ *   - usuarios/{email}.rmpf_notifPermissao   ('granted' | 'denied' | 'default')
+ *   - usuarios/{email}.rmpf_notifAtualizadoEm (timestamp da última atualização)
+ *
+ * A coleção `usuarios` é compartilhada entre RMPF, VISA e AUDITORIA; portanto
+ * NUNCA tocamos em campos de outros apps (ex.: fcm_token do VISA). Todos os
+ * campos gravados aqui usam o prefixo `rmpf_` e a escrita é feita com
+ * { merge: true } para não sobrescrever os demais campos do documento.
+ *
+ * Detecção no login: como guard.js chama initFCM a cada autenticação, se o
+ * usuário ainda não possui token específico do RMPF (rmpf_fcmTokens vazio) e a
+ * permissão não foi negada, a autorização de notificação é solicitada e o token
+ * é gerado/persistido.
+ *
  * Deve ser chamado uma vez após o login bem-sucedido.
  *
  * @param {string} email  E-mail do usuário autenticado
@@ -145,14 +185,30 @@ window.initFCM = async function initFCM(email) {
     if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
     if (typeof firebase.messaging !== 'function') return; // SDK não carregado nesta página
 
+    const userRef = window.db.collection('usuarios').doc(email);
+
+    /** Grava o estado de permissão do RMPF sem afetar campos de outros apps. */
+    const salvarPermissao = async (estado) => {
+      try {
+        await userRef.set({
+          rmpf_notifPermissao:    estado,
+          rmpf_notifAtualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (e) {
+        console.warn('[FCM] Falha ao salvar estado de permissão:', e);
+      }
+    };
+
     // Se a permissão já foi negada pelo browser, não é possível exibir o
     // diálogo nativo novamente — sugerimos reativar a cada 15 dias.
     if (Notification.permission === 'denied') {
+      await salvarPermissao('denied');
       maybeShowFCMReminderBanner();
       return;
     }
 
     const permission = await Notification.requestPermission();
+    await salvarPermissao(permission);
     if (permission !== 'granted') return;
 
     const vapidKey = await resolveVapidKey();
@@ -163,28 +219,27 @@ window.initFCM = async function initFCM(email) {
 
     const messaging = firebase.messaging();
 
+    // Registra (ou reaproveita) o service worker do RMPF em escopo dedicado e
+    // o usa para gerar o token — garantindo que o token pertença ao SW do RMPF
+    // e não ao SW do VISA na raiz da origem.
+    const swReg = await _registerFcmServiceWorker();
+
     // getToken() retorna um token atual ou gera um novo se expirado
-    const token = await messaging.getToken({ vapidKey });
+    const token = await messaging.getToken({ vapidKey, serviceWorkerRegistration: swReg });
     if (!token) return;
 
-    const userRef = window.db.collection('usuarios').doc(email);
     const snap = await userRef.get();
     const data = snap.exists ? (snap.data() || {}) : {};
 
-    const existing = Array.isArray(data.fcmTokens)
-      ? [...new Set(data.fcmTokens.filter(t => typeof t === 'string' && t.trim()))]
+    // Campo exclusivo do RMPF. NÃO migra data.fcmTokens (legado, possivelmente
+    // atrelado ao SW do VISA) nem data.fcm_token (campo do VISA / AUDITORIA).
+    const existing = Array.isArray(data.rmpf_fcmTokens)
+      ? [...new Set(data.rmpf_fcmTokens.filter(t => typeof t === 'string' && t.trim()))]
       : [];
-    // NOTE: NÃO copiar data.fcm_token (campo do VISA) para fcmTokens.
-    // Esse token pertence ao service worker do VISA e enviar push para ele
-    // causa notificações duplicadas no escopo do app VISA.
     if (!existing.includes(token)) existing.push(token);
 
-    const payload = {
-      fcmTokens: existing,
-    };
-
     // Persiste tokens sem sobrescrever os demais campos do usuário
-    await userRef.set(payload, { merge: true });
+    await userRef.set({ rmpf_fcmTokens: existing }, { merge: true });
   } catch (e) {
     console.warn('[FCM] initFCM erro:', e);
   }

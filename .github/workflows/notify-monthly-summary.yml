@@ -113,15 +113,15 @@ jobs:
                   pass
               return False
 
-          def remove_fcm_token(doc_name, token):
-              """Remove um token FCM inválido do array fcmTokens no Firestore."""
+          def remove_fcm_token(doc_name, token, campo):
+              """Remove um token FCM inválido do array indicado no Firestore."""
               commit_url = f'{FIRESTORE_URL}:commit'
               body = json.dumps({
                   'writes': [{
                       'transform': {
                           'document': doc_name,
                           'fieldTransforms': [{
-                              'fieldPath': 'fcmTokens',
+                              'fieldPath': campo,
                               'removeAllFromArray': {
                                   'values': [{'stringValue': token}]
                               }
@@ -215,7 +215,8 @@ jobs:
 
           # ═════════════════════════════════════════════════════════════
           # PARTE 3 — Buscar usuários com tokens FCM (Fiscal e Administrador)
-          # Lê apenas fcmTokens (array), que é o campo exclusivo do RMPF.
+          # Lê apenas rmpf_fcmTokens (array, campo EXCLUSIVO do RMPF), com
+          # fallback ao legado fcmTokens para usuários ainda não migrados.
           # Não lê fcm_token (campo do VISA) para evitar disparar notificações
           # no service worker do VISA.
           # ═════════════════════════════════════════════════════════════
@@ -238,16 +239,20 @@ jobs:
                   continue
               email    = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
               grupo    = field_value(item, 'grupo') or ''
-              tokens   = field_array(item, 'fcmTokens')
+              tokens   = field_array(item, 'rmpf_fcmTokens')
+              campo    = 'rmpf_fcmTokens'
+              if not tokens:
+                  tokens = field_array(item, 'fcmTokens')
+                  campo  = 'fcmTokens'
               doc_name = doc.get('name', '')
               if not tokens:
                   continue
               if grupo == 'Administrador':
                   for t in tokens:
-                      admins.append({'email': email, 'fcm_token': t, 'doc_name': doc_name})
+                      admins.append({'email': email, 'fcm_token': t, 'doc_name': doc_name, 'campo': campo})
               else:
                   for t in tokens:
-                      fiscais.append({'email': email, 'fcm_token': t, 'doc_name': doc_name})
+                      fiscais.append({'email': email, 'fcm_token': t, 'doc_name': doc_name, 'campo': campo})
 
           print(f'Fiscais com token FCM: {len(fiscais)}')
           print(f'Administradores com token FCM: {len(admins)}')
@@ -272,7 +277,7 @@ jobs:
                   print(f"  ❌ Falha para fiscal {f['email']}: {resp}", file=sys.stderr)
                   erros += 1
                   if is_unregistered(resp):
-                      remove_fcm_token(f['doc_name'], f['fcm_token'])
+                      remove_fcm_token(f['doc_name'], f['fcm_token'], f['campo'])
                       print(f"  🗑️  Token inválido removido para {f['email']}")
 
           # — Push para cada administrador —
@@ -292,7 +297,7 @@ jobs:
                   print(f"  ❌ Falha para admin {a['email']}: {resp}", file=sys.stderr)
                   erros += 1
                   if is_unregistered(resp):
-                      remove_fcm_token(a['doc_name'], a['fcm_token'])
+                      remove_fcm_token(a['doc_name'], a['fcm_token'], a['campo'])
                       print(f"  🗑️  Token inválido removido para {a['email']}")
 
           # ── Resumo final ───────────────────────────────────────────────

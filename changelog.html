@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.8.0</span>
+            <span class="badge-date">31/05/2026</span>
+          </div>
+          <div class="changelog-title">Notificações push do RMPF isoladas do app VISA</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção de notificações exibidas com identidade do VISA</strong> — como RMPF e VISA compartilham a mesma origem e o mesmo projeto Firebase, o <code>getToken()</code> sem <code>serviceWorkerRegistration</code> usava o <code>firebase-messaging-sw.js</code> da raiz (do VISA), fazendo o push mensal/semanal do RMPF aparecer como "OS do VISA". Agora <code>js/firebase-config.js</code> registra o service worker do RMPF em um escopo dedicado (<code>./firebase-cloud-messaging-push-scope</code>) e o passa ao <code>getToken()</code>, vinculando o token ao SW correto.</li>
+            <li><strong>Campos exclusivos do RMPF na coleção <code>usuarios</code></strong> — tokens passam a ser gravados em <code>rmpf_fcmTokens</code> (array), com o estado da permissão em <code>rmpf_notifPermissao</code> e a data em <code>rmpf_notifAtualizadoEm</code>. A coleção é compartilhada com VISA e AUDITORIA, então nenhum campo de outros apps (ex.: <code>fcm_token</code>) é alterado; toda escrita usa <code>merge</code>.</li>
+            <li><strong>Detecção no login</strong> — a cada autenticação, se o usuário não possui token específico do RMPF e a permissão não foi negada, a autorização de notificação é solicitada e o token é gerado/persistido.</li>
+            <li><strong>Workflows atualizados</strong> — <code>notify-weekly.yml</code> e <code>notify-monthly-summary.yml</code> leem <code>rmpf_fcmTokens</code> (com fallback ao legado <code>fcmTokens</code>) e removem tokens inválidos do campo de origem correto; <code>js/notifications.js</code> também lê <code>rmpf_fcmTokens</code>.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.7.3</span>
             <span class="badge-date">30/05/2026</span>
           </div>
