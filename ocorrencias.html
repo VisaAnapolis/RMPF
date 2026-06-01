@@ -333,7 +333,8 @@
 
       const porMes = diasDaOcorrenciaPorMes(o.data_inicio, o.data_fim);
 
-      // ── 1. Verificar limite diário em dias com ocorrência ─
+      // ── 1. Verificar se os lançamentos já existentes em cada dia
+      //      da ocorrência respeitam o teto de 24 pontos ────────────
       for (const { mes, ano, dias } of Object.values(porMes)) {
         let manuais;
         try {

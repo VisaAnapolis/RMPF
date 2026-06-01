@@ -401,7 +401,11 @@
     }
 
     const pontosNum = Number(pontos);
-    if (Number.isNaN(pontosNum)) { showAlert('warn', 'Informe os pontos corretamente.'); btns.forEach(b => { b.disabled = false; }); return; }
+    if (Number.isNaN(pontosNum)) {
+      showAlert('warn', 'Informe os pontos corretamente.');
+      btns.forEach(b => { b.disabled = false; });
+      return;
+    }
 
     // ── Verificar teto de pontos em dia com ocorrência aceita ─
     const validacaoOcorr = await validarLimitePontosOcorrenciaDia(user.email, mes, ano, data, pontosNum, null);
@@ -532,7 +536,7 @@
         alertDataEl.style.display = '';
       } else {
         alertDataEl.style.display = 'none';
-        // Re-habilita botões (verificarFechamento cuida do estado correto)
+        // Reabilita botões (verificarFechamento cuida do estado correto)
         verificarFechamento();
       }
     }
