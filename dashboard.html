@@ -64,6 +64,9 @@
       .admin-mini-resumo tbody td.td-status { text-align: center; font-size: 1rem; }
       .admin-mini-resumo tbody tr:last-child td { border-bottom: none; }
     }
+
+    /* Fiscais que não atingiram a apuração de R$ 200 */
+    .tr-lara td { background: var(--laraP) !important; color: var(--lara) !important; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -388,7 +391,7 @@
           .filter(m => m.status === 'enviado')
           .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
         const pendentes = manuais.filter(m => m.status === 'enviado' || m.status === 'pendente').length;
-        return `<tr>
+        return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td data-label="Fiscal">${escHtml(f.nome || f.id)}</td>
           <td data-label="Pts Req." class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>
           <td data-label="PP" class="td-num">${result.pp}</td>
@@ -411,7 +414,7 @@
         const temRecusado  = manuais.some(m => m.status === 'recusado');
         const temPendente  = manuais.some(m => m.status === 'enviado' || m.status === 'pendente');
         const statusIcon   = temRecusado ? '⚠️' : temPendente ? '⏳' : manuais.length ? '✅' : '—';
-        return `<tr>
+        return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td>${escHtml(nomeAbrev(f.nome || f.id))}</td>
           <td class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>
           <td class="td-num ${result.apuracao > 0 ? 'text-verde fw-bold' : ''}">${result.apuracao > 0 ? result.apuracao : '—'}</td>
