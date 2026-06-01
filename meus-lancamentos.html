@@ -239,6 +239,14 @@
   let _user = null;
   let _manuais = [];
   let _fechamento = null;
+  const LIMITE_PONTOS_OCORRENCIA_DIA = 24;
+  const TIPO_LABELS_OCR = {
+    ferias: 'Férias',
+    licenca_medica: 'Licença Médica',
+    licenca_gestante: 'Licença Gestante',
+    afastamento_legal: 'Afastamento Legal',
+    outros: 'Outros',
+  };
 
   function showAlert(type, msg) {
     document.getElementById('alert-area').innerHTML = alerta(type, msg);
@@ -392,6 +400,51 @@
     document.getElementById('modal-edit').style.display = 'flex';
   }
 
+  async function getOcorrenciaAceitaNoDia(fiscalEmail, dataISO) {
+    if (!dataISO) return null;
+    const parts = String(dataISO).split('-');
+    if (parts.length !== 3) return null;
+    const ano = Number(parts[0]);
+    const mes = Number(parts[1]);
+    if (!ano || !mes) return null;
+    try {
+      const ocorrencias = await db_getOcorrencias(fiscalEmail, mes, ano);
+      const aceitas = ocorrencias.filter(o => o.status === 'aceito');
+      for (const o of aceitas) {
+        const fim = o.data_fim || o.data_inicio;
+        if (dataISO >= o.data_inicio && dataISO <= fim) return o;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function somaPontosDiaComFiltro(manuais, dataISO, excluirId) {
+    return (manuais || []).reduce((acc, m) => {
+      if (!m || m.id === excluirId) return acc;
+      if (m.data !== dataISO) return acc;
+      if (m.origem === 'ocorrencia') return acc;
+      if (m.status === 'recusado') return acc;
+      return acc + (Number(m.pontos) || 0);
+    }, 0);
+  }
+
+  async function validarLimitePontosOcorrenciaEdicao(idManual, dataISO, pontosNovo) {
+    const ocorrencia = await getOcorrenciaAceitaNoDia(_user.email, dataISO);
+    if (!ocorrencia) return { ok: true, ocorrencia: null, somaAtual: 0, total: Number(pontosNovo) || 0 };
+    const mes = Number(String(dataISO).split('-')[1]);
+    const ano = Number(String(dataISO).split('-')[0]);
+    const manuais = await db_getManuais(_user.email, mes, ano);
+    const somaAtual = somaPontosDiaComFiltro(manuais, dataISO, idManual);
+    const total = somaAtual + (Number(pontosNovo) || 0);
+    return {
+      ok: total <= LIMITE_PONTOS_OCORRENCIA_DIA,
+      ocorrencia,
+      somaAtual,
+      total,
+      disponivel: Math.max(0, LIMITE_PONTOS_OCORRENCIA_DIA - somaAtual),
+    };
+  }
+
   document.getElementById('btn-save-edit').addEventListener('click', async () => {
     const id     = document.getElementById('edit-id').value;
     const data   = document.getElementById('edit-data').value;
@@ -401,8 +454,23 @@
       document.getElementById('edit-alert').innerHTML = alerta('warn','Preencha todos os campos obrigatórios.');
       return;
     }
+    const pontosNum = Number(pontos);
+    if (Number.isNaN(pontosNum)) {
+      document.getElementById('edit-alert').innerHTML = alerta('warn','Informe os pontos corretamente.');
+      return;
+    }
     try {
-      await db_updateManual(id, { data, descricao: desc, pontos: Number(pontos), obs: document.getElementById('edit-obs').value.trim() });
+      const validacao = await validarLimitePontosOcorrenciaEdicao(id, data, pontosNum);
+      if (!validacao.ok && validacao.ocorrencia) {
+        const tipoLabel = TIPO_LABELS_OCR[validacao.ocorrencia.tipo] || validacao.ocorrencia.tipo;
+        document.getElementById('edit-alert').innerHTML = alerta('warn',
+          `⚠️ Dia coberto por ocorrência aceita de <strong>${escHtml(tipoLabel)}</strong>. ` +
+          `Limite diário: <strong>${LIMITE_PONTOS_OCORRENCIA_DIA}</strong> pontos; já lançado: ` +
+          `<strong>${validacao.somaAtual}</strong>.`
+        );
+        return;
+      }
+      await db_updateManual(id, { data, descricao: desc, pontos: pontosNum, obs: document.getElementById('edit-obs').value.trim() });
       document.getElementById('modal-edit').style.display = 'none';
       showAlert('ok', 'Lançamento atualizado com sucesso.');
       loadManuais();
@@ -444,9 +512,24 @@
       document.getElementById('corrigir-alert').innerHTML = alerta('warn','Preencha todos os campos obrigatórios.');
       return;
     }
+    const pontosNum = Number(pontos);
+    if (Number.isNaN(pontosNum)) {
+      document.getElementById('corrigir-alert').innerHTML = alerta('warn','Informe os pontos corretamente.');
+      return;
+    }
     try {
+      const validacao = await validarLimitePontosOcorrenciaEdicao(id, data, pontosNum);
+      if (!validacao.ok && validacao.ocorrencia) {
+        const tipoLabel = TIPO_LABELS_OCR[validacao.ocorrencia.tipo] || validacao.ocorrencia.tipo;
+        document.getElementById('corrigir-alert').innerHTML = alerta('warn',
+          `⚠️ Dia coberto por ocorrência aceita de <strong>${escHtml(tipoLabel)}</strong>. ` +
+          `Limite diário: <strong>${LIMITE_PONTOS_OCORRENCIA_DIA}</strong> pontos; já lançado: ` +
+          `<strong>${validacao.somaAtual}</strong>.`
+        );
+        return;
+      }
       await db_updateManual(id, {
-        data, descricao: desc, pontos: Number(pontos),
+        data, descricao: desc, pontos: pontosNum,
         obs: document.getElementById('corrigir-obs').value.trim(),
         status: 'enviado',
         motivo_recusa: null,
