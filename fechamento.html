@@ -392,9 +392,14 @@
        <td style="border:1px solid #ccc;padding:4px 7px;text-align:right">${m.pontos_homologado??m.pontos}</td></tr>`
     ).join('') : '<tr><td colspan="5" style="padding:8px;text-align:center;color:#999">Sem atividades</td></tr>';
 
-    if (_ocorrs.length) {
+    // Always reset the occurrences section before conditionally repopulating it,
+    // so that switching to a different fiscal never leaves stale data visible.
+    document.getElementById('rel-ocorrs-section').style.display = 'none';
+    document.getElementById('rel-tbody-ocorrs').innerHTML = '';
+    const ocorrsAceitas = _ocorrs.filter(o => o.status === 'aceito');
+    if (ocorrsAceitas.length) {
       document.getElementById('rel-ocorrs-section').style.display = '';
-      document.getElementById('rel-tbody-ocorrs').innerHTML = [..._ocorrs].sort((a, b) => (a.data_inicio || '').localeCompare(b.data_inicio || '')).map(o =>
+      document.getElementById('rel-tbody-ocorrs').innerHTML = [...ocorrsAceitas].sort((a, b) => (a.data_inicio || '').localeCompare(b.data_inicio || '')).map(o =>
         `<tr><td style="border:1px solid #ccc;padding:4px 7px">${TIPO_LABELS[o.tipo]||o.tipo}</td>
          <td style="border:1px solid #ccc;padding:4px 7px">${fmtData(o.data_inicio)}${o.data_fim?' — '+fmtData(o.data_fim):''}</td>
          <td style="border:1px solid #ccc;padding:4px 7px">${o.obs_admin||o.descricao||'—'}</td></tr>`
