@@ -10,7 +10,7 @@ async function getManuais(fiscalEmail, mes, ano) {
     .where('ano', '==', Number(ano))
     .get();
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
+    .sort((a, b) => (a.data || '').localeCompare(b.data || '') || (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
 }
 
 async function getManuaisTodos(mes, ano) {
