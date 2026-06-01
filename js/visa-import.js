@@ -3,6 +3,7 @@
 
 const VISA_IMPORT_INICIO_MES = 4;
 const VISA_IMPORT_INICIO_ANO = 2026;
+const LIMITE_PONTOS_OCORRENCIA_DIA = 24;
 
 // ── Cache de ocorrências aceitas por fiscal/mês ──────────
 const _visaOcorrCache = new Map();
@@ -24,6 +25,28 @@ function _dataCobertaOcorrVisa(dataISO, ocorrencias) {
     const fim = o.data_fim || o.data_inicio;
     return dataISO >= o.data_inicio && dataISO <= fim;
   });
+}
+
+function _manualContaNoLimiteOcorrenciaVisa(m) {
+  return !!m && m.origem !== 'ocorrencia' && m.status !== 'recusado';
+}
+
+function _aplicarManualNoMapaPontosVisa(mapa, manual, delta) {
+  if (!manual || !_manualContaNoLimiteOcorrenciaVisa(manual) || !manual.data) return;
+  const dia = manual.data;
+  const pontos = Number(manual.pontos) || 0;
+  mapa.set(dia, (mapa.get(dia) || 0) + (delta * pontos));
+}
+
+async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano) {
+  const key = `${emailFiscal}::${mes}::${ano}`;
+  if (!cache.has(key)) {
+    const docs = await window.db_getManuais(emailFiscal, mes, ano);
+    const byDia = new Map();
+    for (const d of docs) _aplicarManualNoMapaPontosVisa(byDia, d, 1);
+    cache.set(key, { docsById: new Map(docs.map(d => [d.id, d])), byDia });
+  }
+  return cache.get(key);
 }
 
 function visaMesAberto(mes, ano) {
@@ -209,6 +232,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
     const cnaeCache = new Map();
     const processedKeys = new Set(); // "fiscalEmail::controleVisa"
+    const pontosEstadoCache = new Map();
 
     for (let idx = 0; idx < rowsFiltradas.length; idx++) {
       const row = rowsFiltradas[idx];
@@ -261,24 +285,36 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         // Marca como presente no CSV para detecção de registros órfãos
         processedKeys.add(emailFiscal + '::' + controleVisa);
 
-        // ── Verificar ocorrência aceita no dia ────────────
-        if (dataISO) {
-          const dtParts = dataISO.split('-');
-          const dtMes = Number(dtParts[1]);
-          const dtAno = Number(dtParts[0]);
-          const ocorrAceitas = await _getOcorrenciasAceitasVisa(emailFiscal, dtMes, dtAno);
-          if (_dataCobertaOcorrVisa(dataISO, ocorrAceitas)) {
-            ignorados++;
-            onProgress(
-              `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: ` +
-              `dia ${dataISO} coberto por ocorrência aceita, ignorado.`, 'warn'
-            );
-            continue;
-          }
-        }
-
         try {
           const existing = await window.db_getVISAManual(controleVisa, emailFiscal);
+          let estadoPontos = null;
+
+          // ── Verificar limite de 24 pts em dia com ocorrência aceita ─
+          if (dataISO) {
+            const dtParts = dataISO.split('-');
+            const dtMes = Number(dtParts[1]);
+            const dtAno = Number(dtParts[0]);
+            const ocorrAceitas = await _getOcorrenciasAceitasVisa(emailFiscal, dtMes, dtAno);
+            if (_dataCobertaOcorrVisa(dataISO, ocorrAceitas)) {
+              estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, dtMes, dtAno);
+              const somaDia = estadoPontos.byDia.get(dataISO) || 0;
+              const pontosExistenteMesmoDoc =
+                existing && _manualContaNoLimiteOcorrenciaVisa(existing) && existing.data === dataISO
+                  ? (Number(existing.pontos) || 0)
+                  : 0;
+              const baseDia = somaDia - pontosExistenteMesmoDoc;
+              const totalDia = baseDia + (Number(tipoInfo.pontos) || 0);
+              if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
+                ignorados++;
+                onProgress(
+                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: dia ${dataISO} com ocorrência aceita ` +
+                  `ultrapassaria ${LIMITE_PONTOS_OCORRENCIA_DIA} pontos (total projetado: ${totalDia}). Importação rejeitada.`,
+                  'warn'
+                );
+                continue;
+              }
+            }
+          }
 
           if (existing) {
             if (existing.status === 'aceito' || existing.status === 'fechado') {
@@ -316,6 +352,11 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               }
             }
             await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false);
+            const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
+            _aplicarManualNoMapaPontosVisa(estado.byDia, existing, -1);
+            const manualAtualizado = { ...existing, ...updateData, id: existing.id };
+            _aplicarManualNoMapaPontosVisa(estado.byDia, manualAtualizado, 1);
+            estado.docsById.set(existing.id, manualAtualizado);
             atualizados++;
           } else {
             const fechamento = await window.db_getFechamento(emailFiscal, mes, ano);
@@ -347,6 +388,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               origem: 'visa_csv',
               visa_controle: controleVisa,
             }, null, true);
+            const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
+            _aplicarManualNoMapaPontosVisa(estado.byDia, {
+              data: dataISO, pontos: tipoInfo.pontos, origem: 'visa_csv', status: statusInicial,
+            }, 1);
             criados++;
           }
         } catch(e) {

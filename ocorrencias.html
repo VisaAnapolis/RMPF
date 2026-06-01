@@ -167,6 +167,7 @@
   let _user  = null;
   let _grupo = '';
   let _ocorrs = [];
+  const LIMITE_PONTOS_OCORRENCIA_DIA = 24;
 
   const TIPO_LABELS = {
     ferias: 'Férias',
@@ -332,7 +333,7 @@
 
       const porMes = diasDaOcorrenciaPorMes(o.data_inicio, o.data_fim);
 
-      // ── 1. Verificar conflitos ────────────────────────────
+      // ── 1. Verificar limite diário em dias com ocorrência ─
       for (const { mes, ano, dias } of Object.values(porMes)) {
         let manuais;
         try {
@@ -342,12 +343,18 @@
           return;
         }
         for (const dia of dias) {
-          const existentes = manuais.filter(m => m.data === dia);
-          if (existentes.length > 0) {
+          const totalDia = manuais.reduce((acc, m) => {
+            if (!m || m.data !== dia) return acc;
+            if (m.origem === 'ocorrencia') return acc;
+            if (m.status === 'recusado') return acc;
+            return acc + (Number(m.pontos) || 0);
+          }, 0);
+          if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
             alertEl.innerHTML = alerta('danger',
-              `⚠️ Já existe <strong>${existentes.length}</strong> lançamento(s) no dia ` +
-              `<strong>${fmtData(dia)}</strong> para este fiscal. ` +
-              `Remova os lançamentos deste dia antes de aceitar a ocorrência.`
+              `⚠️ O dia <strong>${fmtData(dia)}</strong> já possui <strong>${totalDia}</strong> ponto(s) ` +
+              `em lançamentos e excede o limite de <strong>${LIMITE_PONTOS_OCORRENCIA_DIA}</strong> ` +
+              `para dias com ocorrência aceita. ` +
+              `Peça ao fiscal para excluir/ajustar lançamentos desse dia antes de aceitar a ocorrência.`
             );
             return;
           }

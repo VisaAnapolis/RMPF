@@ -241,6 +241,7 @@
     afastamento_legal: 'Afastamento Legal',
     outros: 'Outros',
   };
+  const LIMITE_PONTOS_OCORRENCIA_DIA = 24;
 
   /**
    * Verifica se a data selecionada está coberta por alguma ocorrência aceita.
@@ -257,6 +258,33 @@
       }
     } catch (_) {}
     return null;
+  }
+
+  function somaPontosDiaComFiltro(manuais, dataISO, excluirId) {
+    return (manuais || []).reduce((acc, m) => {
+      if (!m || m.id === excluirId) return acc;
+      if (m.data !== dataISO) return acc;
+      if (m.origem === 'ocorrencia') return acc;
+      if (m.status === 'recusado') return acc;
+      return acc + (Number(m.pontos) || 0);
+    }, 0);
+  }
+
+  async function validarLimitePontosOcorrenciaDia(fiscalEmail, mes, ano, dataISO, pontosNovo, excluirId) {
+    const ocorrConflito = await verificarOcorrenciaParaData(fiscalEmail, mes, ano, dataISO);
+    if (!ocorrConflito) {
+      return { ok: true, ocorrencia: null, somaAtual: 0, total: Number(pontosNovo) || 0 };
+    }
+    const manuais = await window.db_getManuais(fiscalEmail, mes, ano);
+    const somaAtual = somaPontosDiaComFiltro(manuais, dataISO, excluirId);
+    const total = somaAtual + (Number(pontosNovo) || 0);
+    return {
+      ok: total <= LIMITE_PONTOS_OCORRENCIA_DIA,
+      ocorrencia: ocorrConflito,
+      somaAtual,
+      total,
+      disponivel: Math.max(0, LIMITE_PONTOS_OCORRENCIA_DIA - somaAtual),
+    };
   }
 
   // When tipo changes, populate items
@@ -372,13 +400,17 @@
       return;
     }
 
-    // ── Verificar ocorrência aceita no dia ───────────────
-    const ocorrConflito = await verificarOcorrenciaParaData(user.email, mes, ano, data);
-    if (ocorrConflito) {
-      const tipoLabel = TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo;
+    const pontosNum = Number(pontos);
+    if (Number.isNaN(pontosNum)) { showAlert('warn', 'Informe os pontos corretamente.'); btns.forEach(b => { b.disabled = false; }); return; }
+
+    // ── Verificar teto de pontos em dia com ocorrência aceita ─
+    const validacaoOcorr = await validarLimitePontosOcorrenciaDia(user.email, mes, ano, data, pontosNum, null);
+    if (!validacaoOcorr.ok && validacaoOcorr.ocorrencia) {
+      const tipoLabel = TIPO_LABELS_OCR[validacaoOcorr.ocorrencia.tipo] || validacaoOcorr.ocorrencia.tipo;
       showAlert('warn',
         `⚠️ O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
-        `<strong>${tipoLabel}</strong>. Não é possível lançar atividades neste dia.`
+        `<strong>${tipoLabel}</strong>. O limite diário é <strong>${LIMITE_PONTOS_OCORRENCIA_DIA} pontos</strong> ` +
+        `e você já possui <strong>${validacaoOcorr.somaAtual}</strong> ponto(s) lançado(s) neste dia.`
       );
       btns.forEach(b => { b.disabled = false; });
       return;
@@ -494,11 +526,10 @@
         const tipoLabel = TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo;
         alertDataEl.innerHTML = alerta('warn',
           `⚠️ O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
-          `<strong>${tipoLabel}</strong>. Não é possível lançar atividades neste dia.`
+          `<strong>${tipoLabel}</strong>. Lançamentos são permitidos até ` +
+          `<strong>${LIMITE_PONTOS_OCORRENCIA_DIA} pontos</strong> no total do dia.`
         );
         alertDataEl.style.display = '';
-        document.getElementById('btn-rascunho').disabled = true;
-        document.getElementById('btn-enviar').disabled   = true;
       } else {
         alertDataEl.style.display = 'none';
         // Re-habilita botões (verificarFechamento cuida do estado correto)
