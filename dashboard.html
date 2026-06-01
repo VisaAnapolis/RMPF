@@ -28,6 +28,42 @@
       #view-fiscal .metrics-grid { grid-template-columns: 1fr 1fr; }
       .metric-card-wide { grid-column: span 2; }
     }
+
+    /* Mini-resumo de fiscais — visível apenas em mobile */
+    .admin-mini-resumo { display: none; }
+    @media (max-width: 600px) {
+      .admin-mini-resumo {
+        display: block;
+        margin-bottom: .75rem;
+      }
+      .admin-mini-resumo .card-title {
+        font-size: .85rem;
+        padding-bottom: .35rem;
+        margin-bottom: .35rem;
+      }
+      .admin-mini-resumo table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .82rem;
+      }
+      .admin-mini-resumo thead th {
+        background: var(--cinzaB);
+        padding: .3rem .45rem;
+        text-align: left;
+        font-weight: 600;
+        color: var(--cinzaT);
+        white-space: nowrap;
+      }
+      .admin-mini-resumo thead th.th-num { text-align: right; }
+      .admin-mini-resumo tbody td {
+        padding: .3rem .45rem;
+        border-bottom: 1px solid var(--cinzaB);
+        vertical-align: middle;
+      }
+      .admin-mini-resumo tbody td.td-num { text-align: right; font-variant-numeric: tabular-nums; }
+      .admin-mini-resumo tbody td.td-status { text-align: center; font-size: 1rem; }
+      .admin-mini-resumo tbody tr:last-child td { border-bottom: none; }
+    }
   </style>
 </head>
 <body>
@@ -138,6 +174,24 @@
         <select class="form-control" id="admin-sel-mes" style="max-width:140px"></select>
         <select class="form-control" id="admin-sel-ano" style="max-width:90px"></select>
         <button class="btn btn-outline btn-sm" id="btn-admin-carregar">Carregar</button>
+      </div>
+
+      <!-- Mini-resumo compacto (visível apenas em mobile) -->
+      <div class="card admin-mini-resumo" id="admin-mini-resumo">
+        <div class="card-title">📋 Visão Geral</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Fiscal</th>
+              <th class="th-num">Env.</th>
+              <th class="th-num">Hom.</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tbody-admin-mini">
+            <tr class="empty-row"><td colspan="4">—</td></tr>
+          </tbody>
+        </table>
       </div>
 
       <div class="card">
@@ -301,11 +355,19 @@
   }
 
   // ── Admin view ────────────────────────────────────────────
+  function nomeAbrev(nome) {
+    const partes = (nome || '').trim().split(/\s+/).filter(Boolean);
+    if (partes.length < 2) return partes[0] || nome || '';
+    return partes[0] + ' ' + partes[partes.length - 1][0] + '.';
+  }
+
   async function loadAdmin() {
     const mes = Number(document.getElementById('admin-sel-mes').value);
     const ano = Number(document.getElementById('admin-sel-ano').value);
-    const tbody = document.getElementById('tbody-admin');
+    const tbody    = document.getElementById('tbody-admin');
+    const tbodyMini = document.getElementById('tbody-admin-mini');
     tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="spinner"></div></td></tr>';
+    tbodyMini.innerHTML = '<tr class="empty-row"><td colspan="4"><div class="spinner"></div></td></tr>';
 
     try {
       const [fiscais, todosManuais] = await Promise.all([
@@ -315,6 +377,7 @@
 
       if (!fiscais.length) {
         tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Nenhum fiscal cadastrado</td></tr>';
+        tbodyMini.innerHTML = '<tr class="empty-row"><td colspan="4">Nenhum fiscal cadastrado</td></tr>';
         return;
       }
 
@@ -338,8 +401,26 @@
           </td>
         </tr>`;
       }).join('');
+
+      tbodyMini.innerHTML = fiscais.map(f => {
+        const manuais   = todosManuais.filter(m => m.fiscal_email === f.email || m.fiscal_email === f.id);
+        const result    = calcular([], manuais, 0);
+        const ptosReq   = manuais
+          .filter(m => m.status === 'enviado')
+          .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
+        const temRecusado  = manuais.some(m => m.status === 'recusado');
+        const temPendente  = manuais.some(m => m.status === 'enviado' || m.status === 'pendente');
+        const statusIcon   = temRecusado ? '⚠️' : temPendente ? '⏳' : manuais.length ? '✅' : '—';
+        return `<tr>
+          <td>${escHtml(nomeAbrev(f.nome || f.id))}</td>
+          <td class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>
+          <td class="td-num ${result.apuracao > 0 ? 'text-verde fw-bold' : ''}">${result.apuracao > 0 ? result.apuracao : '—'}</td>
+          <td class="td-status">${statusIcon}</td>
+        </tr>`;
+      }).join('');
     } catch (e) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${alerta('danger','Erro: ' + e.message)}</td></tr>`;
+      tbodyMini.innerHTML = `<tr class="empty-row"><td colspan="4">Erro</td></tr>`;
     }
   }
 
