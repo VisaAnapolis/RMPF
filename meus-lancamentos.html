@@ -281,9 +281,11 @@
     document.getElementById('alert-area').innerHTML = '';
 
     try {
-      [_manuais, _fechamento] = await Promise.all([
-        db_getManuais(_user.email, mes, ano),
-        db_getFechamento(_user.email, mes, ano),
+      const _timeout = new Promise((_, rej) =>
+        setTimeout(() => rej(new Error('Tempo limite esgotado. Verifique sua conexão e clique em Carregar para tentar novamente.')), 15000));
+      [_manuais, _fechamento] = await Promise.race([
+        Promise.all([db_getManuais(_user.email, mes, ano), db_getFechamento(_user.email, mes, ano)]),
+        _timeout,
       ]);
       renderTabela();
     } catch(e) {
@@ -628,7 +630,15 @@
 
     buildMesSelect(); buildAnoSelect();
     let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
-    try { ({ mes: _um, ano: _ua } = await db_getProximaCompetencia(user.email)); }
+
+    // Registra btn-carregar ANTES de qualquer await para garantir que
+    // funcione mesmo se getProximaCompetencia demorar ou travar.
+    document.getElementById('btn-carregar').addEventListener('click', loadManuais);
+
+    try {
+      const _toCmp = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000));
+      ({ mes: _um, ano: _ua } = await Promise.race([db_getProximaCompetencia(user.email), _toCmp]));
+    }
     catch (e) { console.warn('[MeusLancamentos] Falha ao obter próxima competência:', e); }
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
@@ -766,7 +776,6 @@
       }
     });
 
-    document.getElementById('btn-carregar').addEventListener('click', loadManuais);
     document.getElementById('btn-nova-atividade').addEventListener('click', async () => {
       const mes = Number(document.getElementById('sel-mes').value);
       const ano = Number(document.getElementById('sel-ano').value);
