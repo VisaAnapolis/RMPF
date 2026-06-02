@@ -18,6 +18,12 @@ jobs:
       - name: Checkout (para ler firestore.indexes.json)
         uses: actions/checkout@v4
 
+      - name: Debug - conta de serviço
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          echo "$FIREBASE_SA_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print('client_email:', d['client_email'])"
+
       - name: Criar índices via Firestore Management API
         env:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
