@@ -270,7 +270,9 @@
     tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="spinner"></div></td></tr>';
 
     try {
-      _manuais = (await db_getManuais(fiscalEmail, mes, ano)).filter(m => m.status !== 'rascunho');
+      const _timeout = new Promise((_, rej) =>
+        setTimeout(() => rej(new Error('Tempo limite esgotado. Verifique sua conexão e clique em Carregar para tentar novamente.')), 15000));
+      _manuais = (await Promise.race([db_getManuais(fiscalEmail, mes, ano), _timeout])).filter(m => m.status !== 'rascunho');
       const result = calcular([], _manuais, 0);
       document.getElementById('m-pp').textContent   = result.pp;
       document.getElementById('m-pn').textContent   = result.pn;
@@ -729,9 +731,22 @@
 
     buildMesSelect('sel-mes');
     buildAnoSelect('sel-ano');
+
+    // Registra os botões fixos ANTES de qualquer await para garantir que
+    // funcionem mesmo se getProximaCompetencia demorar ou travar.
+    document.getElementById('btn-carregar').addEventListener('click', loadConferencia);
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+    });
+    document.getElementById('hamburger').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('open');
+    });
+
     let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
-    try { ({ mes: _um, ano: _ua } = await db_getProximaCompetencia()); }
-    catch (e) { console.warn('[Conferencia] Falha ao obter próxima competência:', e); }
+    try {
+      const _toCmp = new Promise((_, rej) => setTimeout(() => rej(new Error('Tempo limite esgotado ao obter próxima competência. Verifique sua conexão.')), 8000));
+      ({ mes: _um, ano: _ua } = await Promise.race([db_getProximaCompetencia(), _toCmp]));
+    } catch (e) { console.warn('[Conferencia] Falha ao obter próxima competência:', e); }
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
     atualizarBtnImportConf();
@@ -742,14 +757,6 @@
     if (params.get('mes'))    document.getElementById('sel-mes').value    = params.get('mes');
     if (params.get('ano'))    document.getElementById('sel-ano').value    = params.get('ano');
     if (params.get('fiscal')) loadConferencia();
-
-    document.getElementById('btn-carregar').addEventListener('click', loadConferencia);
-    document.getElementById('btn-logout').addEventListener('click', () => {
-      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
-    });
-    document.getElementById('hamburger').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
-    });
   });
 </script>
 </body>
