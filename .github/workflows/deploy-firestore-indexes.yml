@@ -21,14 +21,15 @@ jobs:
       - name: Criar índices via Firestore Management API
         env:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          PROJECT_ID: visam-3a30b
         run: |
-          pip install google-auth --quiet
+          pip install "google-auth>=2,<3" --quiet
           python3 - <<'EOF'
           import json, os, sys, urllib.request, urllib.error, time
           import google.oauth2.service_account
           import google.auth.transport.requests
 
-          PROJECT_ID = 'visam-3a30b'
+          PROJECT_ID = os.environ['PROJECT_ID']
           BASE_URL   = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)'
 
           # ── Autenticação ──────────────────────────────────────────────
