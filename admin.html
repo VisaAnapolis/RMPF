@@ -826,8 +826,9 @@
 
     // Mapeamento de identificador lógico → arquivo de workflow
     const WORKFLOW_FILES = {
-      'monthly-email-summary': 'notify-monthly-email.yml',
-      'monthly-push-summary':  'notify-monthly-summary.yml',
+      'monthly-email-summary':    'notify-monthly-email.yml',
+      'monthly-push-summary':     'notify-monthly-summary.yml',
+      'deploy-firestore-indexes': 'deploy-firestore-indexes.yml',
     };
 
     async function dispatchWorkflow(workflowId, btn, label) {
@@ -904,7 +905,7 @@
       logEl.innerHTML = alerta('info', '⏳ Disparando workflow de criação de índices…');
       try {
         const resp = await fetch(
-          `https://api.github.com/repos/${WORKFLOW_REPO}/actions/workflows/deploy-firestore-indexes.yml/dispatches`,
+          `https://api.github.com/repos/${WORKFLOW_REPO}/actions/workflows/${WORKFLOW_FILES['deploy-firestore-indexes']}/dispatches`,
           {
             method: 'POST',
             headers: {
