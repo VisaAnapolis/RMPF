@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.8.3</span>
+            <span class="badge-date">02/06/2026</span>
+          </div>
+          <div class="changelog-title">Estabilização pós-fechamento: login mobile, carregamento de tabelas, painéis administrativos e workflows</div>
+          <ul class="changelog-changes">
+            <li><strong>Login e sessão mobile estabilizados</strong> — retorno ao <code>signInWithPopup</code>, melhorias de performance no login e correções de persistência/autenticação para eliminar falhas silenciosas de carregamento em <code>meus-lancamentos</code>, <code>ocorrencias</code> e <code>conferencia</code> (PRs #155, #156, #158).</li>
+            <li><strong>Carregamento de lançamentos protegido contra travamento indefinido</strong> — tratamento para evitar hang infinito em consultas de tabelas de lançamentos em rede instável (PR #161).</li>
+            <li><strong>Fluxo administrativo e índices Firestore aprimorados</strong> — deploy de índices compostos pelo painel Admin, ajustes de gatilhos para execução manual de workflows e passo de diagnóstico no deploy de índices (PRs #157, #159, #160).</li>
+            <li><strong>Regras de negócio e relatórios corrigidos</strong> — teto de 24 pontos em dias com ocorrência aceita, PDF de fechamento filtrando corretamente por fiscal/ocorrências aceitas e ordenação da tabela de atividades por data (PRs #153, #154, #150).</li>
+            <li><strong>Painel administrativo mobile refinado</strong> — mini-resumo para fiscais em dispositivos móveis e destaque visual para fiscais com apuração abaixo de R$200 (PRs #151, #152).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.8.1</span>
             <span class="badge-date">31/05/2026</span>
           </div>
