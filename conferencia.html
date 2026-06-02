@@ -484,7 +484,12 @@
       // Hide actions column
       document.getElementById('th-acoes').style.display = 'none';
     } else {
-      await loadFiscais();
+      try {
+        await loadFiscais();
+      } catch (e) {
+        console.warn('[Conferencia] Falha ao carregar fiscais:', e);
+        document.getElementById('alert-area').innerHTML = alerta('warn', 'Não foi possível carregar a lista de fiscais. Recarregue a página.');
+      }
     }
 
     // ── Importação VISA e SIM (Administrador) ───────────
@@ -724,7 +729,9 @@
 
     buildMesSelect('sel-mes');
     buildAnoSelect('sel-ano');
-    const { mes: _um, ano: _ua } = await db_getProximaCompetencia();
+    let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
+    try { ({ mes: _um, ano: _ua } = await db_getProximaCompetencia()); }
+    catch (e) { console.warn('[Conferencia] Falha ao obter próxima competência:', e); }
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
     atualizarBtnImportConf();

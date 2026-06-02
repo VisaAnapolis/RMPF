@@ -188,8 +188,23 @@
     }
 
     // ── Inicialização da página ───────────────────────────────────────────────
-    // Sempre cancela sessão existente para exigir autenticação explícita.
-    firebase.auth().signOut().catch(() => {}).finally(() => {
+    // Se o usuário já estiver autenticado (ex.: PWA no celular ou sessão ativa),
+    // redireciona diretamente para o dashboard sem exigir nova autenticação.
+    // A sessão só é encerrada explicitamente pelo botão "Sair" nas páginas internas.
+    firebase.auth().onAuthStateChanged(async user => {
+      if (user && !window.__rmpfVersionReloading) {
+        try {
+          const snap = await firebase.firestore().collection('usuarios').doc(user.email).get();
+          if (snap.exists && (snap.data().status || '').toLowerCase() !== 'inativo') {
+            window.location.href = 'dashboard.html';
+            return;
+          }
+        } catch (e) {
+          console.warn('[Login] Falha ao verificar usuário:', e);
+        }
+        // Usuário não cadastrado ou inativo — encerra sessão e exibe formulário
+        await firebase.auth().signOut().catch(() => {});
+      }
       overlay.style.display = 'none';
       loginPage.style.display = 'flex';
     });

@@ -4,8 +4,13 @@
 
 (function () {
   let _idleTimer = null;
-  // Idle timeout in milliseconds — override window.IDLE_TIMEOUT_MS before loading guard.js if needed
-  const IDLE_MS = (typeof window.IDLE_TIMEOUT_MS === 'number') ? window.IDLE_TIMEOUT_MS : 30 * 60 * 1000;
+  // Dispositivos móveis são pessoais (não compartilhados): usa timeout maior (8h).
+  // Desktops compartilhados mantêm 30 min. Override via window.IDLE_TIMEOUT_MS.
+  const _isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+    || window.matchMedia('(pointer: coarse)').matches;
+  const IDLE_MS = (typeof window.IDLE_TIMEOUT_MS === 'number')
+    ? window.IDLE_TIMEOUT_MS
+    : (_isMobile ? 8 * 60 * 60 * 1000 : 30 * 60 * 1000);
 
   function resetIdle() {
     clearTimeout(_idleTimer);

@@ -438,7 +438,9 @@
 
     buildSels('sel-mes','sel-ano');
     const _emailParaUm = user.grupo === 'Fiscal' ? user.email : null;
-    const { mes: _um, ano: _ua } = await db_getProximaCompetencia(_emailParaUm);
+    let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
+    try { ({ mes: _um, ano: _ua } = await db_getProximaCompetencia(_emailParaUm)); }
+    catch (e) { console.warn('[Ocorrencias] Falha ao obter próxima competência:', e); }
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
 
@@ -452,13 +454,18 @@
       // Administrador: show fiscal filter and actions
       document.getElementById('sel-fiscal').style.display = '';
       document.getElementById('th-fiscal-col').style.display = '';
-      const fiscais = await db_getTodosFiscais();
-      const selF = document.getElementById('sel-fiscal');
-      fiscais.forEach(f => {
-        const o = document.createElement('option');
-        o.value = f.email||f.id; o.textContent = f.nome||f.id;
-        selF.appendChild(o);
-      });
+      try {
+        const fiscais = await db_getTodosFiscais();
+        const selF = document.getElementById('sel-fiscal');
+        fiscais.forEach(f => {
+          const o = document.createElement('option');
+          o.value = f.email||f.id; o.textContent = f.nome||f.id;
+          selF.appendChild(o);
+        });
+      } catch (e) {
+        console.warn('[Ocorrencias] Falha ao carregar fiscais:', e);
+        document.getElementById('alert-area').innerHTML = alerta('warn', 'Não foi possível carregar a lista de fiscais. Recarregue a página.');
+      }
     }
 
     loadOcorrencias();
