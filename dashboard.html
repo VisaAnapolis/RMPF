@@ -457,8 +457,8 @@
       catch (e) { console.warn('[Dashboard] Falha ao obter próxima competência:', e); }
       document.getElementById('sel-mes').value = _um;
       document.getElementById('sel-ano').value = _ua;
-      // Show persistent banner if there are any refused records (across all competências)
-      db_getManuaisRecusados(user.email).then(recusados => {
+      // Show persistent banner if there are any refused records for the open competência
+      db_getManuaisRecusados(user.email, _um, _ua).then(recusados => {
         if (recusados.length > 0) {
           document.getElementById('alert-recusados').innerHTML = alerta('danger',
             `Você tem <strong>${recusados.length}</strong> lançamento(s) recusado(s). <a href="meus-lancamentos.html">Ver lançamentos</a>`);

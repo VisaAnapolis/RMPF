@@ -423,13 +423,15 @@
 
     try {
       const fiscais = await db_getTodosFiscais();
+      const fechamentosMes = await db_getFechamentosMes(mes, ano);
+      const fechamentosByEmail = new Map(fechamentosMes.map(f => [f.fiscal_email, f]));
       let reabertos = 0, ignorados = 0;
       const erros = [];
 
       for (const fiscal of fiscais) {
         const email = fiscal.email || fiscal.id;
         try {
-          const fechamento = await db_getFechamento(email, mes, ano);
+          const fechamento = fechamentosByEmail.get(email);
           if (!fechamento) { ignorados++; continue; }
 
           const posteriores = await db_getFechamentosPosterioresFiscal(email, mes, ano);
@@ -485,6 +487,8 @@
 
     try {
       const fiscais = await db_getTodosFiscais();
+      const fechamentosMes = await db_getFechamentosMes(mes, ano);
+      const fechamentosByEmail = new Map(fechamentosMes.map(f => [f.fiscal_email, f]));
       let fechados = 0;
       let ignorados = 0;
       const erros = [];
@@ -492,7 +496,7 @@
       for (const fiscal of fiscais) {
         const email = fiscal.email || fiscal.id;
         try {
-          const jaFechado = await db_getFechamento(email, mes, ano);
+          const jaFechado = fechamentosByEmail.has(email);
           if (jaFechado) { ignorados++; continue; }
 
           const manuais = await db_getManuais(email, mes, ano);

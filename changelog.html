@@ -44,7 +44,18 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
-            <span class="badge-version">v1.8.3</span>
+            <span class="badge-version">v1.8.4</span>
+            <span class="badge-date">02/06/2026</span>
+          </div>
+          <div class="changelog-title">Otimização de leituras no Firestore — consultas mensais e loops de fechamento</div>
+          <ul class="changelog-changes">
+            <li><strong>Alerta de lançamentos recusados limitado ao mês aberto</strong> — <code>getManuaisRecusados</code> agora filtra por <code>mes/ano</code> da competência vigente usando o índice composto existente <code>(fiscal_email, mes, ano)</code>, eliminando a consulta irrestrita sobre todo o histórico.</li>
+            <li><strong>Fechamentos posteriores consultados com filtro de ano</strong> — <code>getFechamentosPosterioresFiscal</code> passa a aplicar <code>where('ano', '&gt;=', ano)</code> no Firestore antes de filtrar client-side, descartando registros de anos anteriores antes da transmissão.</li>
+            <li><strong>Fechamento e reabertura em massa otimizados</strong> — <code>fecharTodosOsFiscais</code> e <code>reabrirTodosOsFiscais</code> em <code>fechamento.html</code> agora pré-carregam todos os fechamentos do mês em uma única query (<code>getFechamentosMes</code>) antes do loop por fiscal, substituindo N round-trips ao Firestore por 1.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
             <span class="badge-date">02/06/2026</span>
           </div>
           <div class="changelog-title">Estabilização pós-fechamento: login mobile, carregamento de tabelas, painéis administrativos e workflows</div>
