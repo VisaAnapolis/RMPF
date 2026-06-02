@@ -1,0 +1,71 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "manuais",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fiscal_email", "order": "ASCENDING" },
+        { "fieldPath": "mes",          "order": "ASCENDING" },
+        { "fieldPath": "ano",          "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "manuais",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mes", "order": "ASCENDING" },
+        { "fieldPath": "ano", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "manuais",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fiscal_email", "order": "ASCENDING" },
+        { "fieldPath": "status",       "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "manuais",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "anexo_bytes", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ocorrencias",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fiscal_email", "order": "ASCENDING" },
+        { "fieldPath": "mes",          "order": "ASCENDING" },
+        { "fieldPath": "ano",          "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "ocorrencias",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mes", "order": "ASCENDING" },
+        { "fieldPath": "ano", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "fechamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fiscal_email", "order": "ASCENDING" },
+        { "fieldPath": "ano",          "order": "DESCENDING" },
+        { "fieldPath": "mes",          "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "fechamentos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "mes", "order": "ASCENDING" },
+        { "fieldPath": "ano", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
