@@ -185,6 +185,22 @@
       <div id="github-token-log" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── Índices do Firestore ── -->
+    <div class="card" id="card-firestore-indexes">
+      <div class="card-title">🗄️ Índices Compostos do Firestore</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Cria ou atualiza todos os índices compostos definidos em
+        <code>firestore.indexes.json</code>. Índices já existentes são ignorados.
+        A operação pode levar alguns minutos no Firebase para ficar ativa.
+      </p>
+      <div class="btn-group">
+        <button class="btn btn-outline" id="btn-deploy-indexes" type="button">
+          ⚡ Criar / Atualizar Índices
+        </button>
+      </div>
+      <div id="deploy-indexes-log" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── Notificações Manuais (Workflows) ── -->
     <div class="card" id="card-workflows-notificacao">
       <div class="card-title">📣 Disparo Manual de Notificações</div>
@@ -861,6 +877,52 @@
     document.getElementById('btn-run-monthly-push').addEventListener('click', async () => {
       const btn = document.getElementById('btn-run-monthly-push');
       await dispatchWorkflow('monthly-push-summary', btn, 'Resumo Mensal Push');
+    });
+
+    // ── Deploy Firestore Indexes ──────────────────────────
+    document.getElementById('btn-deploy-indexes').addEventListener('click', async () => {
+      const btn   = document.getElementById('btn-deploy-indexes');
+      const logEl = document.getElementById('deploy-indexes-log');
+      const ghToken = await window.db_getGitHubToken();
+      if (!ghToken) {
+        logEl.innerHTML = alerta('warn', '⚠️ Configure o token do GitHub antes de rodar os workflows.');
+        return;
+      }
+      btn.disabled = true;
+      logEl.innerHTML = alerta('info', '⏳ Disparando workflow de criação de índices…');
+      try {
+        const resp = await fetch(
+          `https://api.github.com/repos/${WORKFLOW_REPO}/dispatches`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer ' + ghToken,
+              'Accept': 'application/vnd.github+json',
+              'X-GitHub-Api-Version': '2022-11-28',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ event_type: 'deploy-firestore-indexes' }),
+          }
+        );
+        if (!resp.ok && resp.status !== 204) {
+          const msg = await resp.text();
+          if (resp.status === 403 || resp.status === 401) {
+            throw new Error(
+              `HTTP ${resp.status} — Token sem permissão. Gere um PAT Fine-Grained com garrado/RMPF → Actions → Read and write.`
+            );
+          }
+          throw new Error(`HTTP ${resp.status}${msg ? ` — ${msg}` : ''}`);
+        }
+        logEl.innerHTML = alerta('ok',
+          '✅ Workflow disparado! Acompanhe o progresso em ' +
+          '<a href="https://github.com/garrado/RMPF/actions" target="_blank" rel="noopener">GitHub Actions</a>. ' +
+          'Os índices ficam ativos em alguns minutos após a conclusão.'
+        );
+      } catch (e) {
+        logEl.innerHTML = alerta('danger', '🚨 Erro: ' + escHtml(e.message));
+      } finally {
+        btn.disabled = false;
+      }
     });
 
     // ── Seed CNAE ────────────────────────────────────────
