@@ -821,14 +821,26 @@
     });
 
     // ── Disparo manual de workflows de notificação ─────────
-    // Usa repository_dispatch (requer apenas escopo "repo" no PAT).
+    // Usa workflow_dispatch (requer Actions → Read and write no PAT Fine-Grained).
     const WORKFLOW_REPO = 'garrado/RMPF';
 
-    async function dispatchWorkflow(eventType, btn, label) {
+    // Mapeamento de identificador lógico → arquivo de workflow
+    const WORKFLOW_FILES = {
+      'monthly-email-summary': 'notify-monthly-email.yml',
+      'monthly-push-summary':  'notify-monthly-summary.yml',
+    };
+
+    async function dispatchWorkflow(workflowId, btn, label) {
       const logEl = document.getElementById('workflow-notify-log');
       const ghToken = await window.db_getGitHubToken();
       if (!ghToken) {
         logEl.innerHTML = alerta('warn', '⚠️ Configure o token do GitHub antes de rodar os workflows.');
+        return;
+      }
+
+      const workflowFile = WORKFLOW_FILES[workflowId];
+      if (!workflowFile) {
+        logEl.innerHTML = alerta('danger', `🚨 Workflow desconhecido: ${escHtml(workflowId)}`);
         return;
       }
 
@@ -837,7 +849,7 @@
 
       try {
         const resp = await fetch(
-          `https://api.github.com/repos/${WORKFLOW_REPO}/dispatches`,
+          `https://api.github.com/repos/${WORKFLOW_REPO}/actions/workflows/${workflowFile}/dispatches`,
           {
             method: 'POST',
             headers: {
@@ -846,7 +858,7 @@
               'X-GitHub-Api-Version': '2022-11-28',
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ event_type: eventType }),
+            body: JSON.stringify({ ref: 'main' }),
           }
         );
 
@@ -892,7 +904,7 @@
       logEl.innerHTML = alerta('info', '⏳ Disparando workflow de criação de índices…');
       try {
         const resp = await fetch(
-          `https://api.github.com/repos/${WORKFLOW_REPO}/dispatches`,
+          `https://api.github.com/repos/${WORKFLOW_REPO}/actions/workflows/deploy-firestore-indexes.yml/dispatches`,
           {
             method: 'POST',
             headers: {
@@ -901,7 +913,7 @@
               'X-GitHub-Api-Version': '2022-11-28',
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ event_type: 'deploy-firestore-indexes' }),
+            body: JSON.stringify({ ref: 'main' }),
           }
         );
         if (!resp.ok && resp.status !== 204) {
