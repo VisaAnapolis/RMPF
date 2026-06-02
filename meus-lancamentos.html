@@ -636,7 +636,7 @@
     document.getElementById('btn-carregar').addEventListener('click', loadManuais);
 
     try {
-      const _toCmp = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000));
+      const _toCmp = new Promise((_, rej) => setTimeout(() => rej(new Error('Tempo limite esgotado ao obter próxima competência. Verifique sua conexão.')), 8000));
       ({ mes: _um, ano: _ua } = await Promise.race([db_getProximaCompetencia(user.email), _toCmp]));
     }
     catch (e) { console.warn('[MeusLancamentos] Falha ao obter próxima competência:', e); }
