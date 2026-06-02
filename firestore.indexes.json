@@ -26,13 +26,6 @@
       ]
     },
     {
-      "collectionGroup": "manuais",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "anexo_bytes", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "ocorrencias",
       "queryScope": "COLLECTION",
       "fields": [
