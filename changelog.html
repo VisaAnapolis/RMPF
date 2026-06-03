@@ -44,6 +44,23 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.8.6</span>
+            <span class="badge-date">03/06/2026</span>
+          </div>
+          <div class="changelog-title">Correções de ocorrências, dashboard e conferência — cache de competência aberta</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: pré-seleção de fiscal em Conferência a partir do Dashboard</strong> — O parâmetro <code>?fiscal=</code> na URL agora é aplicado imediatamente após <code>loadFiscais()</code>, eliminando o delay de até 8 s que deixava o seletor vazio ao navegar pelo botão "Conferir" do dashboard (PR #170).</li>
+            <li><strong>Dashboard — coluna PV adicionada à tabela "Visão Geral"</strong> — A tabela compacta do mini-resumo exibe agora <code>Fiscal | Env. | PV | Hom. | Status</code>, com colspan dos placeholders ajustado para 5 colunas (PR #169).</li>
+            <li><strong>Correção: ocorrências exibidas como rascunho e pontos homologados zerados</strong> — Adicionada entrada <code>homologado</code> ao mapeamento de badges em <code>js/utils.js</code>; campo <code>pontos_homologado</code> incluído ao revisar como "aceito" em <code>ocorrencias.html</code> e <code>admin.html</code>. Botão "Rever" liberado para manuais com status <code>homologado</code> em <code>conferencia.html</code> (PR #168).</li>
+            <li><strong>Painel Admin — card "Competência Ativa" explícito</strong> — Novo card lê <code>app_config/competencia_aberta</code> e expõe seletor de mês/ano com botão "Definir Competência Ativa", eliminando a inferência indireta pelo histórico de fechamentos. Fechamento/reabertura individual não invalida mais o cache global; somente operações em lote o fazem (PR #168).</li>
+            <li><strong>Correção: ocorrências de períodos anteriores ausentes nas visões de competência</strong> — <code>getOcorrencias</code> e <code>getOcorrenciasTodas</code> disparam agora 7 queries paralelas cobrindo os 6 meses anteriores e mesclam apenas as ocorrências cuja <code>data_fim</code> alcança o período consultado, corrigindo ausências na lista, no relatório de fechamento e no recálculo Admin (PR #165).</li>
+            <li><strong>Cache de competência aberta para eliminar scan completo de fechamentos</strong> — Introduz documento <code>app_config/competencia_aberta</code> (<code>{ mes, ano, last_updated }</code>) como atalho em <code>getProximaCompetencia()</code>. Operações em lote gravam/removem o cache; a varredura completa funciona como fallback quando o cache está ausente (PR #166).</li>
+            <li><strong>Correção: timeout e tratamento de erro em <code>getProximaCompetencia</code></strong> — <code>lancamento.html</code> e <code>fechamento.html</code> passam a usar <code>Promise.race</code> com timeout de 8 s e <code>try/catch</code> com fallback para o mês atual, igualando o padrão já adotado nas demais páginas (PR #164).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.8.5</span>
             <span class="badge-date">03/06/2026</span>
           </div>
