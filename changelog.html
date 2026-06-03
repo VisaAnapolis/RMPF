@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.8.5</span>
+            <span class="badge-date">03/06/2026</span>
+          </div>
+          <div class="changelog-title">Fechamento em lote movido para Admin — correções de bugs</div>
+          <ul class="changelog-changes">
+            <li><strong>Botões de fechamento/reabertura em lote movidos para Admin</strong> — Os botões "Fechar para Todos os Fiscais" e "Reabrir para Todos os Fiscais" agora ficam na página <code>admin.html</code> com seletor de competência próprio, eliminando a necessidade de selecionar um fiscal para executar operações em lote.</li>
+            <li><strong>Correção: dashboard Admin exibindo mês anterior após fechamento geral</strong> — A detecção da próxima competência aberta agora considera também fiscais que nunca tiveram um mês fechado, garantindo que o mês exibido avance corretamente após o fechamento em lote.</li>
+            <li><strong>Correção: reabertura em lote simplificada</strong> — A reabertura em lote no Admin não verifica mais meses posteriores individualmente, permitindo ao administrador reabrir qualquer competência de forma direta.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.8.4</span>
             <span class="badge-date">02/06/2026</span>
           </div>
