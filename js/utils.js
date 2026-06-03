@@ -61,6 +61,7 @@ function nomeCurto(nome) {
 function badge(type) {
   const map = {
     aceito:   ['badge-aceito',   'Aceito'],
+    homologado: ['badge-aceito', 'Homologado'],
     enviado:  ['badge-enviado',  'Enviado'],
     rascunho: ['badge-rascunho', 'Rascunho'],
     recusado: ['badge-recusado', 'Recusado'],

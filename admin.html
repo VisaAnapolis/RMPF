@@ -155,6 +155,28 @@
       </div>
     </div>
 
+    <!-- ── Competência Ativa ── -->
+    <div class="card" id="card-competencia-ativa">
+      <div class="card-title">📅 Competência Ativa</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Define o mês/ano exibido por padrão nas telas de Dashboard, Conferência e Ocorrências.
+        Use este controle para corrigir manualmente quando necessário.
+      </p>
+      <div id="comp-ativa-info" style="margin-bottom:12px;font-size:.9rem"></div>
+      <div class="form-row cols-2" style="max-width:320px;margin-bottom:14px">
+        <div class="form-group">
+          <label class="form-label" for="comp-ativa-mes">Mês</label>
+          <select class="form-control" id="comp-ativa-mes"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="comp-ativa-ano">Ano</label>
+          <select class="form-control" id="comp-ativa-ano"></select>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btn-definir-comp-ativa" type="button">✅ Definir Competência Ativa</button>
+      <div id="comp-ativa-log" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── Fechamento / Reabertura Mensal em Lote ── -->
     <div class="card" id="card-fechamento-lote">
       <div class="card-title">🔒 Fechamento / Reabertura Mensal</div>
@@ -311,8 +333,8 @@
       <div class="card-title">📌 Converter Ocorrências Aceitas em Pontos</div>
       <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
         Processa todas as ocorrências <strong>já aceitas</strong> do mês/ano selecionado e gera
-        <strong>50 pontos por dia</strong> para cada fiscal. Use este script para migrar ocorrências
-        que foram aceitas antes desta funcionalidade ser implantada.
+        <strong>50 pontos por dia</strong> para cada fiscal. Use este recurso sempre que uma
+        ocorrência aceita precisar gerar (ou regenerar) seus pontos na competência.
       </p>
 
       <!-- Aviso redundante -->
@@ -844,6 +866,61 @@
       }
     });
 
+    // ── Competência Ativa ─────────────────────────────────
+    (function() {
+      const selM = document.getElementById('comp-ativa-mes');
+      const selA = document.getElementById('comp-ativa-ano');
+      const infoEl = document.getElementById('comp-ativa-info');
+      const logEl = document.getElementById('comp-ativa-log');
+      if (!selM || !selA) return;
+
+      (window.MESES || []).forEach((m, i) => {
+        const o = document.createElement('option');
+        o.value = i + 1; o.textContent = m;
+        selM.appendChild(o);
+      });
+      const yy = new Date().getFullYear();
+      for (let i = yy - 1; i <= yy + 1; i++) {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = i;
+        if (i === yy) o.selected = true;
+        selA.appendChild(o);
+      }
+
+      // Carregar competência atual
+      (async () => {
+        try {
+          const comp = await db_getCompetenciaAberta();
+          if (comp) {
+            selM.value = comp.mes;
+            selA.value = comp.ano;
+            infoEl.innerHTML = alerta('info', `Competência ativa atual: <strong>${(window.MESES||[])[comp.mes-1]}/${comp.ano}</strong>`);
+          } else {
+            infoEl.innerHTML = alerta('warn', 'Nenhuma competência ativa definida. Use os seletores para definir uma.');
+          }
+        } catch(e) {
+          infoEl.innerHTML = alerta('warn', 'Não foi possível obter a competência ativa.');
+        }
+      })();
+
+      document.getElementById('btn-definir-comp-ativa').addEventListener('click', async () => {
+        const mes = Number(selM.value);
+        const ano = Number(selA.value);
+        const btn = document.getElementById('btn-definir-comp-ativa');
+        btn.disabled = true;
+        try {
+          await db_setCompetenciaAberta(mes, ano);
+          const label = `${(window.MESES||[])[mes-1]}/${ano}`;
+          infoEl.innerHTML = alerta('info', `Competência ativa atual: <strong>${label}</strong>`);
+          logEl.innerHTML = alerta('ok', `✅ Competência ativa definida para <strong>${label}</strong>.`);
+        } catch(e) {
+          logEl.innerHTML = alerta('danger', '🚨 Erro ao definir: ' + escHtml(e.message));
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
+
     // ── Fechamento / Reabertura em Lote ──────────────────
     (function() {
       const selM = document.getElementById('fech-lote-mes');
@@ -928,11 +1005,9 @@
           if (erros.length) msg += `<br>⚠️ Erros: ${erros.map(e => escHtml(e)).join('; ')}`;
 
           // Atualizar cache de competência aberta (próximo mês)
-          if (fechados > 0) {
-            let nextMes = mes + 1, nextAno = ano;
-            if (nextMes > 12) { nextMes = 1; nextAno++; }
-            await db_setCompetenciaAberta(nextMes, nextAno).catch(err => console.error('[cache] setCompetenciaAberta:', err));
-          }
+          let nextMes = mes + 1, nextAno = ano;
+          if (nextMes > 12) { nextMes = 1; nextAno++; }
+          await db_setCompetenciaAberta(nextMes, nextAno).catch(err => console.error('[cache] setCompetenciaAberta:', err));
 
           logEl.innerHTML = alerta(erros.length ? 'warn' : 'ok', msg);
         } catch (e) {
@@ -986,9 +1061,9 @@
           if (ignorados) msg += ` ${ignorados} não tinham fechamento (ignorados).`;
           if (erros.length) msg += `<br>⚠️ Erros: ${erros.map(e => escHtml(e)).join('; ')}`;
 
-          // Invalidar cache para que seja recalculado
+          // Atualizar cache de competência aberta para o mês reaberto
           if (reabertos > 0) {
-            await db_deleteCompetenciaAberta().catch(err => console.error('[cache] deleteCompetenciaAberta:', err));
+            await db_setCompetenciaAberta(mes, ano).catch(err => console.error('[cache] setCompetenciaAberta:', err));
           }
 
           logEl.innerHTML = alerta(erros.length ? 'warn' : 'ok', msg);
@@ -1180,19 +1255,19 @@
 
         const ok1 = confirm(
           `⚠️ ATENÇÃO\n\n` +
-          `Você está prestes a converter as ocorrências aceitas de ${nomeMes}/${ano} em pontos e fechar a competência dos fiscais processados.\n` +
-          `Para cada dia coberto, TODOS os lançamentos existentes serão apagados e substituídos por 50 pontos.\n\n` +
+          `Você está prestes a converter as ocorrências aceitas de ${nomeMes}/${ano} em pontos.\n` +
+          `Para cada dia coberto, TODOS os lançamentos existentes serão APAGADOS e substituídos por um novo lançamento de 50 pontos.\n\n` +
           `Esta ação é IRREVERSÍVEL.\n\nDeseja continuar?`
         );
         if (!ok1) return;
 
         const ok2 = confirm(
-          `✅ CONFIRMAÇÃO FINAL\n\nConverter ocorrências aceitas de ${nomeMes}/${ano} e fechar competência dos fiscais processados?\nOs lançamentos dos dias cobertos serão substituídos.`
+          `✅ CONFIRMAÇÃO FINAL\n\nConverter ocorrências aceitas de ${nomeMes}/${ano}?\nOs lançamentos dos dias cobertos serão substituídos.`
         );
         if (!ok2) return;
 
         btn.disabled = true;
-        logEl.innerHTML = alerta('info', `⏳ Processando ocorrências de ${nomeMes}/${ano}, com fechamento da competência por fiscal…`);
+        logEl.innerHTML = alerta('info', `⏳ Processando ocorrências de ${nomeMes}/${ano}…`);
 
         const msgs = [];
         const log = (tipo, msg) => {
@@ -1230,7 +1305,6 @@
           }
 
           let totalDias = 0, totalApagados = 0, totalErrosConversao = 0;
-          let totalFechados = 0, totalIgnorados = 0, totalErrosFechamento = 0;
           const fiscaisProcessados = new Map();
 
           const getFiscalCtx = (email, nome) => {
@@ -1278,6 +1352,7 @@
                   item_pontuacao: null,
                   complexidade:   '—',
                   pontos:         50,
+                  pontos_homologado: 50,
                   descricao:      `Ocorrência: ${TIPO_LABELS_SEED[o.tipo] || o.tipo} — aceita pelo administrador`,
                   obs:            o.obs_admin || null,
                   status:         'homologado',
@@ -1294,58 +1369,12 @@
             }
           }
 
-          const adminNome = (_todosUsuarios.find(u => (u.email || u.id) === _currentUserEmail)?.nome) || _currentUserEmail;
-          for (const [fiscalEmail, fiscalCtx] of fiscaisProcessados) {
-            if (!fiscalCtx.diasGerados) continue;
-            if (fiscalCtx.erros > 0) {
-              log('warn', `⚠️ ${escHtml(fiscalCtx.nome)}: fechamento não executado por erro(s) na conversão (${fiscalCtx.erros}).`);
-              continue;
-            }
-            try {
-              const jaFechado = await window.db_getFechamento(fiscalEmail, mes, ano);
-              if (jaFechado) {
-                totalIgnorados++;
-                log('warn', `⚠️ ${escHtml(fiscalCtx.nome)}: competência ${escHtml(nomeMes)}/${ano} já estava fechada. Fechamento não sobrescrito.`);
-                continue;
-              }
-
-              const manuaisDoFiscal = await window.db_getManuais(fiscalEmail, mes, ano);
-              const CVS_ATIVIDADES = [];
-              const result = window.calcular(CVS_ATIVIDADES, manuaisDoFiscal, 0);
-              const updates = manuaisDoFiscal
-                .filter(m => m.status === 'aceito' || m.status === 'homologado')
-                .map(m => window.db_updateManual(m.id, { status: 'fechado' }));
-              await Promise.all(updates);
-
-              await window.db_saveFechamento(fiscalEmail, mes, ano, {
-                fiscal_nome:      fiscalCtx.nome || fiscalEmail,
-                pn_extra:         0,
-                obs:              '',
-                apuracao:         result.apuracao,
-                pp:               result.pp,
-                pn:               result.pn,
-                pv:               result.pv,
-                pv_lim:           result.pvLim,
-                fechado_por:      _currentUserEmail,
-                fechado_por_nome: adminNome + ' (Migração OCR)',
-              });
-
-              totalFechados++;
-              log('ok', `🔒 ${escHtml(fiscalCtx.nome)}: competência fechada. Apuração: <strong>R$ ${result.apuracao},00</strong>.`);
-            } catch (e) {
-              totalErrosFechamento++;
-              log('danger', `🚨 ${escHtml(fiscalCtx.nome)}: erro ao fechar competência — ${escHtml(e.message)}`);
-            }
-          }
-
-          const totalErros = totalErrosConversao + totalErrosFechamento;
+          const totalErros = totalErrosConversao;
           logEl.innerHTML = msgs.slice(-20).join('') +
             alerta(totalErros ? 'warn' : 'ok',
               `✅ Concluído: <strong>${totalDias}</strong> dia(s) gerado(s), ` +
               `<strong>${totalApagados}</strong> lançamento(s) substituído(s), ` +
-              `<strong>${totalFechados}</strong> competência(s) fechada(s), ` +
-              `<strong>${totalIgnorados}</strong> já fechada(s), ` +
-              `<strong>${totalErros}</strong> erro(s) no total (${totalErrosConversao} na conversão e ${totalErrosFechamento} no fechamento).`
+              `<strong>${totalErros}</strong> erro(s).`
             );
         } catch(e) {
           logEl.innerHTML = alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));

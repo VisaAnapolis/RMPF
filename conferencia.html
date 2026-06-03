@@ -310,7 +310,7 @@
           acoes = `<button class="btn btn-outline btn-sm" onclick="abrirHom('${m.id}')">📝 Homologar</button>`;
         } else if (m.status === 'pendente') {
           acoes = `<button class="btn btn-default btn-sm" onclick="abrirHom('${m.id}')" title="Fiscal3 aguarda autorização">🔔 Autorizar</button>`;
-        } else if (m.status === 'aceito' || m.status === 'recusado') {
+        } else if (m.status === 'aceito' || m.status === 'recusado' || m.status === 'homologado') {
           acoes = `<button class="btn btn-default btn-sm" onclick="abrirHom('${m.id}')">✏️ Rever</button>`;
         }
       }
