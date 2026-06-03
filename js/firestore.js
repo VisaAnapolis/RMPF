@@ -54,23 +54,74 @@ async function deleteManual(id) {
 
 // ── Ocorrências ──────────────────────────────────────────
 
-async function getOcorrencias(fiscalEmail, mes, ano) {
-  const snap = await window.db.collection('ocorrencias')
-    .where('fiscal_email', '==', fiscalEmail)
-    .where('mes', '==', Number(mes))
-    .where('ano', '==', Number(ano))
-    .get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+// Maximum number of prior periods to look back when searching for occurrences
+// that started in a previous month but extend into the queried period.
+// 6 months covers the longest legal absence in the system (maternity leave: up to 180 days).
+const _OCR_MAX_LOOKBACK = 6;
+
+/**
+ * Returns successive previous periods up to `count` steps back.
+ * Used to find occurrences registered in a prior period that span into the
+ * requested period (e.g. a medical certificate starting 15 May and ending 15 June
+ * is stored with mes=5 but must also appear when querying mes=6).
+ */
+function _periodosMesAnterior(mes, ano, count) {
+  const result = [];
+  let m = Number(mes), a = Number(ano);
+  for (let i = 0; i < count; i++) {
+    m--; if (m === 0) { m = 12; a--; }
+    result.push({ mes: m, ano: a });
+  }
+  return result;
+}
+
+/**
+ * Merges two arrays of occurrence documents, deduplicating by id, and keeps
+ * only cross-period docs (from previous periods) whose data_fim reaches into
+ * the requested period (>= first day of mes/ano).
+ * NOTE: data_fim is expected to be stored in ISO date string format (YYYY-MM-DD)
+ * so that lexicographic string comparison works correctly for date ordering.
+ */
+function _mergeOcorrs(current, previous, mes, ano) {
+  const firstDay = `${String(ano).padStart(4, '0')}-${String(mes).padStart(2, '0')}-01`;
+  const seen = new Set(current.map(d => d.id));
+  const extras = previous.filter(d => !seen.has(d.id) && d.data_fim && d.data_fim >= firstDay);
+  return [...current, ...extras]
     .sort((a, b) => (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
 }
 
+async function getOcorrencias(fiscalEmail, mes, ano) {
+  // Collect queries for the requested period plus up to _OCR_MAX_LOOKBACK previous
+  // periods to capture occurrences that span across competency boundaries.
+  const periodos = [{ mes: Number(mes), ano: Number(ano) }, ..._periodosMesAnterior(mes, ano, _OCR_MAX_LOOKBACK)];
+  const snaps = await Promise.all(
+    periodos.map(p =>
+      window.db.collection('ocorrencias')
+        .where('fiscal_email', '==', fiscalEmail)
+        .where('mes', '==', p.mes)
+        .where('ano', '==', p.ano)
+        .get()
+    )
+  );
+  const current  = snaps[0].docs.map(d => ({ id: d.id, ...d.data() }));
+  const previous = snaps.slice(1).flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+  return _mergeOcorrs(current, previous, mes, ano);
+}
+
 async function getOcorrenciasTodas(mes, ano) {
-  const snap = await window.db.collection('ocorrencias')
-    .where('mes', '==', Number(mes))
-    .where('ano', '==', Number(ano))
-    .get();
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (a.created_at?.toMillis?.() || 0) - (b.created_at?.toMillis?.() || 0));
+  // Same cross-period logic without the fiscal_email constraint.
+  const periodos = [{ mes: Number(mes), ano: Number(ano) }, ..._periodosMesAnterior(mes, ano, _OCR_MAX_LOOKBACK)];
+  const snaps = await Promise.all(
+    periodos.map(p =>
+      window.db.collection('ocorrencias')
+        .where('mes', '==', p.mes)
+        .where('ano', '==', p.ano)
+        .get()
+    )
+  );
+  const current  = snaps[0].docs.map(d => ({ id: d.id, ...d.data() }));
+  const previous = snaps.slice(1).flatMap(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+  return _mergeOcorrs(current, previous, mes, ano);
 }
 
 async function createOcorrencia(data) {
