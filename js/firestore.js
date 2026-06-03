@@ -605,7 +605,11 @@ async function getCompetenciaAberta() {
 }
 
 async function setCompetenciaAberta(mes, ano) {
-  await window.db.collection('app_config').doc('competencia_aberta').set({ mes: Number(mes), ano: Number(ano) });
+  await window.db.collection('app_config').doc('competencia_aberta').set({
+    mes: Number(mes),
+    ano: Number(ano),
+    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+  });
 }
 
 async function deleteCompetenciaAberta() {
