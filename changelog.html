@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.8.7</span>
+            <span class="badge-date">03/06/2026</span>
+          </div>
+          <div class="changelog-title">Correções de carregamento infinito e declarações duplicadas</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: carregamento infinito e botões travados em Lançamento e Meus Lançamentos</strong> — <code>getFechamentosPosterioresFiscal</code> reverteu para filtragem client-side, removendo o filtro <code>.where('ano', '&gt;=', ...)</code> que causava rejeição do índice composto do Firestore (direção <code>DESC</code> × ordenação implícita <code>ASC</code>). Adicionado <code>try/catch</code> em <code>verificarFechamento()</code> em <code>lancamento.html</code> para reabilitar os botões em caso de falha futura (PR #172).</li>
+            <li><strong>Correção: erro de identificador duplicado em <code>lancamento.html</code></strong> — Removida redeclaração de <code>const LIMITE_PONTOS_OCORRENCIA_DIA</code> no script inline de <code>lancamento.html</code>, que conflitava com a declaração importada (PR #173).</li>
+            <li><strong>Consolidação de <code>LIMITE_PONTOS_OCORRENCIA_DIA</code> em arquivo único</strong> — A constante era declarada como <code>const</code> em quatro arquivos (<code>visa-import.js</code>, <code>sim-import.js</code>, <code>meus-lancamentos.html</code>, <code>ocorrencias.html</code>). Todas as cópias foram removidas; a declaração canônica fica em <code>js/constants.js</code> (PR #174).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.8.6</span>
             <span class="badge-date">03/06/2026</span>
           </div>
