@@ -458,6 +458,11 @@
       if (ignorados) msg += ` ${ignorados} não tinham fechamento (ignorados).`;
       if (erros.length) msg += `<br>⚠️ Bloqueios/Erros: ${erros.map(e => escHtml(e)).join('; ')}`;
 
+      // Invalidar cache de competência aberta para que seja recalculado na próxima consulta
+      if (reabertos > 0) {
+        await db_deleteCompetenciaAberta().catch(() => {});
+      }
+
       document.getElementById('alert-area').innerHTML = alerta(erros.length ? 'warn' : 'ok', msg);
       window.scrollTo(0, 0);
 
@@ -529,6 +534,13 @@
       let msg = `Competência <strong>${compLabel}</strong> fechada para <strong>${fechados}</strong> fiscal(is).`;
       if (ignorados) msg += ` ${ignorados} já estavam fechados (ignorados).`;
       if (erros.length) msg += `<br>⚠️ Erros: ${erros.map(e => escHtml(e)).join('; ')}`;
+
+      // Atualizar cache de competência aberta (próximo mês) para economizar leituras
+      if (fechados > 0) {
+        let nextMes = mes + 1, nextAno = ano;
+        if (nextMes > 12) { nextMes = 1; nextAno++; }
+        await db_setCompetenciaAberta(nextMes, nextAno).catch(() => {});
+      }
 
       document.getElementById('alert-area').innerHTML = alerta(erros.length ? 'warn' : 'ok', msg);
       window.scrollTo(0, 0);

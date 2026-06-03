@@ -519,6 +519,10 @@ async function getProximaCompetencia(fiscalEmail) {
     return { mes, ano };
   }
 
+  // Para admin: verificar cache antes de varrer toda a coleção `fechamentos`.
+  const cached = await getCompetenciaAberta();
+  if (cached) return cached;
+
   const snap = await window.db.collection('fechamentos').get();
   if (snap.empty) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
 
@@ -586,6 +590,26 @@ async function deleteFechamentosMes(mes, ano) {
   }
   if (count % BATCH_SIZE !== 0) await batch.commit();
   return count;
+}
+
+// ── App Config / Competência Aberta (cache admin) ─────────
+// Armazena o mês/ano aberto calculado após "Fechar para Todos".
+// Evita varredura de toda a coleção `fechamentos` a cada load.
+
+async function getCompetenciaAberta() {
+  const doc = await window.db.collection('app_config').doc('competencia_aberta').get();
+  if (!doc.exists) return null;
+  const d = doc.data();
+  if (!d || !d.mes || !d.ano) return null;
+  return { mes: Number(d.mes), ano: Number(d.ano) };
+}
+
+async function setCompetenciaAberta(mes, ano) {
+  await window.db.collection('app_config').doc('competencia_aberta').set({ mes: Number(mes), ano: Number(ano) });
+}
+
+async function deleteCompetenciaAberta() {
+  await window.db.collection('app_config').doc('competencia_aberta').delete();
 }
 
 // ── App Config / GitHub Token ─────────────────────────────
@@ -832,3 +856,6 @@ window.db_getAnexosPorMes       = getAnexosPorMes;
 window.db_getFechamentosTodos   = getFechamentosTodos;
 window.db_uploadAnexoManual     = uploadAnexoManual;
 window.db_removeAnexoManual     = removeAnexoManual;
+window.db_getCompetenciaAberta  = getCompetenciaAberta;
+window.db_setCompetenciaAberta  = setCompetenciaAberta;
+window.db_deleteCompetenciaAberta = deleteCompetenciaAberta;
