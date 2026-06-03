@@ -155,6 +155,30 @@
       </div>
     </div>
 
+    <!-- ── Fechamento / Reabertura Mensal em Lote ── -->
+    <div class="card" id="card-fechamento-lote">
+      <div class="card-title">🔒 Fechamento / Reabertura Mensal</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Feche ou reabra a competência para <strong>todos os fiscais</strong> de uma vez.
+        Fiscais já fechados (ou sem fechamento, no caso da reabertura) serão ignorados.
+      </p>
+      <div class="form-row cols-2" style="max-width:320px;margin-bottom:14px">
+        <div class="form-group">
+          <label class="form-label" for="fech-lote-mes">Mês</label>
+          <select class="form-control" id="fech-lote-mes"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="fech-lote-ano">Ano</label>
+          <select class="form-control" id="fech-lote-ano"></select>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-danger" id="btn-fechar-todos" type="button">🔒 Fechar para Todos os Fiscais</button>
+        <button class="btn btn-warn" id="btn-reabrir-todos" type="button">🔓 Reabrir para Todos os Fiscais</button>
+      </div>
+      <div id="fechamento-lote-log" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── Token do GitHub (repositório VISA privado) ── -->
     <div class="card" id="card-github-token">
       <div class="card-title">🔑 Token do GitHub</div>
@@ -819,6 +843,163 @@
         btn.disabled = false;
       }
     });
+
+    // ── Fechamento / Reabertura em Lote ──────────────────
+    (function() {
+      const selM = document.getElementById('fech-lote-mes');
+      const selA = document.getElementById('fech-lote-ano');
+      if (!selM || !selA) return;
+
+      (window.MESES || []).forEach((m, i) => {
+        const o = document.createElement('option');
+        o.value = i + 1; o.textContent = m;
+        if (i === new Date().getMonth()) o.selected = true;
+        selM.appendChild(o);
+      });
+      const yy = new Date().getFullYear();
+      for (let i = yy - 1; i <= yy + 1; i++) {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = i;
+        if (i === yy) o.selected = true;
+        selA.appendChild(o);
+      }
+
+      // Auto-selecionar próxima competência aberta
+      (async () => {
+        try {
+          const comp = await db_getProximaCompetencia();
+          if (comp) { selM.value = comp.mes; selA.value = comp.ano; }
+        } catch(e) { console.warn('[Admin] Falha ao obter próxima competência:', e); }
+      })();
+
+      document.getElementById('btn-fechar-todos').addEventListener('click', async () => {
+        const mes = Number(selM.value);
+        const ano = Number(selA.value);
+        const compLabel = `${(window.MESES||[])[mes-1]}/${ano}`;
+        const logEl = document.getElementById('fechamento-lote-log');
+
+        if (!confirm(`Fechar a competência ${compLabel} para TODOS os fiscais?\n\nEsta ação irá fechar o mês de ${compLabel} para cada fiscal que ainda não tiver fechamento registrado. Fiscais já fechados serão ignorados.\n\nTem certeza?`)) return;
+
+        const btnF = document.getElementById('btn-fechar-todos');
+        btnF.disabled = true;
+        btnF.textContent = '⏳ Processando…';
+        logEl.innerHTML = alerta('info', '⏳ Fechando competência para todos os fiscais…');
+
+        try {
+          const fiscais = await db_getTodosFiscais();
+          const fechamentosMes = await db_getFechamentosMes(mes, ano);
+          const fechamentosByEmail = new Map(fechamentosMes.map(f => [f.fiscal_email, f]));
+          let fechados = 0, ignorados = 0;
+          const erros = [];
+
+          for (const fiscal of fiscais) {
+            const email = fiscal.email || fiscal.id;
+            try {
+              if (fechamentosByEmail.has(email)) { ignorados++; continue; }
+
+              const manuais = await db_getManuais(email, mes, ano);
+              const result = calcular([], manuais, 0);
+
+              const updates = manuais
+                .filter(m => m.status === 'aceito' || m.status === 'homologado')
+                .map(m => db_updateManual(m.id, { status: 'fechado' }));
+              await Promise.all(updates);
+
+              await db_saveFechamento(email, mes, ano, {
+                fiscal_nome:      fiscal.nome || email,
+                pn_extra:         0,
+                obs:              '',
+                apuracao:         result.apuracao,
+                pp:               result.pp,
+                pn:               result.pn,
+                pv:               result.pv,
+                pv_lim:           result.pvLim,
+                fechado_por:      _currentUserEmail,
+                fechado_por_nome: user.nome || _currentUserEmail,
+              });
+              fechados++;
+            } catch (err) {
+              erros.push(`${fiscal.nome || email}: ${err.message}`);
+            }
+          }
+
+          let msg = `Competência <strong>${compLabel}</strong> fechada para <strong>${fechados}</strong> fiscal(is).`;
+          if (ignorados) msg += ` ${ignorados} já estavam fechados (ignorados).`;
+          if (erros.length) msg += `<br>⚠️ Erros: ${erros.map(e => escHtml(e)).join('; ')}`;
+
+          // Atualizar cache de competência aberta (próximo mês)
+          if (fechados > 0) {
+            let nextMes = mes + 1, nextAno = ano;
+            if (nextMes > 12) { nextMes = 1; nextAno++; }
+            await db_setCompetenciaAberta(nextMes, nextAno).catch(err => console.error('[cache] setCompetenciaAberta:', err));
+          }
+
+          logEl.innerHTML = alerta(erros.length ? 'warn' : 'ok', msg);
+        } catch (e) {
+          logEl.innerHTML = alerta('danger', 'Erro ao fechar todos: ' + escHtml(e.message));
+        } finally {
+          btnF.disabled = false;
+          btnF.textContent = '🔒 Fechar para Todos os Fiscais';
+        }
+      });
+
+      document.getElementById('btn-reabrir-todos').addEventListener('click', async () => {
+        const mes = Number(selM.value);
+        const ano = Number(selA.value);
+        const compLabel = `${(window.MESES||[])[mes-1]}/${ano}`;
+        const logEl = document.getElementById('fechamento-lote-log');
+
+        if (!confirm(`Reabrir a competência ${compLabel} para TODOS os fiscais?\n\nOs lançamentos fechados voltarão ao status "aceito" e os fechamentos serão removidos. Fiscais que não possuem fechamento neste mês serão ignorados.\n\nTem certeza?`)) return;
+
+        const btnR = document.getElementById('btn-reabrir-todos');
+        btnR.disabled = true;
+        btnR.textContent = '⏳ Processando…';
+        logEl.innerHTML = alerta('info', '⏳ Reabrindo competência para todos os fiscais…');
+
+        try {
+          const fiscais = await db_getTodosFiscais();
+          const fechamentosMes = await db_getFechamentosMes(mes, ano);
+          const fechamentosByEmail = new Map(fechamentosMes.map(f => [f.fiscal_email, f]));
+          let reabertos = 0, ignorados = 0;
+          const erros = [];
+
+          for (const fiscal of fiscais) {
+            const email = fiscal.email || fiscal.id;
+            try {
+              const fechamento = fechamentosByEmail.get(email);
+              if (!fechamento) { ignorados++; continue; }
+
+              const manuais = await db_getManuais(email, mes, ano);
+              const updates = manuais
+                .filter(m => m.status === 'fechado')
+                .map(m => db_updateManual(m.id, { status: 'aceito' }));
+              await Promise.all(updates);
+
+              await db_deleteFechamento(email, mes, ano);
+              reabertos++;
+            } catch (err) {
+              erros.push(`${fiscal.nome || email}: ${err.message}`);
+            }
+          }
+
+          let msg = `Competência <strong>${compLabel}</strong> reaberta para <strong>${reabertos}</strong> fiscal(is).`;
+          if (ignorados) msg += ` ${ignorados} não tinham fechamento (ignorados).`;
+          if (erros.length) msg += `<br>⚠️ Erros: ${erros.map(e => escHtml(e)).join('; ')}`;
+
+          // Invalidar cache para que seja recalculado
+          if (reabertos > 0) {
+            await db_deleteCompetenciaAberta().catch(err => console.error('[cache] deleteCompetenciaAberta:', err));
+          }
+
+          logEl.innerHTML = alerta(erros.length ? 'warn' : 'ok', msg);
+        } catch (e) {
+          logEl.innerHTML = alerta('danger', 'Erro ao reabrir todos: ' + escHtml(e.message));
+        } finally {
+          btnR.disabled = false;
+          btnR.textContent = '🔓 Reabrir para Todos os Fiscais';
+        }
+      });
+    })();
 
     // ── Disparo manual de workflows de notificação ─────────
     // Usa workflow_dispatch (requer Actions → Read and write no PAT Fine-Grained).

@@ -574,13 +574,18 @@ async function getProximaCompetencia(fiscalEmail) {
   const cached = await getCompetenciaAberta();
   if (cached) return cached;
 
-  const snap = await window.db.collection('fechamentos').get();
+  const [snap, fiscaisSnap] = await Promise.all([
+    window.db.collection('fechamentos').get(),
+    window.db.collection('usuarios').where('grupo', '==', 'Fiscal').get(),
+  ]);
   if (snap.empty) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
 
   const docs = snap.docs.map(d => d.data());
+  const todosFiscaisEmails = new Set(fiscaisSnap.docs.map(d => d.data().email || d.id));
 
   // Para admin: agrupa por fiscal e pega o mínimo dos últimos fechamentos
   //   de cada fiscal (o fiscal mais atrasado define o mês aberto).
+  // Se algum fiscal ativo não tem nenhum fechamento, retorna mês corrente.
   let refDoc;
   {
     // Agrupar por fiscal_email → pegar o mais recente de cada um
@@ -596,6 +601,13 @@ async function getProximaCompetencia(fiscalEmail) {
         }
       }
     }
+
+    // Se há fiscais ativos sem nenhum fechamento, o mês aberto é o mês corrente
+    const fiscaisSemFechamento = [...todosFiscaisEmails].filter(e => !porFiscal[e]);
+    if (fiscaisSemFechamento.length > 0) {
+      return { mes: now.getMonth() + 1, ano: now.getFullYear() };
+    }
+
     // Pegar o mínimo (fiscal mais atrasado)
     const ultimos = Object.values(porFiscal);
     ultimos.sort((a, b) => Number(a.ano) - Number(b.ano) || Number(a.mes) - Number(b.mes));
