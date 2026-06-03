@@ -494,6 +494,11 @@
       }
     }
 
+    // Pre-select fiscal from URL param right after the fiscal list is loaded,
+    // before the async db_getProximaCompetencia call that follows.
+    const params = new URLSearchParams(location.search);
+    if (params.get('fiscal')) document.getElementById('sel-fiscal').value = params.get('fiscal');
+
     // ── Importação VISA e SIM (Administrador) ───────────
     const btnImportVisa      = document.getElementById('btn-import-visa');
     const btnImportVisaTodos = document.getElementById('btn-import-visa-todos');
@@ -751,9 +756,7 @@
     document.getElementById('sel-ano').value = _ua;
     atualizarBtnImportConf();
 
-    // Pre-fill from URL params
-    const params = new URLSearchParams(location.search);
-    if (params.get('fiscal')) document.getElementById('sel-fiscal').value = params.get('fiscal');
+    // Apply mes/ano from URL params (override competencia defaults if present)
     if (params.get('mes'))    document.getElementById('sel-mes').value    = params.get('mes');
     if (params.get('ano'))    document.getElementById('sel-ano').value    = params.get('ano');
     if (params.get('fiscal')) loadConferencia();
