@@ -1,5 +1,7 @@
 // js/calculo.js
 
+const LIMITE_PONTOS_OCORRENCIA_DIA = 24;
+
 const PARAMS = {
   teto_pv:      1000,
   base_formula: 250,

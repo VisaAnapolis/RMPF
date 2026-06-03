@@ -3,7 +3,6 @@
 
 const SIM_IMPORT_INICIO_MES = 4;
 const SIM_IMPORT_INICIO_ANO = 2026;
-const LIMITE_PONTOS_OCORRENCIA_DIA = 24;
 
 // ── Cache de ocorrências aceitas por fiscal/mês ──────────
 const _simOcorrCache = new Map();
