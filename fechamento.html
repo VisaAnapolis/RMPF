@@ -435,9 +435,6 @@
       // Delete fechamento record
       await db_deleteFechamento(fiscalEmail, mes, ano);
 
-      // Invalidar cache de competência aberta (será recalculado na próxima consulta admin)
-      await db_deleteCompetenciaAberta().catch(err => console.error('[cache] deleteCompetenciaAberta:', err));
-
       // Reload the page state
       await loadFechamento();
       document.getElementById('alert-area').innerHTML = alerta('ok', `Competência <strong>${MESES[mes-1]}/${ano}</strong> reaberta com sucesso.`);
@@ -476,9 +473,6 @@
         fechado_por:      _user.email,
         fechado_por_nome: _user.nome || _user.email,
       });
-
-      // Invalidar cache de competência aberta (será recalculado na próxima consulta admin)
-      await db_deleteCompetenciaAberta().catch(err => console.error('[cache] deleteCompetenciaAberta:', err));
 
       // Update local manuais list so renderSummary counts them as fechado
       _manuais = _manuais.map(m =>
