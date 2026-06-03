@@ -491,15 +491,29 @@
       const btnVisa     = document.getElementById('btn-import-visa');
       const btnSim      = document.getElementById('btn-import-sim');
       [btnRascunho, btnEnviar, btnVisa, btnSim].forEach(b => { b.disabled = true; });
-      const fechado = await db_isMesFechado(user.email, mes, ano);
-      if (fechado) {
-        document.getElementById('comp-fechado-alert').innerHTML =
-          alerta('warn', `A competência <strong>${MESES[mes-1]}/${ano}</strong> já foi fechada e não aceita novos lançamentos.`);
-        document.getElementById('comp-fechado-alert').style.display = '';
-        document.getElementById('grupo-anexo-pdf').style.display = 'none';
-      } else {
-        document.getElementById('comp-fechado-alert').style.display = 'none';
-        document.getElementById('grupo-anexo-pdf').style.display = '';
+      try {
+        const fechado = await db_isMesFechado(user.email, mes, ano);
+        if (fechado) {
+          document.getElementById('comp-fechado-alert').innerHTML =
+            alerta('warn', `A competência <strong>${MESES[mes-1]}/${ano}</strong> já foi fechada e não aceita novos lançamentos.`);
+          document.getElementById('comp-fechado-alert').style.display = '';
+          document.getElementById('grupo-anexo-pdf').style.display = 'none';
+        } else {
+          document.getElementById('comp-fechado-alert').style.display = 'none';
+          document.getElementById('grupo-anexo-pdf').style.display = '';
+          btnRascunho.disabled = false;
+          btnEnviar.disabled   = false;
+          btnVisa.disabled = !visaMesAberto(mes, ano);
+          btnVisa.title = visaMesAberto(mes, ano)
+            ? 'Importar inspeções do VISA para este mês'
+            : 'Mês anterior a Abril/2026 — impossível importar';
+          btnSim.disabled = !simMesAberto(mes, ano);
+          btnSim.title = simMesAberto(mes, ano)
+            ? 'Importar auditorias do SIM para este mês'
+            : 'Mês anterior a Abril/2026 — impossível importar';
+        }
+      } catch (e) {
+        console.error('[Lancamento] Erro ao verificar fechamento:', e);
         btnRascunho.disabled = false;
         btnEnviar.disabled   = false;
         btnVisa.disabled = !visaMesAberto(mes, ano);

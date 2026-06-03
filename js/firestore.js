@@ -480,9 +480,11 @@ async function deleteFechamento(fiscalEmail, mes, ano) {
 // Usado para impedir a reabertura de uma competência quando existe
 // pelo menos um mês mais recente já fechado para o mesmo fiscal.
 async function getFechamentosPosterioresFiscal(fiscalEmail, mes, ano) {
+  // Busca todos os fechamentos do fiscal e filtra client-side para evitar
+  // a necessidade de índice composto com campo de inequidade (>=).
+  // O índice existente tem `ano DESCENDING`, incompatível com queries de range.
   const snap = await window.db.collection('fechamentos')
     .where('fiscal_email', '==', fiscalEmail)
-    .where('ano', '>=', Number(ano))
     .get();
   return snap.docs
     .map(d => d.data())
