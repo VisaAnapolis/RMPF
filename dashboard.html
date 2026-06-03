@@ -187,12 +187,13 @@
             <tr>
               <th>Fiscal</th>
               <th class="th-num">Env.</th>
+              <th class="th-num">PV</th>
               <th class="th-num">Hom.</th>
               <th></th>
             </tr>
           </thead>
           <tbody id="tbody-admin-mini">
-            <tr class="empty-row"><td colspan="4">—</td></tr>
+            <tr class="empty-row"><td colspan="5">—</td></tr>
           </tbody>
         </table>
       </div>
@@ -370,7 +371,7 @@
     const tbody    = document.getElementById('tbody-admin');
     const tbodyMini = document.getElementById('tbody-admin-mini');
     tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="spinner"></div></td></tr>';
-    tbodyMini.innerHTML = '<tr class="empty-row"><td colspan="4"><div class="spinner"></div></td></tr>';
+    tbodyMini.innerHTML = '<tr class="empty-row"><td colspan="5"><div class="spinner"></div></td></tr>';
 
     try {
       const [fiscais, todosManuais] = await Promise.all([
@@ -380,7 +381,7 @@
 
       if (!fiscais.length) {
         tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Nenhum fiscal cadastrado</td></tr>';
-        tbodyMini.innerHTML = '<tr class="empty-row"><td colspan="4">Nenhum fiscal cadastrado</td></tr>';
+        tbodyMini.innerHTML = '<tr class="empty-row"><td colspan="5">Nenhum fiscal cadastrado</td></tr>';
         return;
       }
 
@@ -417,13 +418,14 @@
         return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td>${escHtml(nomeAbrev(f.nome || f.id))}</td>
           <td class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>
+          <td class="td-num">${result.pv}</td>
           <td class="td-num ${result.apuracao > 0 ? 'text-verde fw-bold' : ''}">${result.apuracao > 0 ? result.apuracao : '—'}</td>
           <td class="td-status">${statusIcon}</td>
         </tr>`;
       }).join('');
     } catch (e) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${alerta('danger','Erro: ' + e.message)}</td></tr>`;
-      tbodyMini.innerHTML = `<tr class="empty-row"><td colspan="4">Erro</td></tr>`;
+      tbodyMini.innerHTML = `<tr class="empty-row"><td colspan="5">Erro</td></tr>`;
     }
   }
 
