@@ -334,7 +334,7 @@
       <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
         Processa todas as ocorrências <strong>já aceitas</strong> do mês/ano selecionado e gera
         <strong>50 pontos por dia</strong> para cada fiscal. Use este recurso sempre que uma
-        ocorrência aceita precisar gerar (ou regerar) seus pontos na competência.
+        ocorrência aceita precisar gerar (ou regenerar) seus pontos na competência.
       </p>
 
       <!-- Aviso redundante -->
@@ -1256,7 +1256,7 @@
         const ok1 = confirm(
           `⚠️ ATENÇÃO\n\n` +
           `Você está prestes a converter as ocorrências aceitas de ${nomeMes}/${ano} em pontos.\n` +
-          `Para cada dia coberto, TODOS os lançamentos existentes serão apagados e substituídos por 50 pontos.\n\n` +
+          `Para cada dia coberto, TODOS os lançamentos existentes serão APAGADOS e substituídos por um novo lançamento de 50 pontos.\n\n` +
           `Esta ação é IRREVERSÍVEL.\n\nDeseja continuar?`
         );
         if (!ok1) return;
