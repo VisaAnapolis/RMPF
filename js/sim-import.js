@@ -102,7 +102,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
 
     const text = await window.fetchGitHubCSV('data/auditoria.csv');
     if (text === null) {
-      onProgress('❌ Arquivo data/auditoria.csv não encontrado no repositório VISA. Verifique se o arquivo existe.', 'danger');
+      onProgress('❌ Arquivo data/auditoria.csv não encontrado no repositório SIM. Verifique se o arquivo existe.', 'danger');
       return { criados: 0, atualizados: 0, ignorados: 0, excluidos: 0, erros: 0 };
     }
 
