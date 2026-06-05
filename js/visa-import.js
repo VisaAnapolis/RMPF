@@ -158,6 +158,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     onProgress('🔄 Buscando CSV de inspeções do VISA...', 'info');
 
     const text = await window.fetchGitHubCSV('data/inspecoes.csv');
+    if (text === null) {
+      onProgress('❌ Arquivo data/inspecoes.csv não encontrado no repositório VISA. Verifique se o arquivo existe.', 'danger');
+      return { criados: 0, atualizados: 0, ignorados: 0, excluidos: 0, erros: 0 };
+    }
 
     const parsed = Papa.parse(text, {
       header: true,
