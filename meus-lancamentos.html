@@ -429,6 +429,13 @@
     }, 0);
   }
 
+  async function validarPrazoLancamento(dataISO, origem) {
+    if (origem === 'visa_csv' || origem === 'sim_csv' || origem === 'ocorrencia') {
+      return { permitido: true, mensagem: '' };
+    }
+    return await db_validateDeadlineReleaseDate(dataISO);
+  }
+
   async function validarLimitePontosOcorrenciaEdicao(idManual, dataISO, pontosNovo) {
     const ocorrencia = await getOcorrenciaAceitaNoDia(_user.email, dataISO);
     if (!ocorrencia) return { ok: true, ocorrencia: null, somaAtual: 0, total: Number(pontosNovo) || 0 };
@@ -461,6 +468,12 @@
       return;
     }
     try {
+      const validacaoPrazo = await validarPrazoLancamento(data, 'manual');
+      if (!validacaoPrazo.permitido) {
+        document.getElementById('edit-alert').innerHTML = alerta('danger',
+          `⏰ ${validacaoPrazo.mensagem}`);
+        return;
+      }
       const validacao = await validarLimitePontosOcorrenciaEdicao(id, data, pontosNum);
       if (!validacao.ok && validacao.ocorrencia) {
         const tipoLabel = TIPO_LABELS_OCR[validacao.ocorrencia.tipo] || validacao.ocorrencia.tipo;
@@ -519,6 +532,12 @@
       return;
     }
     try {
+      const validacaoPrazo = await validarPrazoLancamento(data, 'manual');
+      if (!validacaoPrazo.permitido) {
+        document.getElementById('corrigir-alert').innerHTML = alerta('danger',
+          `⏰ ${validacaoPrazo.mensagem}`);
+        return;
+      }
       const validacao = await validarLimitePontosOcorrenciaEdicao(id, data, pontosNum);
       if (!validacao.ok && validacao.ocorrencia) {
         const tipoLabel = TIPO_LABELS_OCR[validacao.ocorrencia.tipo] || validacao.ocorrencia.tipo;

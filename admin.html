@@ -406,6 +406,33 @@
       <div id="apagar-lancamentos-log" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── Prazo de Lançamentos Fiscais ── -->
+    <div class="card" id="card-deadline">
+      <div class="card-title">⏰ Prazo de Lançamentos Fiscais</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Defina o número máximo de dias permitidos para que os fiscais efetorem lançamentos retroativos.
+        <strong>Não se aplica a lançamentos importados de CSV ou ocorrências.</strong>
+        <br><br>
+        <strong>Exemplo:</strong> Se o prazo é 7 dias e hoje é 10/06, o fiscal pode lançar atividades a partir de 03/06.
+      </p>
+      <div class="form-row cols-2" style="max-width:280px;margin-bottom:14px;align-items:flex-end">
+        <div class="form-group">
+          <label class="form-label required" for="deadline-dias">Prazo (dias)</label>
+          <input type="number" class="form-control" id="deadline-dias" min="0" max="365" value="7">
+        </div>
+        <div class="form-group">
+          <label class="form-label">
+            <input type="checkbox" id="deadline-ativo" checked style="width:18px;height:18px;cursor:pointer">
+            Ativo
+          </label>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-save-deadline" type="button">💾 Salvar Configuração</button>
+      </div>
+      <div id="deadline-log" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── Tabela de usuários ── -->
     <div class="card">
       <div class="card-title d-flex justify-between align-center">
@@ -1460,6 +1487,47 @@
           logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar lançamentos: ' + escHtml(e.message));
         } finally {
           btn.disabled = false;
+        }
+      });
+    })();
+
+    // ── Prazo de Lançamentos Fiscais ──────────────────
+    (async () => {
+      const inpDias = document.getElementById('deadline-dias');
+      const chkAtivo = document.getElementById('deadline-ativo');
+      const btnSalvar = document.getElementById('btn-save-deadline');
+      const logEl = document.getElementById('deadline-log');
+
+      try {
+        const config = await window.db_getDeadlineConfig();
+        inpDias.value = config.dias_prazo;
+        chkAtivo.checked = config.ativo;
+      } catch(e) {
+        logEl.innerHTML = alerta('warn', '⚠️ Não foi possível carregar a configuração: ' + escHtml(e.message));
+      }
+
+      btnSalvar.addEventListener('click', async () => {
+        const dias = Number(inpDias.value);
+        const ativo = chkAtivo.checked;
+
+        if (dias < 0 || dias > 365) {
+          logEl.innerHTML = alerta('warn', '⚠️ Prazo deve estar entre 0 e 365 dias.');
+          return;
+        }
+
+        btnSalvar.disabled = true;
+        logEl.innerHTML = alerta('info', '⏳ Salvando configuração…');
+
+        try {
+          await window.db_updateDeadlineConfig(dias, ativo);
+          logEl.innerHTML = alerta('ok',
+            `✅ Configuração salva. Prazo: <strong>${dias}</strong> dia(s), ` +
+            `Status: <strong>${ativo ? 'Ativo' : 'Inativo'}</strong>.`
+          );
+        } catch(e) {
+          logEl.innerHTML = alerta('danger', '🚨 Erro ao salvar: ' + escHtml(e.message));
+        } finally {
+          btnSalvar.disabled = false;
         }
       });
     })();

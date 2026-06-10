@@ -692,6 +692,52 @@ async function db_setGitHubToken(token) {
   await window.db.collection('app_config').doc('github_token').set({ token });
 }
 
+// ── App Config / Prazo de Lançamentos Fiscais ──────────────
+
+async function db_getDeadlineConfig() {
+  const doc = await window.db.collection('app_config').doc('fiscal_deadline').get();
+  if (!doc.exists) return { dias_prazo: 7, ativo: true };
+  const d = doc.data();
+  return {
+    dias_prazo: Number(d.dias_prazo || 7),
+    ativo: Boolean(d.ativo !== false),
+  };
+}
+
+async function db_updateDeadlineConfig(dias_prazo, ativo) {
+  await window.db.collection('app_config').doc('fiscal_deadline').set({
+    dias_prazo: Number(dias_prazo),
+    ativo: Boolean(ativo),
+    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
+// Valida se a data do lançamento está dentro do prazo permitido
+// Retorna { permitido: boolean, diasAtraso: number, prazoDias: number, mensagem: string }
+async function db_validateDeadlineReleaseDate(dataISO) {
+  const config = await db_getDeadlineConfig();
+  if (!config.ativo) return { permitido: true, diasAtraso: 0, prazoDias: config.dias_prazo, mensagem: '' };
+
+  if (!dataISO) return { permitido: true, diasAtraso: 0, prazoDias: config.dias_prazo, mensagem: '' };
+
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const data = new Date(dataISO + 'T00:00:00');
+
+  const diffMs = hoje - data;
+  const diasAtraso = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const permitido = diasAtraso <= config.dias_prazo;
+
+  return {
+    permitido,
+    diasAtraso,
+    prazoDias: config.dias_prazo,
+    mensagem: !permitido
+      ? 'Data de lançamento superior ao prazo estabelecido pela gerencia'
+      : '',
+  };
+}
+
 /**
  * Fetches a file from the private garrado/VISA repository using the stored
  * GitHub PAT and the GitHub Contents API with the raw media type.
@@ -928,3 +974,6 @@ window.db_removeAnexoManual     = removeAnexoManual;
 window.db_getCompetenciaAberta  = getCompetenciaAberta;
 window.db_setCompetenciaAberta  = setCompetenciaAberta;
 window.db_deleteCompetenciaAberta = deleteCompetenciaAberta;
+window.db_getDeadlineConfig     = db_getDeadlineConfig;
+window.db_updateDeadlineConfig  = db_updateDeadlineConfig;
+window.db_validateDeadlineReleaseDate = db_validateDeadlineReleaseDate;
