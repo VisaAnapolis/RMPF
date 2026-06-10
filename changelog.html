@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.0</span>
+            <span class="badge-date">10/06/2026</span>
+          </div>
+          <div class="changelog-title">Divisão da página Admin em Admin e Parametrização</div>
+          <ul class="changelog-changes">
+            <li><strong>Nova página: Parametrização</strong> — As seções de configuração operacional foram separadas do painel de administração em uma página dedicada (<code>parametrizacao.html</code>), acessível pelo menu lateral entre Admin e Changelog (somente Administrador).</li>
+            <li><strong>Admin simplificado</strong> — A página <code>admin.html</code> passa a exibir apenas o painel de estatísticas (contagem de usuários por grupo e status), os cards de versão do app e modo de acesso, e a tabela de controle de usuários.</li>
+            <li><strong>Parametrização concentra as configurações do sistema</strong> — Migradas para <code>parametrizacao.html</code>: Competência Ativa, Fechamento/Reabertura em Lote, Token do GitHub, Índices do Firestore, Disparo de Notificações, CNAE/Complexidade, Armazenamento de Anexos, Conversão de Ocorrências em Pontos, Apagar Lançamentos e Prazo de Lançamentos Fiscais.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.8.7</span>
             <span class="badge-date">03/06/2026</span>
           </div>
@@ -468,6 +481,7 @@
     ];
     if (grupo === 'Administrador') {
       links.push(['admin.html','⚙️','Admin']);
+      links.push(['parametrizacao.html','🔧','Parametrização']);
     }
     links.push(['changelog.html','📜','Changelog']);
     const cur = location.pathname.split('/').pop();
