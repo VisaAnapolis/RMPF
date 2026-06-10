@@ -61,6 +61,7 @@
     <a href="ocorrencias.html"class="sidebar-link"><span class="icon">📌</span>Ocorrências</a>
     <a href="fechamento.html" class="sidebar-link active"><span class="icon">🔒</span>Fechamento</a>
     <span id="sidebar-admin-link"></span>
+    <span id="sidebar-param-link"></span>
     <a href="changelog.html"  class="sidebar-link"><span class="icon">📜</span>Changelog</a>
   </nav>
 
@@ -509,6 +510,8 @@
     if (user.grupo === 'Administrador') {
       document.getElementById('sidebar-admin-link').innerHTML =
         '<a href="admin.html" class="sidebar-link"><span class="icon">⚙️</span>Admin</a>';
+      document.getElementById('sidebar-param-link').innerHTML =
+        '<a href="parametrizacao.html" class="sidebar-link"><span class="icon">🔧</span>Parametrização</a>';
     }
 
     buildSels('sel-mes','sel-ano');
