@@ -748,12 +748,29 @@ async function fetchGitHubCSV(filePath) {
   const token = await db_getGitHubToken();
   if (!token) throw new Error('Token do GitHub não configurado. Acesse Admin → 🔑 Token do GitHub para configurar.');
   const url = `https://api.github.com/repos/garrado/VISA/contents/${filePath}`;
-  const resp = await fetch(url, {
-    headers: {
-      'Authorization': 'Bearer ' + token,
-      'Accept': 'application/vnd.github.v3.raw',
-    },
-  });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 s
+  let resp;
+  try {
+    resp = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github.v3.raw',
+      },
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Tempo limite excedido ao conectar com o GitHub (20 s). Verifique sua conexão ou se api.github.com está acessível na sua rede.');
+    }
+    throw new Error('Falha de rede ao acessar o GitHub. Verifique sua conexão com a internet e se api.github.com está acessível.');
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (resp.status === 401) throw new Error('Token do GitHub inválido ou expirado. Acesse Admin → 🔑 Token do GitHub para atualizar.');
+  if (resp.status === 403) throw new Error('Acesso negado ao repositório VISA. Verifique as permissões do token do GitHub.');
   if (resp.status === 404) return null;
   if (!resp.ok) throw new Error('Não foi possível acessar o arquivo do repositório VISA: HTTP ' + resp.status);
   return resp.text();
