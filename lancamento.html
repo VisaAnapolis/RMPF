@@ -398,6 +398,14 @@
       return;
     }
 
+    // Validar prazo de lançamento
+    const validacaoPrazo = await db_validateDeadlineReleaseDate(data);
+    if (!validacaoPrazo.permitido) {
+      showAlert('danger', `⏰ ${validacaoPrazo.mensagem}`);
+      btns.forEach(b => { b.disabled = false; });
+      return;
+    }
+
     const pontosNum = Number(pontos);
     if (Number.isNaN(pontosNum)) {
       showAlert('warn', 'Informe os pontos corretamente.');
