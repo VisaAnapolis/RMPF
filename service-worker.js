@@ -18,6 +18,11 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   if (event.request.url.startsWith('chrome-extension://')) return;
 
+  // Não interceptar requisições cross-origin (ex: api.github.com, Firebase) —
+  // essas chamadas são autenticadas/dinâmicas e não devem ser cacheadas.
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
@@ -30,7 +35,9 @@ self.addEventListener('fetch', (event) => {
         return networkResponse;
       })
       .catch(() => {
-        return caches.match(event.request);
+        return caches.match(event.request).then((cached) => {
+          return cached || Response.error();
+        });
       })
   );
 });
