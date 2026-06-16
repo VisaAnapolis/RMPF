@@ -261,6 +261,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const tipoRaw = String(row['tipo'] || row['TIPO'] || row['Tipo'] || '').replace(/"/g, '').trim();
       const tipoInfo = resolverTipoVisa(tipoRaw, cnaeInfo.complexidade);
 
+      const motivoOS = String(row['Modalidade'] || row['modalidade'] || row['MODALIDADE'] || '').replace(/"/g, '').trim();
+      const motivoOSNorm = normNomeVisa(motivoOS);
+      const pontosFinal = motivoOSNorm === 'PLANTAO FISCAL' ? 0 : tipoInfo.pontos;
+
       const dataISO = visaDataToISO(String(row['DT_VISITA'] || '').replace(/"/g, '').trim());
       const os = String(row['OS'] || row['NUMERO'] || '').replace(/"/g, '').trim();
       const oficio = String(row['Oficio'] || row['OFICIO'] || '').replace(/"/g, '').trim();
@@ -306,7 +310,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   ? (Number(existing.pontos) || 0)
                   : 0;
               const baseDia = somaDia - pontosExistenteMesmoDoc;
-              const totalDia = baseDia + (Number(tipoInfo.pontos) || 0);
+              const totalDia = baseDia + (Number(pontosFinal) || 0);
               if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
                 ignorados++;
                 onProgress(
@@ -332,7 +336,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               tipo_nome: tipoInfo.tipo_nome,
               item_pontuacao: tipoInfo.item_pontuacao,
               complexidade: cnaeInfo.complexidade,
-              pontos: tipoInfo.pontos, descricao,
+              pontos: pontosFinal, descricao,
+              motivo_os: motivoOS,
               origem: 'visa_csv',
               visa_controle: controleVisa,
             };
@@ -385,7 +390,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               tipo_nome: tipoInfo.tipo_nome,
               item_pontuacao: tipoInfo.item_pontuacao,
               complexidade: cnaeInfo.complexidade,
-              pontos: tipoInfo.pontos, descricao,
+              pontos: pontosFinal, descricao,
+              motivo_os: motivoOS,
               status: statusInicial,
               motivo_pendencia: motivoPendencia,
               origem: 'visa_csv',
@@ -393,7 +399,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             }, null, true);
             const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
             _aplicarManualNoMapaPontosVisa(estado.byDia, {
-              data: dataISO, pontos: tipoInfo.pontos, origem: 'visa_csv', status: statusInicial,
+              data: dataISO, pontos: pontosFinal, origem: 'visa_csv', status: statusInicial,
             }, 1);
             criados++;
           }
