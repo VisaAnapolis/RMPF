@@ -162,14 +162,9 @@
           <span class="sync-value" id="fiscal-sync-cvs">verificando...</span>
         </div>
         <div class="sync-line">
-          <span class="sync-icon">💰</span>
-          <span class="sync-label">SIM – Taxa:</span>
-          <span class="sync-value" id="fiscal-sync-taxa">verificando...</span>
-        </div>
-        <div class="sync-line">
-          <span class="sync-icon">🏦</span>
-          <span class="sync-label">SIM – CNAE:</span>
-          <span class="sync-value" id="fiscal-sync-cnae">verificando...</span>
+          <span class="sync-icon">📋</span>
+          <span class="sync-label">Auditoria:</span>
+          <span class="sync-value" id="fiscal-sync-auditoria">verificando...</span>
         </div>
         <div class="sync-divider"></div>
         <div class="sync-line">
@@ -261,14 +256,9 @@
           <span class="sync-value" id="admin-sync-cvs">verificando...</span>
         </div>
         <div class="sync-line">
-          <span class="sync-icon">💰</span>
-          <span class="sync-label">SIM – Taxa:</span>
-          <span class="sync-value" id="admin-sync-taxa">verificando...</span>
-        </div>
-        <div class="sync-line">
-          <span class="sync-icon">🏦</span>
-          <span class="sync-label">SIM – CNAE:</span>
-          <span class="sync-value" id="admin-sync-cnae">verificando...</span>
+          <span class="sync-icon">📋</span>
+          <span class="sync-label">Auditoria:</span>
+          <span class="sync-value" id="admin-sync-auditoria">verificando...</span>
         </div>
         <div class="sync-divider"></div>
         <div class="sync-line">
@@ -417,16 +407,17 @@
     return v;
   }
 
+  const VISA_RAW_BASE = 'https://raw.githubusercontent.com/garrado/VISA/main/data/';
+
   function carregarSyncVISA(prefixo) {
     const idsSync = {
-      'cvs': { fiscal: 'fiscal-sync-cvs', admin: 'admin-sync-cvs', arquivo: 'cvs_sync.txt' },
-      'taxa': { fiscal: 'fiscal-sync-taxa', admin: 'admin-sync-taxa', arquivo: 'taxa_sync.txt' },
-      'cnae': { fiscal: 'fiscal-sync-cnae', admin: 'admin-sync-cnae', arquivo: 'cnae_sync.txt' }
+      'cvs':      { fiscal: 'fiscal-sync-cvs',      admin: 'admin-sync-cvs',      arquivo: 'cvs_sync.txt' },
+      'auditoria':{ fiscal: 'fiscal-sync-auditoria', admin: 'admin-sync-auditoria', arquivo: 'auditoria_sync.txt' }
     };
 
     Object.keys(idsSync).forEach(tipo => {
       const config = idsSync[tipo];
-      const urlVISA = 'https://visaanapolis.github.io/APP/data/' + config.arquivo + '?ts=' + Date.now();
+      const urlVISA = VISA_RAW_BASE + config.arquivo + '?ts=' + Date.now();
       
       ['fiscal', 'admin'].forEach(perfil => {
         const elId = config[perfil];
@@ -447,7 +438,7 @@
     });
 
     // Carregar próximo upload
-    const urlProximo = 'https://visaanapolis.github.io/APP/data/exportador_config.ini?ts=' + Date.now();
+    const urlProximo = VISA_RAW_BASE + 'exportador_config.ini?ts=' + Date.now();
     fetch(urlProximo, { cache: 'no-store' })
       .then(resp => {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
