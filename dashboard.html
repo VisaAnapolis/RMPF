@@ -407,55 +407,38 @@
     return v;
   }
 
-  const VISA_RAW_BASE = 'https://raw.githubusercontent.com/garrado/VISA/main/data/';
-
-  function carregarSyncVISA(prefixo) {
+  function carregarSyncVISA() {
     const idsSync = {
-      'cvs':      { fiscal: 'fiscal-sync-cvs',      admin: 'admin-sync-cvs',      arquivo: 'cvs_sync.txt' },
-      'auditoria':{ fiscal: 'fiscal-sync-auditoria', admin: 'admin-sync-auditoria', arquivo: 'auditoria_sync.txt' }
+      'cvs':      { fiscal: 'fiscal-sync-cvs',      admin: 'admin-sync-cvs',      arquivo: 'data/cvs_sync.txt' },
+      'auditoria':{ fiscal: 'fiscal-sync-auditoria', admin: 'admin-sync-auditoria', arquivo: 'data/auditoria_sync.txt' }
     };
 
     Object.keys(idsSync).forEach(tipo => {
       const config = idsSync[tipo];
-      const urlVISA = VISA_RAW_BASE + config.arquivo + '?ts=' + Date.now();
-      
-      ['fiscal', 'admin'].forEach(perfil => {
-        const elId = config[perfil];
-        const el = document.getElementById(elId);
-        if (!el) return;
-        
-        fetch(urlVISA, { cache: 'no-store' })
-          .then(resp => {
-            if (!resp.ok) throw new Error('HTTP ' + resp.status);
-            return resp.text();
-          })
-          .then(txt => {
-            const exibicao = parsearTimestamp(txt);
-            el.textContent = exibicao || (txt || '').trim() || '⚠️ sem dados';
-          })
-          .catch(() => { el.textContent = '⚠️ não foi possível verificar'; });
-      });
+      fetchGitHubCSV(config.arquivo)
+        .then(txt => {
+          const exibicao = txt ? (parsearTimestamp(txt) || txt.trim() || '⚠️ sem dados') : '⚠️ sem dados';
+          ['fiscal', 'admin'].forEach(perfil => {
+            const el = document.getElementById(config[perfil]);
+            if (el) el.textContent = exibicao;
+          });
+        })
+        .catch(() => {
+          ['fiscal', 'admin'].forEach(perfil => {
+            const el = document.getElementById(config[perfil]);
+            if (el) el.textContent = '⚠️ não foi possível verificar';
+          });
+        });
     });
 
     // Carregar próximo upload
-    const urlProximo = VISA_RAW_BASE + 'exportador_config.ini?ts=' + Date.now();
-    fetch(urlProximo, { cache: 'no-store' })
-      .then(resp => {
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        return resp.text();
-      })
+    fetchGitHubCSV('data/exportador_config.ini')
       .then(txt => {
         const cfg = {};
-        const linhas = txt.split('\n');
-        linhas.forEach(linha => {
+        (txt || '').split('\n').forEach(linha => {
           const idx = linha.indexOf('=');
-          if (idx > 0) {
-            const chave = linha.substring(0, idx).trim();
-            const valor = linha.substring(idx + 1).trim();
-            cfg[chave] = valor;
-          }
+          if (idx > 0) cfg[linha.substring(0, idx).trim()] = linha.substring(idx + 1).trim();
         });
-
         const proximoUpload = (cfg['proximoUpload'] || 'em breve').trim();
         ['fiscal-sync-proximo', 'admin-sync-proximo'].forEach(elId => {
           const el = document.getElementById(elId);
