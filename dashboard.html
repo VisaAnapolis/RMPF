@@ -506,7 +506,7 @@
       const pendentes = manuais.filter(m => m.status === 'enviado').length;
       if (pendentes > 0)           alerts += alerta('warn',  `Você tem <strong>${pendentes}</strong> lançamento(s) aguardando homologação.`);
       const pendentesVisa = manuais.filter(m => m.status === 'pendente' && m.origem === 'visa_csv');
-      if (pendentesVisa.length > 0) alerts += alerta('warn', `Você tem <strong>${pendentesVisa.length}</strong> lançamento(s) importado(s) do VISA pendente(s) por falta de autorização do terc[...]
+      if (pendentesVisa.length > 0) alerts += alerta('warn', `Você tem <strong>${pendentesVisa.length}</strong> lançamento(s) importado(s) do VISA pendente(s) por falta de autorização do terceiro.`);
       document.getElementById('alert-fiscal').innerHTML = alerts;
 
       if (!manuais.length) {
