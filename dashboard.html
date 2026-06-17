@@ -407,6 +407,58 @@
     return v;
   }
 
+  function calcularProximoUpload(cfg) {
+    const brt        = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+    const horaAtual  = brt.getHours();
+    const minAtual   = brt.getMinutes();
+    const diaAtual   = brt.getDay(); // 0=Dom … 6=Sáb
+    const minutosNow = horaAtual * 60 + minAtual;
+
+    const isWeekend = d => d === 0 || d === 6;
+
+    const slotsUteis = [];
+    for (let i = 1; i <= 8; i++) {
+      const h = parseInt(cfg['H' + i], 10);
+      if (!isNaN(h) && h >= 0) slotsUteis.push(h);
+    }
+    slotsUteis.sort((a, b) => a - b);
+
+    const horaFDS = parseInt(cfg['HW'], 10);
+    const temFDS  = !isNaN(horaFDS) && horaFDS >= 0;
+
+    const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+
+    function formatar(h, delta) {
+      const hh = String(h).padStart(2, '0');
+      return delta === 0 ? `~${hh}h25` : `~${DIAS[(diaAtual + delta) % 7]} ${hh}h25`;
+    }
+
+    function proximoHoje(slots) {
+      return slots.find(h => h * 60 + 25 > minutosNow) ?? null;
+    }
+
+    if (!isWeekend(diaAtual)) {
+      const h = proximoHoje(slotsUteis);
+      if (h !== null) return formatar(h, 0);
+      for (let d = 1; d <= 7; d++) {
+        const pd = (diaAtual + d) % 7;
+        if (!isWeekend(pd) && slotsUteis.length) return formatar(slotsUteis[0], d);
+        if (isWeekend(pd) && temFDS)             return formatar(horaFDS, d);
+      }
+    } else {
+      if (temFDS) {
+        const h = proximoHoje([horaFDS]);
+        if (h !== null) return formatar(h, 0);
+      }
+      for (let d = 1; d <= 7; d++) {
+        const pd = (diaAtual + d) % 7;
+        if (!isWeekend(pd) && slotsUteis.length) return formatar(slotsUteis[0], d);
+        if (isWeekend(pd) && temFDS)             return formatar(horaFDS, d);
+      }
+    }
+    return 'em breve';
+  }
+
   function carregarSyncVISA() {
     const idsSync = {
       'cvs':      { fiscal: 'fiscal-sync-cvs',      admin: 'admin-sync-cvs',      arquivo: 'data/cvs_sync.txt' },
@@ -439,7 +491,7 @@
           const idx = linha.indexOf('=');
           if (idx > 0) cfg[linha.substring(0, idx).trim()] = linha.substring(idx + 1).trim();
         });
-        const proximoUpload = (cfg['proximoUpload'] || 'em breve').trim();
+        const proximoUpload = calcularProximoUpload(cfg);
         ['fiscal-sync-proximo', 'admin-sync-proximo'].forEach(elId => {
           const el = document.getElementById(elId);
           if (el) el.textContent = proximoUpload;
