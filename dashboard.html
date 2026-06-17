@@ -67,6 +67,45 @@
 
     /* Fiscais que não atingiram a apuração de R$ 200 */
     .tr-lara td { background: var(--laraP) !important; color: var(--lara) !important; font-weight: 600; }
+
+    /* Sync card do VISA */
+    .visa-sync-card {
+      background: linear-gradient(135deg, rgba(44, 90, 160, 0.05), rgba(44, 90, 160, 0.02));
+      border: 1px solid rgba(44, 90, 160, 0.15);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      font-size: 0.82rem;
+      color: #2c5aa0;
+      font-weight: 600;
+    }
+    .visa-sync-card .sync-line {
+      display: flex;
+      align-items: center;
+      padding: 4px 0;
+      gap: 8px;
+    }
+    .visa-sync-card .sync-icon {
+      min-width: 20px;
+      text-align: center;
+    }
+    .visa-sync-card .sync-label {
+      color: #666;
+      font-weight: 500;
+    }
+    .visa-sync-card .sync-value {
+      color: #2c5aa0;
+      font-weight: 600;
+    }
+    .visa-sync-card .sync-divider {
+      height: 1px;
+      background: rgba(44, 90, 160, 0.1);
+      margin: 6px 0;
+    }
+    @media (max-width: 768px) {
+      .visa-sync-card { margin-bottom: 12px; padding: 10px 12px; font-size: 0.78rem; }
+      .visa-sync-card .sync-line { padding: 3px 0; }
+    }
   </style>
 </head>
 <body>
@@ -110,6 +149,36 @@
 
     <!-- Fiscal view -->
     <div id="view-fiscal" style="display:none">
+      <!-- VISA Sync Card (Fiscal) -->
+      <div id="visa-sync-fiscal" class="visa-sync-card" style="display:none">
+        <div class="sync-line">
+          <span class="sync-icon">📡</span>
+          <span class="sync-label">Sincronização VISA</span>
+        </div>
+        <div class="sync-divider"></div>
+        <div class="sync-line">
+          <span class="sync-icon">🔄</span>
+          <span class="sync-label">CVS:</span>
+          <span class="sync-value" id="fiscal-sync-cvs">verificando...</span>
+        </div>
+        <div class="sync-line">
+          <span class="sync-icon">💰</span>
+          <span class="sync-label">SIM – Taxa:</span>
+          <span class="sync-value" id="fiscal-sync-taxa">verificando...</span>
+        </div>
+        <div class="sync-line">
+          <span class="sync-icon">🏦</span>
+          <span class="sync-label">SIM – CNAE:</span>
+          <span class="sync-value" id="fiscal-sync-cnae">verificando...</span>
+        </div>
+        <div class="sync-divider"></div>
+        <div class="sync-line">
+          <span class="sync-icon">⏰</span>
+          <span class="sync-label">Próximo upload:</span>
+          <span class="sync-value" id="fiscal-sync-proximo">calculando...</span>
+        </div>
+      </div>
+
       <div id="alert-recusados"></div>
       <div class="metrics-grid">
         <div class="metric-card amar">
@@ -177,6 +246,36 @@
         <select class="form-control" id="admin-sel-mes" style="max-width:140px"></select>
         <select class="form-control" id="admin-sel-ano" style="max-width:90px"></select>
         <button class="btn btn-outline btn-sm" id="btn-admin-carregar">Carregar</button>
+      </div>
+
+      <!-- VISA Sync Card (Admin) -->
+      <div id="visa-sync-admin" class="visa-sync-card" style="display:none">
+        <div class="sync-line">
+          <span class="sync-icon">📡</span>
+          <span class="sync-label">Sincronização VISA</span>
+        </div>
+        <div class="sync-divider"></div>
+        <div class="sync-line">
+          <span class="sync-icon">🔄</span>
+          <span class="sync-label">CVS:</span>
+          <span class="sync-value" id="admin-sync-cvs">verificando...</span>
+        </div>
+        <div class="sync-line">
+          <span class="sync-icon">💰</span>
+          <span class="sync-label">SIM – Taxa:</span>
+          <span class="sync-value" id="admin-sync-taxa">verificando...</span>
+        </div>
+        <div class="sync-line">
+          <span class="sync-icon">🏦</span>
+          <span class="sync-label">SIM – CNAE:</span>
+          <span class="sync-value" id="admin-sync-cnae">verificando...</span>
+        </div>
+        <div class="sync-divider"></div>
+        <div class="sync-line">
+          <span class="sync-icon">⏰</span>
+          <span class="sync-label">Próximo upload:</span>
+          <span class="sync-value" id="admin-sync-proximo">calculando...</span>
+        </div>
       </div>
 
       <!-- Mini-resumo compacto (visível apenas em mobile) -->
@@ -304,6 +403,82 @@
     }
   }
 
+  // ── VISA Sync helpers ──────────────────────────────────────
+  function parsearTimestamp(txt) {
+    const v = (txt || '').trim();
+    if (!v) return null;
+    const matchBR = v.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
+    if (matchBR) {
+      const d = new Date(+matchBR[3], +matchBR[2]-1, +matchBR[1], +matchBR[4], +matchBR[5]);
+      if (!isNaN(d.getTime())) return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    }
+    const d = new Date(v);
+    if (!isNaN(d.getTime())) return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    return v;
+  }
+
+  function carregarSyncVISA(prefixo) {
+    const idsSync = {
+      'cvs': { fiscal: 'fiscal-sync-cvs', admin: 'admin-sync-cvs', arquivo: 'cvs_sync.txt' },
+      'taxa': { fiscal: 'fiscal-sync-taxa', admin: 'admin-sync-taxa', arquivo: 'taxa_sync.txt' },
+      'cnae': { fiscal: 'fiscal-sync-cnae', admin: 'admin-sync-cnae', arquivo: 'cnae_sync.txt' }
+    };
+
+    Object.keys(idsSync).forEach(tipo => {
+      const config = idsSync[tipo];
+      const urlVISA = 'https://visaanapolis.github.io/APP/data/' + config.arquivo + '?ts=' + Date.now();
+      
+      ['fiscal', 'admin'].forEach(perfil => {
+        const elId = config[perfil];
+        const el = document.getElementById(elId);
+        if (!el) return;
+        
+        fetch(urlVISA, { cache: 'no-store' })
+          .then(resp => {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            return resp.text();
+          })
+          .then(txt => {
+            const exibicao = parsearTimestamp(txt);
+            el.textContent = exibicao || (txt || '').trim() || '⚠️ sem dados';
+          })
+          .catch(() => { el.textContent = '⚠️ não foi possível verificar'; });
+      });
+    });
+
+    // Carregar próximo upload
+    const urlProximo = 'https://visaanapolis.github.io/APP/data/exportador_config.ini?ts=' + Date.now();
+    fetch(urlProximo, { cache: 'no-store' })
+      .then(resp => {
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return resp.text();
+      })
+      .then(txt => {
+        const cfg = {};
+        const linhas = txt.split('\n');
+        linhas.forEach(linha => {
+          const idx = linha.indexOf('=');
+          if (idx > 0) {
+            const chave = linha.substring(0, idx).trim();
+            const valor = linha.substring(idx + 1).trim();
+            cfg[chave] = valor;
+          }
+        });
+
+        const proximoUpload = (cfg['proximoUpload'] || 'em breve').trim();
+        ['fiscal-sync-proximo', 'admin-sync-proximo'].forEach(elId => {
+          const el = document.getElementById(elId);
+          if (el) el.textContent = proximoUpload;
+        });
+      })
+      .catch(() => {
+        ['fiscal-sync-proximo', 'admin-sync-proximo'].forEach(elId => {
+          const el = document.getElementById(elId);
+          if (el) el.textContent = '⚠️ não foi possível verificar';
+        });
+      });
+  }
+
   // ── Fiscal view ───────────────────────────────────────────
   async function loadFiscal(user) {
     const mes = Number(document.getElementById('sel-mes').value);
@@ -331,7 +506,7 @@
       const pendentes = manuais.filter(m => m.status === 'enviado').length;
       if (pendentes > 0)           alerts += alerta('warn',  `Você tem <strong>${pendentes}</strong> lançamento(s) aguardando homologação.`);
       const pendentesVisa = manuais.filter(m => m.status === 'pendente' && m.origem === 'visa_csv');
-      if (pendentesVisa.length > 0) alerts += alerta('warn', `Você tem <strong>${pendentesVisa.length}</strong> lançamento(s) importado(s) do VISA pendente(s) por falta de autorização do terceiro fiscal. Consulte a aba <strong>Meus Lançamentos</strong> para mais detalhes.`);
+      if (pendentesVisa.length > 0) alerts += alerta('warn', `Você tem <strong>${pendentesVisa.length}</strong> lançamento(s) importado(s) do VISA pendente(s) por falta de autorização do terc[...]
       document.getElementById('alert-fiscal').innerHTML = alerts;
 
       if (!manuais.length) {
@@ -453,6 +628,7 @@
     if (user.grupo === 'Fiscal') {
       document.getElementById('comp-selector-wrap').style.display = '';
       document.getElementById('view-fiscal').style.display = '';
+      document.getElementById('visa-sync-fiscal').style.display = '';
       buildMesSelect('sel-mes');
       buildAnoSelect('sel-ano');
       let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
@@ -469,8 +645,11 @@
       }).catch(() => {});
       loadFiscal(user);
       document.getElementById('btn-carregar').addEventListener('click', () => loadFiscal(user));
+      // Carregar sincronizações do VISA
+      carregarSyncVISA('fiscal');
     } else if (user.grupo === 'Administrador') {
       document.getElementById('view-admin').style.display = '';
+      document.getElementById('visa-sync-admin').style.display = '';
       buildMesSelect('admin-sel-mes');
       buildAnoSelect('admin-sel-ano');
       let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
@@ -480,6 +659,8 @@
       document.getElementById('admin-sel-ano').value = _ua;
       loadAdmin();
       document.getElementById('btn-admin-carregar').addEventListener('click', loadAdmin);
+      // Carregar sincronizações do VISA
+      carregarSyncVISA('admin');
     } else {
       document.getElementById('view-presentation').style.display = '';
     }
