@@ -1,0 +1,44 @@
+name: Backfill — Campos VISA (motivo_os, os_numero, documento)
+
+# Preenche os campos motivo_os, os_numero e documento nos registros da coleção
+# manuais que foram importados do inspecoes.csv antes da adição desses campos.
+# Apenas registros com origem=visa_csv e campos vazios são afetados.
+# Execute primeiro com dry_run=true para revisar o que será alterado.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mes:
+        description: 'Mês de referência (1–12)'
+        required: true
+        default: '6'
+      ano:
+        description: 'Ano de referência'
+        required: true
+        default: '2026'
+      dry_run:
+        description: 'Simular sem gravar (recomendado na primeira execução)'
+        type: boolean
+        default: true
+
+jobs:
+  backfill:
+    name: Backfill campos VISA
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}   # Não usa GITHUB_TOKEN — apenas FIREBASE_SERVICE_ACCOUNT_JSON
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar dependências Python
+        run: pip install google-auth --quiet
+
+      - name: Executar backfill
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          MES: ${{ inputs.mes }}
+          ANO: ${{ inputs.ano }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python3 .github/scripts/backfill_visa_fields.py
