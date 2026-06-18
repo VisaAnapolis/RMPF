@@ -271,9 +271,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const protocolo = String(row['Protocolo'] || row['PROTOCOLO'] || '').replace(/"/g, '').trim();
       const denuncia = String(row['Denuncia'] || row['DENUNCIA'] || '').replace(/"/g, '').trim();
       let osNumero = '';
-      if      (motivoOSNorm === 'DE OFICIO')  osNumero = oficio;
-      else if (motivoOSNorm === 'PROTOCOLO')  osNumero = protocolo;
-      else if (motivoOSNorm === 'DENUNCIA')   osNumero = denuncia;
+      if      (motivoOSNorm === 'DE OFICIO')    osNumero = oficio;
+      else if (motivoOSNorm === 'PROTOCOLO')    osNumero = protocolo;
+      else if (motivoOSNorm === 'DENUNCIA')     osNumero = denuncia;
+      else if (motivoOSNorm === 'REQUERIMENTO') osNumero = os;
       const documento = tipoRaw;
 
       const descParts = [];
