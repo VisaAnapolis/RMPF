@@ -190,78 +190,87 @@ erros = 0
 for doc in visa_docs:
     doc_name = doc.get('name', '')
     doc_id   = doc_name.split('/')[-1]
-    controle = fstr(doc, 'visa_controle')
 
-    row = csv_por_controle.get(controle)
-    if not row:
-        print(f'  ⚠️  {doc_id}: controle "{controle}" não encontrado no CSV.', file=sys.stderr)
-        sem_linha_csv += 1
-        continue
-
-    # Calcular motivo_os (Modalidade bruta)
-    motivo_os_csv = _clean(
-        row.get('Modalidade') or row.get('modalidade') or row.get('MODALIDADE') or ''
-    )
-    motivo_os_norm = norm_visa(motivo_os_csv)
-
-    # Calcular os_numero pela lógica correta (Modalidade-based)
-    os_numero_novo = calcular_os_numero(row, motivo_os_norm)
-
-    # Calcular descricao (CNAE código + nome de cnae_complexidade)
-    tipo_label = fstr(doc, 'tipo_nome') or fstr(doc, 'tipo_codigo') or ''
-    descricao_nova = calcular_descricao(row, tipo_label)
-
-    # Calcular documento
-    documento_novo = _clean(
-        row.get('tipo') or row.get('Tipo') or row.get('TIPO') or ''
-    )
-
-    # Campos que SEMPRE são atualizados (corrigir valores errados)
-    campos_sempre = {
-        'os_numero': os_numero_novo,
-        'descricao': descricao_nova,
-    }
-
-    # Campos que só são preenchidos se estiverem vazios
-    campos_se_vazio = {}
-    if not fstr(doc, 'motivo_os'):
-        campos_se_vazio['motivo_os'] = motivo_os_csv
-    if not fstr(doc, 'documento'):
-        campos_se_vazio['documento'] = documento_novo
-
-    todos_campos = {**campos_sempre, **campos_se_vazio}
-
-    # Verificar se há algo a fazer: os campos_sempre precisam mudar?
-    os_numero_atual  = fstr(doc, 'os_numero')
-    descricao_atual  = fstr(doc, 'descricao')
-    sem_mudanca = (
-        os_numero_atual == os_numero_novo
-        and descricao_atual == descricao_nova
-        and not campos_se_vazio
-    )
-    if sem_mudanca:
-        sem_alteracao += 1
-        continue
-
-    if DRY_RUN:
-        print(f'  [DRY] {doc_id} (controle={controle}):')
-        if os_numero_atual != os_numero_novo:
-            print(f'         os_numero: "{os_numero_atual}" → "{os_numero_novo}"')
-        if descricao_atual != descricao_nova:
-            print(f'         descricao: "{descricao_atual}" → "{descricao_nova}"')
-        for k, v in campos_se_vazio.items():
-            print(f'         {k}: (vazio) → "{v}"')
-        atualizados += 1
-        continue
-
+    # Qualquer falha inesperada em um único registro nunca deve abortar o
+    # processamento dos demais — o registro é apenas pulado e contabilizado.
     try:
+        controle = fstr(doc, 'visa_controle')
+
+        row = csv_por_controle.get(controle)
+        if not row:
+            print(f'  ⚠️  {doc_id}: controle "{controle}" não encontrado no CSV — '
+                  f'registro mantido como está, seguindo para o próximo.', file=sys.stderr)
+            sem_linha_csv += 1
+            continue
+
+        # Calcular motivo_os (Modalidade bruta)
+        motivo_os_csv = _clean(
+            row.get('Modalidade') or row.get('modalidade') or row.get('MODALIDADE') or ''
+        )
+        motivo_os_norm = norm_visa(motivo_os_csv)
+
+        # Calcular os_numero pela lógica correta (Modalidade-based)
+        os_numero_novo = calcular_os_numero(row, motivo_os_norm)
+
+        # Calcular descricao (CNAE código + nome de cnae_complexidade)
+        tipo_label = fstr(doc, 'tipo_nome') or fstr(doc, 'tipo_codigo') or ''
+        descricao_nova = calcular_descricao(row, tipo_label)
+
+        # Calcular documento
+        documento_novo = _clean(
+            row.get('tipo') or row.get('Tipo') or row.get('TIPO') or ''
+        )
+
+        # Campos que SEMPRE são atualizados (corrigir valores errados)
+        campos_sempre = {
+            'os_numero': os_numero_novo,
+            'descricao': descricao_nova,
+        }
+
+        # Campos que só são preenchidos se estiverem vazios
+        campos_se_vazio = {}
+        if not fstr(doc, 'motivo_os'):
+            campos_se_vazio['motivo_os'] = motivo_os_csv
+        if not fstr(doc, 'documento'):
+            campos_se_vazio['documento'] = documento_novo
+
+        todos_campos = {**campos_sempre, **campos_se_vazio}
+
+        # Verificar se há algo a fazer: os campos_sempre precisam mudar?
+        os_numero_atual  = fstr(doc, 'os_numero')
+        descricao_atual  = fstr(doc, 'descricao')
+        sem_mudanca = (
+            os_numero_atual == os_numero_novo
+            and descricao_atual == descricao_nova
+            and not campos_se_vazio
+        )
+        if sem_mudanca:
+            sem_alteracao += 1
+            continue
+
+        if DRY_RUN:
+            print(f'  [DRY] {doc_id} (controle={controle}):')
+            if os_numero_atual != os_numero_novo:
+                print(f'         os_numero: "{os_numero_atual}" → "{os_numero_novo}"')
+            if descricao_atual != descricao_nova:
+                print(f'         descricao: "{descricao_atual}" → "{descricao_nova}"')
+            for k, v in campos_se_vazio.items():
+                print(f'         {k}: (vazio) → "{v}"')
+            atualizados += 1
+            continue
+
         fs_patch(doc_id, todos_campos)
         atualizados += 1
+
     except urllib.error.HTTPError as e:
-        print(f'  ❌ {doc_id}: HTTP {e.code} — {e.read().decode()}', file=sys.stderr)
+        try:
+            detalhe = e.read().decode()
+        except Exception:
+            detalhe = ''
+        print(f'  ❌ {doc_id}: HTTP {e.code} — {detalhe} — pulando.', file=sys.stderr)
         erros += 1
     except Exception as e:
-        print(f'  ❌ {doc_id}: erro inesperado — {e}', file=sys.stderr)
+        print(f'  ❌ {doc_id}: erro inesperado — {e} — pulando.', file=sys.stderr)
         erros += 1
 
 # ── Resumo ────────────────────────────────────────────────
