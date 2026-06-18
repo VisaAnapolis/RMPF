@@ -518,6 +518,10 @@ table.rmpf-table {
   background: var(--amarP);
   color: var(--amar);
 }
+.text-vigilancia-ativa {
+  color: var(--amar);
+  font-weight: 600;
+}
 .fw-bold  { font-weight: 700; }
 .fw-med   { font-weight: 500; }
 .mt-0 { margin-top: 0; }

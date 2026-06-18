@@ -360,7 +360,7 @@
       }
 
       const origemHtml = m.motivo_os
-        ? (isVigilanciaAtiva ? `<span class="badge badge-vigilancia-ativa">${escHtml(m.motivo_os)}</span>` : escHtml(m.motivo_os))
+        ? (isVigilanciaAtiva ? `<span class="text-vigilancia-ativa">${escHtml(m.motivo_os)}</span>` : escHtml(m.motivo_os))
         : '—';
 
       return `<tr>
