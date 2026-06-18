@@ -141,16 +141,34 @@ def calcular_os_numero(row, motivo_norm):
         return _clean(row.get('Denuncia') or row.get('DENUNCIA') or '')
     return ''  # VIGILANCIA ATIVA, PLANTAO FISCAL e demais: sem OS
 
-# ── Lógica de descricao (apenas CNAE) ────────────────────
-def calcular_descricao(row, tipo_label, descricao_atual=''):
-    # Se a descrição atual já contém "CNAE ", extrai tudo a partir dali —
-    # isso preserva o nome completo do CNAE que o import JS já havia gravado.
-    idx = descricao_atual.find('CNAE ')
-    if idx >= 0:
-        return descricao_atual[idx:]
-    # Fallback: nome CNAE não disponível, usa só o código da coluna Atividade
+# ── Lookup CNAE com cache ─────────────────────────────────
+_cnae_cache = {}
+
+def get_cnae_descricao(subclasse):
+    """Busca campo 'descricao' de cnae_complexidade. Retorna '' se não encontrado."""
+    if not subclasse:
+        return ''
+    if subclasse in _cnae_cache:
+        return _cnae_cache[subclasse]
+    doc_id = subclasse.replace('/', '_')
+    try:
+        doc = fs_get(f'cnae_complexidade/{doc_id}')
+        desc = fstr(doc, 'descricao')
+    except Exception:
+        desc = ''
+    _cnae_cache[subclasse] = desc
+    return desc
+
+# ── Lógica de descricao (CNAE código + nome) ─────────────
+def calcular_descricao(row, tipo_label):
     subclasse = _clean(row.get('Atividade', ''))
-    return ('CNAE ' + subclasse) if subclasse else (tipo_label or '')
+    if not subclasse:
+        return tipo_label or ''
+    cnae_desc = get_cnae_descricao(subclasse)
+    parts = ['CNAE ' + subclasse]
+    if cnae_desc and cnae_desc != subclasse:
+        parts.append(cnae_desc)
+    return ' — '.join(parts)
 
 # ── Consultar todos os registros visa_csv ─────────────────
 print('Consultando todos os documentos visa_csv...')
@@ -187,10 +205,9 @@ for doc in visa_docs:
     # Calcular os_numero pela lógica correta (Modalidade-based)
     os_numero_novo = calcular_os_numero(row, motivo_os_norm)
 
-    # Calcular descricao (apenas CNAE — extrai da descricao atual para preservar o nome)
-    descricao_atual  = fstr(doc, 'descricao')
+    # Calcular descricao (CNAE código + nome de cnae_complexidade)
     tipo_label = fstr(doc, 'tipo_nome') or fstr(doc, 'tipo_codigo') or ''
-    descricao_nova = calcular_descricao(row, tipo_label, descricao_atual)
+    descricao_nova = calcular_descricao(row, tipo_label)
 
     # Calcular documento
     documento_novo = _clean(
@@ -214,6 +231,7 @@ for doc in visa_docs:
 
     # Verificar se há algo a fazer: os campos_sempre precisam mudar?
     os_numero_atual  = fstr(doc, 'os_numero')
+    descricao_atual  = fstr(doc, 'descricao')
     sem_mudanca = (
         os_numero_atual == os_numero_novo
         and descricao_atual == descricao_nova
