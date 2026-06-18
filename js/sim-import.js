@@ -1,8 +1,15 @@
 // js/sim-import.js
-// Módulo de importação de auditorias do SIM para o RMPF
+// Módulo de importação de auditorias do SIM para o RMPF.
+// Fonte de dados: coleção Firestore `ordens_servico` (antes era data/auditoria.csv).
 
 const SIM_IMPORT_INICIO_MES = 4;
 const SIM_IMPORT_INICIO_ANO = 2026;
+
+// Todas as auditorias do SIM são tratadas como Alta complexidade
+// (Vistoria — item 1 da tabela de pontuação = 48 pontos).
+const SIM_COMPLEXIDADE   = 'Alta';
+const SIM_ITEM_PONTUACAO = 1;
+const SIM_PONTOS         = 48;
 
 // ── Cache de ocorrências aceitas por fiscal/mês ──────────
 const _simOcorrCache = new Map();
@@ -55,35 +62,21 @@ function simMesAberto(mes, ano) {
   return false;
 }
 
-function normNomeSim(v) {
-  return String(v || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase().replace(/\s+/g, ' ').trim();
-}
-
 function normStatusSim(v) {
   return String(v || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .toLowerCase().trim();
 }
 
-function complexToItemSim(complexidade) {
-  const c = String(complexidade || '').trim().toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (c === 'alta')  return { item: 1, pontos: 48 };
-  if (c === 'baixa') return { item: 3, pontos: 6  };
-  return { item: 2, pontos: 12 };
-}
-
-function simDataToISO(dataStr) {
-  if (!dataStr) return null;
-  const s = String(dataStr).trim().replace(/"/g, '');
-  const parts = s.split('/');
-  if (parts.length === 3) {
-    const [d, m, y] = parts;
-    return `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
-  }
-  return null;
+// Converte um Firestore Timestamp (ou Date) para a data ISO local YYYY-MM-DD.
+function simTimestampToISO(ts) {
+  if (!ts) return null;
+  const d = typeof ts.toDate === 'function' ? ts.toDate() : (ts instanceof Date ? ts : null);
+  if (!d || isNaN(d.getTime())) return null;
+  const y   = d.getFullYear();
+  const m   = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dia}`;
 }
 
 async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFiscais, onProgress, onProgressBar }) {
@@ -98,79 +91,55 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
   await window.db_acquireSimImportLock(mes, ano, fiscalEmail, fiscalNome || fiscalEmail);
 
   try {
-    onProgress('🔄 Buscando CSV de auditorias do SIM...', 'info');
+    onProgress('🔄 Buscando ordens de serviço concluídas...', 'info');
 
-    const text = await window.fetchGitHubCSV('data/auditoria.csv');
-    if (text === null) {
-      onProgress('❌ Arquivo data/auditoria.csv não encontrado no repositório SIM. Verifique se o arquivo existe.', 'danger');
-      return { criados: 0, atualizados: 0, ignorados: 0, excluidos: 0, erros: 0 };
-    }
+    const ordens = await window.db_getOrdensServicoConcluidas(mes, ano, fiscalEmail || null);
 
-    const parsed = Papa.parse(text, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
-    });
-    const rows = parsed.data;
-
-    const fiscalMap = new Map();
+    // Conjunto de e-mails de fiscais válidos (somente grupo Fiscal são importados)
+    const fiscaisValidos = new Set();
     for (const f of (allFiscais || [])) {
-      if (f.nome) fiscalMap.set(normNomeSim(f.nome), f.email || f.id);
+      if (f.email) fiscaisValidos.add(String(f.email).toLowerCase());
     }
 
     const mesStr = String(mes).padStart(2, '0');
     const anoStr = String(ano);
-    const rowsFiltradas = rows.filter(r => {
-      if (normStatusSim(r['Status']) !== 'concluida') return false;
-      const dtStatus = simDataToISO(String(r['Data do Status'] || '').replace(/"/g, '').trim());
-      return dtStatus && dtStatus.startsWith(`${anoStr}-${mesStr}-`);
+
+    // Filtra OS concluídas com dataCumprimento dentro do mês (tolerante a
+    // variações de caixa/acentuação em statusOs: "Concluida"/"concluída"/…).
+    const ordensFiltradas = ordens.filter(o => {
+      if (normStatusSim(o.statusOs) !== 'concluida') return false;
+      const dt = simTimestampToISO(o.dataCumprimento);
+      return dt && dt.startsWith(`${anoStr}-${mesStr}-`);
     });
 
-    onProgress(`📋 ${rowsFiltradas.length} auditoria(s) concluída(s) encontrada(s) para ${mesStr}/${anoStr}.`, 'info');
+    onProgress(`📋 ${ordensFiltradas.length} auditoria(s) concluída(s) encontrada(s) para ${mesStr}/${anoStr}.`, 'info');
+
+    const item   = SIM_ITEM_PONTUACAO;
+    const pontos = SIM_PONTOS;
 
     let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
-    const cnaeCache = new Map();
     const processedKeys = new Set(); // "fiscalEmail::osNum"
     const pontosEstadoCache = new Map();
 
-    for (let idx = 0; idx < rowsFiltradas.length; idx++) {
-      const row = rowsFiltradas[idx];
-      if (onProgressBar) onProgressBar(idx + 1, rowsFiltradas.length);
+    for (let idx = 0; idx < ordensFiltradas.length; idx++) {
+      const os = ordensFiltradas[idx];
+      if (onProgressBar) onProgressBar(idx + 1, ordensFiltradas.length);
 
-      const osNum = String(row['Número OS'] || '').replace(/"/g, '').trim();
+      const osNum = String(os.id || os._docId || '').trim();
       if (!osNum) continue;
 
-      const nomeFiscalCsv = String(row['Fiscal'] || '').replace(/"/g, '').trim();
-      if (!nomeFiscalCsv) continue;
-
-      const emailFiscal = fiscalMap.get(normNomeSim(nomeFiscalCsv));
+      const emailFiscal = String(os.fiscalEmail || '').trim();
       if (!emailFiscal) continue;
+      if (fiscaisValidos.size && !fiscaisValidos.has(emailFiscal.toLowerCase())) continue;
       if (fiscalEmail && emailFiscal !== fiscalEmail) continue;
 
-      // Marca como presente no CSV para detecção de registros órfãos
+      const nomeFiscalOs = String(os.fiscalNome || emailFiscal).trim();
+
+      // Marca como presente na coleção para detecção de registros órfãos
       processedKeys.add(emailFiscal + '::' + osNum);
 
-      const subclasse = String(row['CNAE'] || '').replace(/"/g, '').trim();
-      let cnaeInfo = { complexidade: 'Média', descricao: '' };
-      if (subclasse) {
-        if (!cnaeCache.has(subclasse)) {
-          try {
-            const info = await window.db_getCNAEComplexidade(subclasse);
-            cnaeCache.set(subclasse, info || { complexidade: 'Média', descricao: subclasse });
-          } catch(_) {
-            cnaeCache.set(subclasse, { complexidade: 'Média', descricao: subclasse });
-          }
-        }
-        cnaeInfo = cnaeCache.get(subclasse) || { complexidade: 'Média', descricao: subclasse };
-      }
-
-      const { item, pontos } = complexToItemSim(cnaeInfo.complexidade);
-      const dataISO = simDataToISO(String(row['Data do Status'] || '').replace(/"/g, '').trim());
-
-      const descParts = ['Auditoria SIM', 'OS ' + osNum];
-      if (subclasse) descParts.push('CNAE ' + subclasse);
-      if (cnaeInfo.descricao && cnaeInfo.descricao !== subclasse) descParts.push(cnaeInfo.descricao);
-      const descricao = descParts.join(' — ');
+      const dataISO = simTimestampToISO(os.dataCumprimento);
+      const descricao = `Auditoria SIM — OS ${osNum}`;
 
       try {
         const existing = await window.db_getSIMManual(osNum, emailFiscal);
@@ -194,7 +163,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
               ignorados++;
               onProgress(
-                `⚠️ OS ${osNum} — ${nomeFiscalCsv}: dia ${dataISO} com ocorrência aceita ` +
+                `⚠️ OS ${osNum} — ${nomeFiscalOs}: dia ${dataISO} com ocorrência aceita ` +
                 `ultrapassaria ${LIMITE_PONTOS_OCORRENCIA_DIA} pontos (total projetado: ${totalDia}). Importação rejeitada.`,
                 'warn'
               );
@@ -206,19 +175,20 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
         if (existing) {
           if (existing.status === 'aceito' || existing.status === 'fechado') {
             ignorados++;
-            onProgress(`⚠️ OS ${osNum} — ${nomeFiscalCsv}: já homologado, ignorado.`, 'warn');
+            onProgress(`⚠️ OS ${osNum} — ${nomeFiscalOs}: já homologado, ignorado.`, 'warn');
             continue;
           }
           const updateData = {
-            fiscal_nome: nomeFiscalCsv,
+            fiscal_nome: nomeFiscalOs,
             mes, ano, data: dataISO,
             tipo_id: 1, tipo_codigo: 'VIS',
             tipo_nome: 'Vistoria ou atendimento a denúncia',
             item_pontuacao: item,
-            complexidade: cnaeInfo.complexidade,
+            complexidade: SIM_COMPLEXIDADE,
             pontos, descricao,
             origem: 'sim_csv',
             sim_os: osNum,
+            os_doc_id: os._docId || null,
           };
           if (existing.status === 'recusado') {
             updateData.status = 'enviado';
@@ -236,22 +206,23 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
           const fechamento = await window.db_getFechamento(emailFiscal, mes, ano);
           if (fechamento) {
             ignorados++;
-            onProgress(`⚠️ OS ${osNum} — ${nomeFiscalCsv}: competência fechada, ignorado.`, 'warn');
+            onProgress(`⚠️ OS ${osNum} — ${nomeFiscalOs}: competência fechada, ignorado.`, 'warn');
             continue;
           }
           await window.db_upsertSIMManual(osNum, emailFiscal, {
             controle: 'SIM-' + osNum,
             fiscal_email: emailFiscal,
-            fiscal_nome: nomeFiscalCsv,
+            fiscal_nome: nomeFiscalOs,
             mes, ano, data: dataISO,
             tipo_id: 1, tipo_codigo: 'VIS',
             tipo_nome: 'Vistoria ou atendimento a denúncia',
             item_pontuacao: item,
-            complexidade: cnaeInfo.complexidade,
+            complexidade: SIM_COMPLEXIDADE,
             pontos, descricao,
             status: 'enviado',
             origem: 'sim_csv',
             sim_os: osNum,
+            os_doc_id: os._docId || null,
           }, null, true);
           const estado = estadoPontos || await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
           _aplicarManualNoMapaPontosSim(estado.byDia, {
@@ -265,7 +236,8 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
       }
     }
 
-    // Exclui lançamentos SIM que foram removidos do CSV e ainda não foram homologados
+    // Exclui lançamentos SIM cuja OS não consta mais como concluída na coleção
+    // e que ainda não foram homologados.
     let excluidos = 0;
     try {
       const candidatos = fiscalEmail
@@ -278,7 +250,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
         if (!processedKeys.has(key)) {
           await window.db_deleteManual(m.id);
           excluidos++;
-          onProgress(`🗑️ OS ${m.sim_os} — não encontrado no CSV, lançamento excluído.`, 'info');
+          onProgress(`🗑️ OS ${m.sim_os} — não consta como concluída na coleção, lançamento excluído.`, 'info');
         }
       }
     } catch(e) {
@@ -299,5 +271,5 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
   }
 }
 
-window.simMesAberto        = simMesAberto;
+window.simMesAberto          = simMesAberto;
 window.importarAuditoriasSIM = importarAuditoriasSIM;

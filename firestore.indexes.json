@@ -68,6 +68,14 @@
         { "fieldPath": "mes", "order": "ASCENDING" },
         { "fieldPath": "ano", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "ordens_servico",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "fiscalEmail",     "order": "ASCENDING" },
+        { "fieldPath": "dataCumprimento", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

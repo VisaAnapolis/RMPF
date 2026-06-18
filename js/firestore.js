@@ -374,7 +374,7 @@ async function releaseVisaImportLock(mes, ano) {
   await window.db.collection('visa_import_locks').doc(docId).delete();
 }
 
-// ── SIM Manuais (importados do CSV auditoria.csv) ────────
+// ── SIM Manuais (importados da coleção ordens_servico) ───
 
 function _simDocId(osNum, fiscalEmail) {
   return 'sim_' + String(osNum).trim() + '_' +
@@ -442,6 +442,24 @@ async function acquireSimImportLock(mes, ano, fiscalEmail, fiscalNome) {
 async function releaseSimImportLock(mes, ano) {
   const docId = _simLockDocId(mes, ano);
   await window.db.collection('sim_import_locks').doc(docId).delete();
+}
+
+// ── Ordens de Serviço (fonte das auditorias do SIM) ──────
+// Substitui o antigo CSV `data/auditoria.csv`. Lê as ordens de serviço
+// concluídas cuja `dataCumprimento` cai dentro do mês/ano informado.
+// A query usa intervalo sobre `dataCumprimento` (+ igualdade em `fiscalEmail`
+// quando informado); o status é filtrado no cliente para tolerar variações de
+// caixa/acentuação ("Concluida" / "concluída" / "CONCLUÍDA").
+async function getOrdensServicoConcluidas(mes, ano, fiscalEmail) {
+  mes = Number(mes); ano = Number(ano);
+  const inicio = firebase.firestore.Timestamp.fromDate(new Date(ano, mes - 1, 1, 0, 0, 0, 0));
+  const fim    = firebase.firestore.Timestamp.fromDate(new Date(ano, mes, 1, 0, 0, 0, 0));
+  let q = window.db.collection('ordens_servico')
+    .where('dataCumprimento', '>=', inicio)
+    .where('dataCumprimento', '<',  fim);
+  if (fiscalEmail) q = q.where('fiscalEmail', '==', fiscalEmail);
+  const snap = await q.get();
+  return snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
 }
 
 // ── Fechamentos ──────────────────────────────────────────
@@ -981,6 +999,7 @@ window.db_getSIMManual          = getSIMManual;
 window.db_upsertSIMManual       = upsertSIMManual;
 window.db_acquireSimImportLock  = acquireSimImportLock;
 window.db_releaseSimImportLock  = releaseSimImportLock;
+window.db_getOrdensServicoConcluidas = getOrdensServicoConcluidas;
 window.db_getGitHubToken        = db_getGitHubToken;
 window.db_setGitHubToken        = db_setGitHubToken;
 window.fetchGitHubCSV           = fetchGitHubCSV;
