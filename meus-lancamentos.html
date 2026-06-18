@@ -303,6 +303,8 @@
     }
     tbody.innerHTML = [..._manuais].sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(m => {
       const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
+      const motivoOSNorm = (m.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
+      const isVigilanciaAtiva = motivoOSNorm === 'VIGILANCIA ATIVA';
       let acoes = '';
       if (m.origem === 'visa_csv') {
         acoes = `<span class="badge badge-cvs" title="Importado do VISA — somente leitura">CVS</span>`;
@@ -357,11 +359,15 @@
         anexoCell = '—';
       }
 
+      const origemHtml = m.motivo_os
+        ? (isVigilanciaAtiva ? `<span class="cel-destaque-amarelo">${escHtml(m.motivo_os)}</span>` : escHtml(m.motivo_os))
+        : '—';
+
       return `<tr>
         <td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle || '—')}</span></td>
         <td data-label="Data">${fmtData(m.data)}</td>
         <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo || '—')}</td>
-        <td data-label="Origem da Demanda">${escHtml(m.motivo_os || '—')}</td>
+        <td data-label="Origem da Demanda">${origemHtml}</td>
         <td data-label="OS">${escHtml(m.os_numero || '—')}</td>
         <td data-label="Documento">${escHtml(m.documento || '—')}</td>
         <td data-label="Descrição">${escHtml(m.descricao || '—')}</td>
