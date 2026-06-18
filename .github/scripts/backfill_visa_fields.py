@@ -142,17 +142,15 @@ def calcular_os_numero(row, motivo_norm):
     return ''  # VIGILANCIA ATIVA, PLANTAO FISCAL e demais: sem OS
 
 # ── Lógica de descricao (apenas CNAE) ────────────────────
-def calcular_descricao(row, tipo_label):
+def calcular_descricao(row, tipo_label, descricao_atual=''):
+    # Se a descrição atual já contém "CNAE ", extrai tudo a partir dali —
+    # isso preserva o nome completo do CNAE que o import JS já havia gravado.
+    idx = descricao_atual.find('CNAE ')
+    if idx >= 0:
+        return descricao_atual[idx:]
+    # Fallback: nome CNAE não disponível, usa só o código da coluna Atividade
     subclasse = _clean(row.get('Atividade', ''))
-    # Sem acesso ao nome CNAE aqui (precisaria consultar Firestore por CNAE).
-    # Usamos apenas o código subclasse como descrição — consistente com o import JS
-    # quando cnaeInfo.descricao não está disponível.
-    # O import JS usa: cnaeInfo.descricao (nome) obtido via db_getCNAEComplexidade.
-    # No backfill, se o doc Firestore já tiver descricao com CNAE no formato correto,
-    # não alteramos. Calculamos: "CNAE {subclasse}" ou fallback para tipo_label.
-    if subclasse:
-        return 'CNAE ' + subclasse
-    return tipo_label or ''
+    return ('CNAE ' + subclasse) if subclasse else (tipo_label or '')
 
 # ── Consultar todos os registros visa_csv ─────────────────
 print('Consultando todos os documentos visa_csv...')
@@ -189,9 +187,10 @@ for doc in visa_docs:
     # Calcular os_numero pela lógica correta (Modalidade-based)
     os_numero_novo = calcular_os_numero(row, motivo_os_norm)
 
-    # Calcular descricao (apenas CNAE)
+    # Calcular descricao (apenas CNAE — extrai da descricao atual para preservar o nome)
+    descricao_atual  = fstr(doc, 'descricao')
     tipo_label = fstr(doc, 'tipo_nome') or fstr(doc, 'tipo_codigo') or ''
-    descricao_nova = calcular_descricao(row, tipo_label)
+    descricao_nova = calcular_descricao(row, tipo_label, descricao_atual)
 
     # Calcular documento
     documento_novo = _clean(
@@ -215,7 +214,6 @@ for doc in visa_docs:
 
     # Verificar se há algo a fazer: os campos_sempre precisam mudar?
     os_numero_atual  = fstr(doc, 'os_numero')
-    descricao_atual  = fstr(doc, 'descricao')
     sem_mudanca = (
         os_numero_atual == os_numero_novo
         and descricao_atual == descricao_nova
