@@ -268,6 +268,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const dataISO = visaDataToISO(String(row['DT_VISITA'] || '').replace(/"/g, '').trim());
       const os = String(row['OS'] || row['NUMERO'] || '').replace(/"/g, '').trim();
       const oficio = String(row['Oficio'] || row['OFICIO'] || '').replace(/"/g, '').trim();
+      const protocolo = String(row['Protocolo'] || row['PROTOCOLO'] || '').replace(/"/g, '').trim();
+      const denuncia = String(row['Denuncia'] || row['DENUNCIA'] || '').replace(/"/g, '').trim();
+      const osNumero = os || oficio || protocolo || denuncia;
+      const documento = tipoRaw;
 
       const descParts = [tipoInfo.descLabel];
       if (os) descParts.push('OS ' + os);
@@ -338,6 +342,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               complexidade: cnaeInfo.complexidade,
               pontos: pontosFinal, descricao,
               motivo_os: motivoOS,
+              os_numero: osNumero,
+              documento,
               origem: 'visa_csv',
               visa_controle: controleVisa,
             };
@@ -392,6 +398,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               complexidade: cnaeInfo.complexidade,
               pontos: pontosFinal, descricao,
               motivo_os: motivoOS,
+              os_numero: osNumero,
+              documento,
               status: statusInicial,
               motivo_pendencia: motivoPendencia,
               origem: 'visa_csv',
