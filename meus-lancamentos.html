@@ -88,6 +88,9 @@
               <th>Controle</th>
               <th>Data</th>
               <th>Tipo</th>
+              <th>Origem da Demanda</th>
+              <th>OS</th>
+              <th>Documento</th>
               <th>Descrição</th>
               <th class="td-num">Pts Req.</th>
               <th class="td-num">Pts Hom.</th>
@@ -97,7 +100,7 @@
             </tr>
           </thead>
           <tbody id="tbody-lista">
-            <tr class="empty-row"><td colspan="9">Selecione uma competência e clique em Carregar</td></tr>
+            <tr class="empty-row"><td colspan="12">Selecione uma competência e clique em Carregar</td></tr>
           </tbody>
         </table>
       </div>
@@ -358,6 +361,9 @@
         <td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle || '—')}</span></td>
         <td data-label="Data">${fmtData(m.data)}</td>
         <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo || '—')}</td>
+        <td data-label="Origem da Demanda">${escHtml(m.motivo_os || '—')}</td>
+        <td data-label="OS">${escHtml(m.os_numero || '—')}</td>
+        <td data-label="Documento">${escHtml(m.documento || '—')}</td>
         <td data-label="Descrição">${escHtml(m.descricao || '—')}</td>
         <td data-label="Pts Req." class="td-num">${m.pontos ?? '—'}</td>
         <td data-label="Pts Hom." class="td-num">${m.pontos_homologado != null ? m.pontos_homologado : '—'}</td>
