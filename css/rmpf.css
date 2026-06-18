@@ -514,13 +514,9 @@ table.rmpf-table {
 .text-verde  { color: var(--verde); }
 .text-verm   { color: var(--verm); }
 .text-amar   { color: var(--amar); }
-.cel-destaque-amarelo {
+.badge-vigilancia-ativa {
+  background: var(--amarP);
   color: var(--amar);
-  font-weight: 600;
-  padding: 2px 8px;
-  border: 1.5px solid var(--amar);
-  border-radius: 12px;
-  display: inline-block;
 }
 .fw-bold  { font-weight: 700; }
 .fw-med   { font-weight: 500; }
