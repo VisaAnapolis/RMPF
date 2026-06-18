@@ -35,5 +35,5 @@ jobs:
       - name: Executar backfill
         env:
           FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-          DRY_RUN: ${{ inputs.dry_run }}
+          DRY_RUN: "${{ inputs.dry_run }}"
         run: python3 .github/scripts/backfill_visa_fields.py
