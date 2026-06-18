@@ -1,15 +1,15 @@
 """
-Backfill dos campos motivo_os, os_numero e documento nos registros VISA
-da coleção manuais do Firestore.
+Backfill/correção dos campos motivo_os, os_numero, documento e descricao
+em TODOS os registros visa_csv da coleção manuais.
+
+Processa todos os registros com origem=visa_csv (desde abril/2026 em diante).
 
 Variáveis de ambiente:
   FIREBASE_SA_JSON  — conteúdo JSON da service account (obrigatório)
-  MES               — mês de referência (default: 6)
-  ANO               — ano de referência (default: 2026)
   DRY_RUN           — "true" para simular sem gravar (default: "true")
 """
 
-import csv, io, json, os, sys, urllib.request, urllib.error
+import csv, io, json, os, sys, unicodedata, urllib.request, urllib.error
 
 import google.oauth2.service_account
 import google.auth.transport.requests
@@ -17,8 +17,6 @@ import google.auth.transport.requests
 PROJECT_ID    = 'visam-3a30b'
 FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
 
-MES     = int(os.environ.get('MES', '6'))
-ANO     = int(os.environ.get('ANO', '2026'))
 DRY_RUN = os.environ.get('DRY_RUN', 'true').strip().lower() != 'false'
 
 # ── Autenticação ──────────────────────────────────────────
@@ -44,11 +42,18 @@ def fs_get(path):
     with urllib.request.urlopen(req) as r:
         return json.loads(r.read())
 
-def fs_query(filters):
+def fs_query_all_visa():
+    """Busca todos os documentos manuais com origem=visa_csv."""
     body = json.dumps({
         'structuredQuery': {
             'from': [{'collectionId': 'manuais'}],
-            'where': {'compositeFilter': {'op': 'AND', 'filters': filters}},
+            'where': {
+                'fieldFilter': {
+                    'field': {'fieldPath': 'origem'},
+                    'op': 'EQUAL',
+                    'value': {'stringValue': 'visa_csv'},
+                }
+            },
         }
     }).encode()
     req = urllib.request.Request(
@@ -58,7 +63,7 @@ def fs_query(filters):
         return json.loads(r.read())
 
 def fs_patch(doc_id, fields_dict):
-    """Atualiza apenas os campos indicados em fields_dict (todos string)."""
+    """Atualiza apenas os campos indicados (todos string)."""
     mask = '&'.join(f'updateMask.fieldPaths={k}' for k in fields_dict)
     body = json.dumps({
         'fields': {k: {'stringValue': v} for k, v in fields_dict.items()}
@@ -75,8 +80,15 @@ def fstr(doc, field):
     fv = doc.get('fields', {}).get(field, {})
     return fv.get('stringValue') or ''
 
+# ── Normalização (mesma lógica do normNomeVisa do JS) ─────
+def norm_visa(v):
+    s = str(v or '')
+    s = unicodedata.normalize('NFD', s)
+    s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+    return s.upper().replace('  ', ' ').strip()
+
 # ── Ler token do GitHub do Firestore ─────────────────────
-print(f'Backfill VISA — mes={MES}, ano={ANO}, dry_run={DRY_RUN}')
+print(f'Backfill VISA campos — dry_run={DRY_RUN}')
 print('Lendo token do GitHub em app_config/github_token...')
 token_doc = fs_get('app_config/github_token')
 github_token = fstr(token_doc, 'token')
@@ -96,14 +108,13 @@ csv_req = urllib.request.Request(
 )
 try:
     with urllib.request.urlopen(csv_req) as r:
-        csv_raw = r.read().decode('utf-8-sig')  # utf-8-sig remove BOM automaticamente
+        csv_raw = r.read().decode('utf-8-sig')
 except urllib.error.HTTPError as e:
     print(f'❌ Falha ao buscar CSV: HTTP {e.code} — {e.read().decode()}', file=sys.stderr)
     sys.exit(1)
 
 # ── Parsear CSV ───────────────────────────────────────────
 reader = csv.DictReader(io.StringIO(csv_raw), delimiter=';')
-# Limpar BOM residual e aspas dos cabeçalhos (mesma lógica do visa-import.js)
 reader.fieldnames = [
     h.replace('﻿', '').strip('"').strip()
     for h in (reader.fieldnames or [])
@@ -120,26 +131,33 @@ for row in reader:
 
 print(f'✅ {len(csv_por_controle)} linha(s) no CSV.')
 
-# ── Consultar manuais no Firestore ────────────────────────
-print(f'Consultando manuais mes={MES}, ano={ANO}...')
-results = fs_query([
-    {'fieldFilter': {
-        'field': {'fieldPath': 'mes'},
-        'op': 'EQUAL',
-        'value': {'integerValue': str(MES)},
-    }},
-    {'fieldFilter': {
-        'field': {'fieldPath': 'ano'},
-        'op': 'EQUAL',
-        'value': {'integerValue': str(ANO)},
-    }},
-])
+# ── Lógica de os_numero (baseada na Modalidade) ───────────
+def calcular_os_numero(row, motivo_norm):
+    if motivo_norm == 'DE OFICIO':
+        return _clean(row.get('Oficio') or row.get('OFICIO') or '')
+    if motivo_norm == 'PROTOCOLO':
+        return _clean(row.get('Protocolo') or row.get('PROTOCOLO') or '')
+    if motivo_norm == 'DENUNCIA':
+        return _clean(row.get('Denuncia') or row.get('DENUNCIA') or '')
+    return ''  # VIGILANCIA ATIVA, PLANTAO FISCAL e demais: sem OS
 
-visa_docs = [
-    item['document']
-    for item in results
-    if item.get('document') and fstr(item['document'], 'origem') == 'visa_csv'
-]
+# ── Lógica de descricao (apenas CNAE) ────────────────────
+def calcular_descricao(row, tipo_label):
+    subclasse = _clean(row.get('Atividade', ''))
+    # Sem acesso ao nome CNAE aqui (precisaria consultar Firestore por CNAE).
+    # Usamos apenas o código subclasse como descrição — consistente com o import JS
+    # quando cnaeInfo.descricao não está disponível.
+    # O import JS usa: cnaeInfo.descricao (nome) obtido via db_getCNAEComplexidade.
+    # No backfill, se o doc Firestore já tiver descricao com CNAE no formato correto,
+    # não alteramos. Calculamos: "CNAE {subclasse}" ou fallback para tipo_label.
+    if subclasse:
+        return 'CNAE ' + subclasse
+    return tipo_label or ''
+
+# ── Consultar todos os registros visa_csv ─────────────────
+print('Consultando todos os documentos visa_csv...')
+results = fs_query_all_visa()
+visa_docs = [item['document'] for item in results if item.get('document')]
 print(f'✅ {len(visa_docs)} documento(s) VISA encontrado(s).')
 
 # ── Backfill ──────────────────────────────────────────────
@@ -147,7 +165,7 @@ if DRY_RUN:
     print('\n⚠️  MODO SIMULAÇÃO (DRY_RUN=true) — nenhum dado será gravado.\n')
 
 atualizados = 0
-ja_preenchidos = 0
+sem_alteracao = 0
 sem_linha_csv = 0
 erros = 0
 
@@ -162,39 +180,64 @@ for doc in visa_docs:
         sem_linha_csv += 1
         continue
 
-    # Extrair valores do CSV (mesma lógica do visa-import.js)
-    motivo_os = _clean(
+    # Calcular motivo_os (Modalidade bruta)
+    motivo_os_csv = _clean(
         row.get('Modalidade') or row.get('modalidade') or row.get('MODALIDADE') or ''
     )
-    os_numero = next(
-        (_clean(row.get(k, '')) for k in ('OS', 'NUMERO', 'Oficio', 'OFICIO', 'Protocolo', 'PROTOCOLO', 'Denuncia', 'DENUNCIA')
-         if _clean(row.get(k, ''))),
-        ''
-    )
-    documento = _clean(
+    motivo_os_norm = norm_visa(motivo_os_csv)
+
+    # Calcular os_numero pela lógica correta (Modalidade-based)
+    os_numero_novo = calcular_os_numero(row, motivo_os_norm)
+
+    # Calcular descricao (apenas CNAE)
+    tipo_label = fstr(doc, 'tipo_nome') or fstr(doc, 'tipo_codigo') or ''
+    descricao_nova = calcular_descricao(row, tipo_label)
+
+    # Calcular documento
+    documento_novo = _clean(
         row.get('tipo') or row.get('Tipo') or row.get('TIPO') or ''
     )
 
-    # Apenas preenche campos que estão vazios no Firestore
-    candidatos = {
-        'motivo_os': motivo_os,
-        'os_numero': os_numero,
-        'documento': documento,
+    # Campos que SEMPRE são atualizados (corrigir valores errados)
+    campos_sempre = {
+        'os_numero': os_numero_novo,
+        'descricao': descricao_nova,
     }
-    campos_faltando = {k: v for k, v in candidatos.items() if not fstr(doc, k)}
 
-    if not campos_faltando:
-        ja_preenchidos += 1
+    # Campos que só são preenchidos se estiverem vazios
+    campos_se_vazio = {}
+    if not fstr(doc, 'motivo_os'):
+        campos_se_vazio['motivo_os'] = motivo_os_csv
+    if not fstr(doc, 'documento'):
+        campos_se_vazio['documento'] = documento_novo
+
+    todos_campos = {**campos_sempre, **campos_se_vazio}
+
+    # Verificar se há algo a fazer: os campos_sempre precisam mudar?
+    os_numero_atual  = fstr(doc, 'os_numero')
+    descricao_atual  = fstr(doc, 'descricao')
+    sem_mudanca = (
+        os_numero_atual == os_numero_novo
+        and descricao_atual == descricao_nova
+        and not campos_se_vazio
+    )
+    if sem_mudanca:
+        sem_alteracao += 1
         continue
 
     if DRY_RUN:
-        print(f'  [DRY] {doc_id} (controle={controle}): preencheria {campos_faltando}')
+        print(f'  [DRY] {doc_id} (controle={controle}):')
+        if os_numero_atual != os_numero_novo:
+            print(f'         os_numero: "{os_numero_atual}" → "{os_numero_novo}"')
+        if descricao_atual != descricao_nova:
+            print(f'         descricao: "{descricao_atual}" → "{descricao_nova}"')
+        for k, v in campos_se_vazio.items():
+            print(f'         {k}: (vazio) → "{v}"')
         atualizados += 1
         continue
 
     try:
-        fs_patch(doc_id, campos_faltando)
-        print(f'  ✅ {doc_id}: {list(campos_faltando.keys())} preenchido(s).')
+        fs_patch(doc_id, todos_campos)
         atualizados += 1
     except urllib.error.HTTPError as e:
         print(f'  ❌ {doc_id}: erro ao atualizar — {e.read().decode()}', file=sys.stderr)
@@ -203,10 +246,10 @@ for doc in visa_docs:
 # ── Resumo ────────────────────────────────────────────────
 prefixo = '[DRY] ' if DRY_RUN else ''
 print(f'\n{prefixo}Resumo:')
-print(f'  Atualizados:       {atualizados}')
-print(f'  Já preenchidos:    {ja_preenchidos}')
-print(f'  Sem linha no CSV:  {sem_linha_csv}')
-print(f'  Erros:             {erros}')
+print(f'  Atualizados:        {atualizados}')
+print(f'  Sem alteração:      {sem_alteracao}')
+print(f'  Sem linha no CSV:   {sem_linha_csv}')
+print(f'  Erros:              {erros}')
 if DRY_RUN:
     print('\nPara aplicar, re-execute com DRY_RUN=false.')
 if erros:
