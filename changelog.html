@@ -70,6 +70,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.1</span>
+            <span class="badge-date">18/06/2026</span>
+          </div>
+          <div class="changelog-title">Importação de Auditorias do SIM direto da coleção <code>ordens_servico</code></div>
+          <ul class="changelog-changes">
+            <li><strong>Fonte das auditorias migrada do CSV para o Firestore</strong> — <code>js/sim-import.js</code> deixa de baixar <code>data/auditoria.csv</code> via <code>fetchGitHubCSV</code> e passa a ler diretamente a coleção <code>ordens_servico</code>, buscando registros com <code>statusOs = "Concluída"</code> e <code>dataCumprimento</code> dentro do mês aberto. Novo helper <code>db_getOrdensServicoConcluidas(mes, ano, fiscalEmail)</code> em <code>js/firestore.js</code> com query por intervalo de <code>dataCumprimento</code>.</li>
+            <li><strong>Fiscal resolvido por e-mail direto</strong> — o vínculo do lançamento usa o campo <code>fiscalEmail</code> da própria OS, eliminando o casamento frágil por nome que dependia do CSV.</li>
+            <li><strong>Pontuação fixa de Alta complexidade</strong> — todas as auditorias do SIM são tratadas como Vistoria de Alta complexidade (item 1 = 48 pontos), dispensando o lookup de CNAE em <code>cnae_complexidade</code>.</li>
+            <li><strong>Regras de negócio preservadas</strong> — snapshot dos dados na coleção <code>manuais</code> (<code>origem: "sim_csv"</code>), atualização de registros existentes, teto de 24 pontos/dia em ocorrência aceita, bloqueio em competência fechada, detecção de órfãos e rastreabilidade via <code>sim_os</code> + novo campo <code>os_doc_id</code>.</li>
+            <li><strong>Novo índice composto</strong> — <code>ordens_servico (fiscalEmail, dataCumprimento)</code> adicionado em <code>firestore.indexes.json</code> para a importação por fiscal.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.8.6</span>
             <span class="badge-date">03/06/2026</span>
           </div>
