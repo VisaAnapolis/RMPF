@@ -89,7 +89,7 @@
               <th>Data</th>
               <th>Tipo</th>
               <th>Origem da Demanda</th>
-              <th>OS</th>
+              <th class="td-center">OS</th>
               <th>Documento</th>
               <th>Descrição</th>
               <th class="td-num">Pts Req.</th>
@@ -368,7 +368,7 @@
         <td data-label="Data">${fmtData(m.data)}</td>
         <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo || '—')}</td>
         <td data-label="Origem da Demanda">${origemHtml}</td>
-        <td data-label="OS">${escHtml(m.os_numero || '—')}</td>
+        <td data-label="OS" class="td-center">${escHtml(m.os_numero || '—')}</td>
         <td data-label="Documento">${escHtml(m.documento || '—')}</td>
         <td data-label="Descrição">${escHtml(m.descricao || '—')}</td>
         <td data-label="Pts Req." class="td-num">${m.pontos ?? '—'}</td>
