@@ -139,6 +139,8 @@ def calcular_os_numero(row, motivo_norm):
         return _clean(row.get('Protocolo') or row.get('PROTOCOLO') or '')
     if motivo_norm == 'DENUNCIA':
         return _clean(row.get('Denuncia') or row.get('DENUNCIA') or '')
+    if motivo_norm == 'REQUERIMENTO':
+        return _clean(row.get('OS') or row.get('NUMERO') or '')
     return ''  # VIGILANCIA ATIVA, PLANTAO FISCAL e demais: sem OS
 
 # ── Lookup CNAE com cache ─────────────────────────────────
