@@ -270,14 +270,16 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const oficio = String(row['Oficio'] || row['OFICIO'] || '').replace(/"/g, '').trim();
       const protocolo = String(row['Protocolo'] || row['PROTOCOLO'] || '').replace(/"/g, '').trim();
       const denuncia = String(row['Denuncia'] || row['DENUNCIA'] || '').replace(/"/g, '').trim();
-      const osNumero = os || oficio || protocolo || denuncia;
+      let osNumero = '';
+      if      (motivoOSNorm === 'DE OFICIO')  osNumero = oficio;
+      else if (motivoOSNorm === 'PROTOCOLO')  osNumero = protocolo;
+      else if (motivoOSNorm === 'DENUNCIA')   osNumero = denuncia;
       const documento = tipoRaw;
 
-      const descParts = [tipoInfo.descLabel];
-      if (os) descParts.push('OS ' + os);
+      const descParts = [];
       if (subclasse) descParts.push('CNAE ' + subclasse);
       if (cnaeInfo.descricao && cnaeInfo.descricao !== subclasse) descParts.push(cnaeInfo.descricao);
-      const descricao = descParts.join(' — ');
+      const descricao = descParts.join(' — ') || tipoInfo.descLabel;
 
       const rawFiscais = [
         { nome: row['Fiscal1'], isTerceiro: false },
