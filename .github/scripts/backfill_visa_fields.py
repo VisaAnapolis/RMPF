@@ -17,7 +17,7 @@ import google.auth.transport.requests
 PROJECT_ID    = 'visam-3a30b'
 FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
 
-DRY_RUN = os.environ.get('DRY_RUN', 'true').strip().lower() != 'false'
+DRY_RUN = os.environ.get('DRY_RUN', 'true').strip().lower() not in ('false', '0', 'no')
 
 # ── Autenticação ──────────────────────────────────────────
 sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
@@ -39,7 +39,7 @@ def _headers():
 
 def fs_get(path):
     req = urllib.request.Request(f'{FIRESTORE_URL}/{path}', headers=_headers())
-    with urllib.request.urlopen(req) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read())
 
 def fs_query_all_visa():
@@ -59,7 +59,7 @@ def fs_query_all_visa():
     req = urllib.request.Request(
         f'{FIRESTORE_URL}:runQuery', data=body, method='POST', headers=_headers()
     )
-    with urllib.request.urlopen(req) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read())
 
 def fs_patch(doc_id, fields_dict):
@@ -72,7 +72,7 @@ def fs_patch(doc_id, fields_dict):
         f'{FIRESTORE_URL}/manuais/{doc_id}?{mask}',
         data=body, method='PATCH', headers=_headers(),
     )
-    with urllib.request.urlopen(req) as r:
+    with urllib.request.urlopen(req, timeout=60) as r:
         r.read()
 
 def fstr(doc, field):
@@ -107,7 +107,7 @@ csv_req = urllib.request.Request(
     },
 )
 try:
-    with urllib.request.urlopen(csv_req) as r:
+    with urllib.request.urlopen(csv_req, timeout=60) as r:
         csv_raw = r.read().decode('utf-8-sig')
 except urllib.error.HTTPError as e:
     print(f'❌ Falha ao buscar CSV: HTTP {e.code} — {e.read().decode()}', file=sys.stderr)
@@ -240,7 +240,10 @@ for doc in visa_docs:
         fs_patch(doc_id, todos_campos)
         atualizados += 1
     except urllib.error.HTTPError as e:
-        print(f'  ❌ {doc_id}: erro ao atualizar — {e.read().decode()}', file=sys.stderr)
+        print(f'  ❌ {doc_id}: HTTP {e.code} — {e.read().decode()}', file=sys.stderr)
+        erros += 1
+    except Exception as e:
+        print(f'  ❌ {doc_id}: erro inesperado — {e}', file=sys.stderr)
         erros += 1
 
 # ── Resumo ────────────────────────────────────────────────
