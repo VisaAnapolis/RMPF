@@ -730,11 +730,22 @@ table.rmpf-table {
   .page-title { font-size: 1.1rem; }
 }
 @media (max-width: 600px) {
-  /* Card-stack layout for tables on small screens */
+  /* Card-stack layout for tables on small screens.
+     The table/tbody/colgroup precisam virar bloco: com table-layout:fixed +
+     <colgroup> ativo, ao transformar tr/td em block/flex o navegador cria uma
+     célula anônima que cai na 1ª coluna (width:8%), deixando o card estreito. */
+  .table-wrap { overflow-x: visible; }
+  .rmpf-table,
+  .rmpf-table tbody {
+    display: block;
+    width: 100%;
+  }
+  .rmpf-table colgroup { display: none; }
   .rmpf-table thead { display: none; }
 
   .rmpf-table tbody tr {
     display: block;
+    width: 100%;
     background: var(--branco);
     border: 1px solid var(--cinzaL);
     border-radius: var(--radius);
@@ -781,12 +792,14 @@ table.rmpf-table {
   }
 
   /* Empty/spinner row stays centered */
-  .rmpf-table .empty-row { display: table-row; }
+  .rmpf-table .empty-row { display: block; width: 100%; }
   .rmpf-table .empty-row td {
-    display: table-cell;
+    display: block;
+    width: 100%;
     text-align: center;
     padding: 32px;
   }
+  .rmpf-table .empty-row td::before { content: none; }
 }
 
 @media (max-width: 480px) {
