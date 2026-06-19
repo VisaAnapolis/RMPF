@@ -307,8 +307,8 @@
   });
 
   // ── Guard / Auth ─────────────────────────────────────────────────────
-  window._rmpfGuardCallback = async function(user, grupo) {
-    if (grupo !== 'Administrador') {
+  requireAuth(async user => {
+    if (user.grupo !== 'Administrador') {
       document.getElementById('app').innerHTML =
         '<div style="padding:40px;text-align:center;color:var(--verm)">⛔ Acesso restrito a administradores.</div>';
       document.getElementById('app').style.display = 'block';
@@ -316,10 +316,10 @@
       return;
     }
     _currentUserEmail = user.email;
-    buildSidebar(grupo);
+    buildSidebar(user.grupo);
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
-  };
+  });
 </script>
 </body>
 </html>
