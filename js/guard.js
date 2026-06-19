@@ -40,7 +40,7 @@
           .doc(user.email)
           .get();
 
-        if (!snap.exists || (snap.data().status || '').toLowerCase() === 'inativo') {
+        if (!snap.exists || snap.data().ativo === false) {
           await firebase.auth().signOut();
           window.location.href = 'index.html';
           return;
