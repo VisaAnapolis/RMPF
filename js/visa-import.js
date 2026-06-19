@@ -106,6 +106,10 @@ function resolverTipoVisa(tipoRaw, complexidade) {
     return { tipo_id: 8, tipo_codigo: 'RLH', tipo_nome: 'Relatório técnico harmonizado (SNVS)',
              item_pontuacao: 13, pontos: 48, descLabel: 'Relatório harmonizado' };
   }
+  if (norm === 'CERTIDAO') {
+    return { tipo_id: 11, tipo_codigo: 'CER', tipo_nome: 'Certidão',
+             item_pontuacao: 16, pontos: 2, descLabel: 'Certidão' };
+  }
   // Default: Vistoria VISA with complexidade
   const { item, pontos } = complexToItem(complexidade);
   return { tipo_id: 1, tipo_codigo: 'VIS', tipo_nome: 'Vistoria ou atendimento a denúncia',

@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Correção de Certidões — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+  <link rel="icon" type="image/x-icon" href="icons/favicon.ico">
+  <meta name="theme-color" content="#1565c0">
+  <style>
+    .log-box {
+      background: #0d1117; color: #c9d1d9;
+      font-family: monospace; font-size: .8rem;
+      border-radius: 8px; padding: 16px;
+      max-height: 420px; overflow-y: auto;
+      margin-top: 16px; white-space: pre-wrap;
+      line-height: 1.6;
+    }
+    .log-ok    { color: #3fb950; }
+    .log-skip  { color: #d29922; }
+    .log-erro  { color: #f85149; }
+    .log-info  { color: #58a6ff; }
+    .resumo-card {
+      background: var(--cinzaL); border-radius: 8px;
+      padding: 18px 20px; margin: 16px 0;
+    }
+    .resumo-num {
+      font-size: 1.8rem; font-weight: 700; color: var(--azul);
+    }
+    .resumo-skip { color: #d29922; }
+    .resumo-erro  { color: var(--verm); }
+  </style>
+</head>
+<body>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<div class="app-layout" id="app" style="display:none">
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger" aria-label="Menu" aria-expanded="false" aria-controls="sidebar">☰</button>
+    <div>
+      <div class="logo-text">🏛️ RMPF</div>
+      <div class="logo-sub">Correção de Certidões</div>
+    </div>
+  </header>
+
+  <nav class="sidebar" id="sidebar" aria-label="Menu lateral"></nav>
+
+  <main class="app-main">
+    <div class="page-header">
+      <h1 class="page-title">🔧 Correção de Pontos — Certidões Junho/2026</h1>
+      <p style="color:var(--cinzaT);font-size:.9rem;margin-top:4px">
+        Localiza todos os lançamentos importados do CSV VISA com <strong>documento = CERTIDÃO</strong>
+        no mês 6/2026 e corrige os pontos para <strong>2 pts fixos</strong>,
+        independentemente do CNAE.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⚙️ Parâmetros da migração</div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:16px">
+        <div class="form-group">
+          <label class="form-label">Origem</label>
+          <input class="form-control" value="visa_csv" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Documento</label>
+          <input class="form-control" value="CERTIDÃO" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mês</label>
+          <input class="form-control" value="6 (Junho)" disabled>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Ano</label>
+          <input class="form-control" value="2026" disabled>
+        </div>
+      </div>
+
+      <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:12px 16px;font-size:.85rem;color:#664d03;margin-bottom:16px">
+        ⚠️ <strong>Atenção:</strong> Esta operação altera diretamente o Firestore em produção.
+        Registros com <code>motivo_os = PLANTÃO FISCAL</code> serão ignorados (pontos = 0 é intencional nesses casos).
+        Lançamentos já com <code>pontos_homologado &gt; 0</code> também terão esse campo corrigido para 2.
+      </div>
+
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-outline" id="btn-dryrun">🔍 Simular (ver quantos serão afetados)</button>
+        <button class="btn btn-primary" id="btn-executar" style="display:none">✅ Executar Correção</button>
+      </div>
+
+      <div id="resumo" style="display:none" class="resumo-card">
+        <div style="display:flex;gap:32px;flex-wrap:wrap">
+          <div>
+            <div class="resumo-num" id="cnt-afetados">0</div>
+            <div style="font-size:.8rem;color:var(--cinzaT)">Serão atualizados</div>
+          </div>
+          <div>
+            <div class="resumo-num resumo-skip" id="cnt-skip">0</div>
+            <div style="font-size:.8rem;color:var(--cinzaT)">Ignorados (Plantão Fiscal)</div>
+          </div>
+          <div>
+            <div class="resumo-num" id="cnt-total">0</div>
+            <div style="font-size:.8rem;color:var(--cinzaT)">Total encontrados</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="resultado" style="display:none" class="resumo-card">
+        <div style="display:flex;gap:32px;flex-wrap:wrap">
+          <div>
+            <div class="resumo-num" id="res-ok">0</div>
+            <div style="font-size:.8rem;color:var(--cinzaT)">Atualizados com sucesso</div>
+          </div>
+          <div>
+            <div class="resumo-num resumo-skip" id="res-skip">0</div>
+            <div style="font-size:.8rem;color:var(--cinzaT)">Ignorados</div>
+          </div>
+          <div>
+            <div class="resumo-num resumo-erro" id="res-erro">0</div>
+            <div style="font-size:.8rem;color:var(--cinzaT)">Erros</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="log" class="log-box" style="display:none"></div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/version.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/db-monitor.js"></script>
+<script src="js/guard.js"></script>
+<script>
+  let _currentUserEmail = '';
+
+  function buildSidebar(grupo) {
+    const links = grupo === 'Administrador' ? [
+      { href: 'dashboard.html',        icon: '📊', label: 'Dashboard'   },
+      { href: 'conferencia.html',      icon: '🔍', label: 'Conferência' },
+      { href: 'ocorrencias.html',      icon: '📌', label: 'Ocorrências' },
+      { href: 'fechamento.html',       icon: '🔒', label: 'Fechamento'  },
+      { href: 'admin.html',            icon: '⚙️',  label: 'Admin'       },
+      { href: 'parametrizacao.html',   icon: '🛠️', label: 'Parametrização' },
+    ] : [];
+    const nav = document.getElementById('sidebar');
+    nav.innerHTML = links.map(l =>
+      `<a class="sidebar-link${location.pathname.endsWith(l.href)?'  sidebar-link--active':''}" href="${l.href}">${l.icon} ${l.label}</a>`
+    ).join('');
+  }
+
+  const hamburger = document.getElementById('hamburger');
+  const sidebar   = document.getElementById('sidebar');
+  hamburger.addEventListener('click', () => {
+    const open = sidebar.classList.toggle('sidebar--open');
+    hamburger.setAttribute('aria-expanded', open);
+  });
+
+  // ── Normalização ────────────────────────────────────────────────────
+  function normStr(v) {
+    return String(v || '')
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .toUpperCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function ehPlantaoFiscal(doc) {
+    return normStr(doc.motivo_os).includes('PLANTAO FISCAL');
+  }
+
+  function ehCertidao(doc) {
+    return normStr(doc.documento) === 'CERTIDAO';
+  }
+
+  // ── Log ─────────────────────────────────────────────────────────────
+  const logBox = document.getElementById('log');
+  function log(msg, cls = '') {
+    logBox.style.display = 'block';
+    const span = document.createElement('span');
+    if (cls) span.className = cls;
+    span.textContent = msg + '\n';
+    logBox.appendChild(span);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  // ── Busca docs ──────────────────────────────────────────────────────
+  async function buscarCertidoes() {
+    const todos = await window.db_getManuaisTodos(6, 2026);
+    return todos.filter(d => d.origem === 'visa_csv' && ehCertidao(d));
+  }
+
+  // ── Dry-run ─────────────────────────────────────────────────────────
+  document.getElementById('btn-dryrun').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-dryrun');
+    btn.disabled = true;
+    btn.textContent = '⏳ Buscando…';
+    logBox.innerHTML = '';
+    document.getElementById('resumo').style.display = 'none';
+    document.getElementById('resultado').style.display = 'none';
+    document.getElementById('btn-executar').style.display = 'none';
+
+    try {
+      log('[INFO] Buscando lançamentos visa_csv / CERTIDÃO / mês 6 / ano 2026…', 'log-info');
+      const docs = await buscarCertidoes();
+      let afetados = 0, skip = 0;
+
+      for (const d of docs) {
+        const pontosAtual = Number(d.pontos) || 0;
+        const homAtual    = d.pontos_homologado != null ? Number(d.pontos_homologado) : null;
+
+        if (ehPlantaoFiscal(d)) {
+          log(`[SKIP] ${d.id}  motivo_os="${d.motivo_os}"  pontos=${pontosAtual}  → mantém 0 (Plantão Fiscal)`, 'log-skip');
+          skip++;
+        } else {
+          const homLog = homAtual != null && homAtual > 0
+            ? `  pontos_homologado: ${homAtual} → 2`
+            : `  pontos_homologado: ${homAtual ?? 'null'} (não altera)`;
+          log(`[ATUALIZAR] ${d.id}  pontos: ${pontosAtual} → 2${homLog}`, 'log-ok');
+          afetados++;
+        }
+      }
+
+      document.getElementById('cnt-total').textContent    = docs.length;
+      document.getElementById('cnt-afetados').textContent = afetados;
+      document.getElementById('cnt-skip').textContent     = skip;
+      document.getElementById('resumo').style.display     = 'block';
+
+      if (afetados > 0) {
+        document.getElementById('btn-executar').style.display = 'inline-flex';
+        log(`\n[INFO] ${afetados} registro(s) serão atualizados. Clique em "Executar Correção" para confirmar.`, 'log-info');
+      } else {
+        log('\n[INFO] Nenhum registro a atualizar.', 'log-info');
+      }
+    } catch (e) {
+      log(`[ERRO] ${e.message}`, 'log-erro');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '🔍 Simular (ver quantos serão afetados)';
+    }
+  });
+
+  // ── Execução real ────────────────────────────────────────────────────
+  document.getElementById('btn-executar').addEventListener('click', async () => {
+    const btnEx = document.getElementById('btn-executar');
+    const btnDr = document.getElementById('btn-dryrun');
+    btnEx.disabled = true;
+    btnDr.disabled = true;
+    btnEx.textContent = '⏳ Executando…';
+    logBox.innerHTML = '';
+    document.getElementById('resultado').style.display = 'none';
+
+    let ok = 0, skip = 0, erros = 0;
+
+    try {
+      log('[INFO] Iniciando atualização…', 'log-info');
+      const docs = await buscarCertidoes();
+      const db   = firebase.firestore();
+      const ts   = firebase.firestore.FieldValue.serverTimestamp();
+
+      for (const d of docs) {
+        if (ehPlantaoFiscal(d)) {
+          log(`[SKIP] ${d.id}  → Plantão Fiscal, sem alteração`, 'log-skip');
+          skip++;
+          continue;
+        }
+
+        const update = { pontos: 2, updated_at: ts };
+        const homAtual = d.pontos_homologado != null ? Number(d.pontos_homologado) : null;
+        if (homAtual != null && homAtual > 0) {
+          update.pontos_homologado = 2;
+        }
+
+        try {
+          await db.collection('manuais').doc(d.id).update(update);
+          const homMsg = update.pontos_homologado != null ? ` + pontos_homologado→2` : '';
+          log(`[OK] ${d.id}  pontos→2${homMsg}`, 'log-ok');
+          ok++;
+        } catch (err) {
+          log(`[ERRO] ${d.id}  ${err.message}`, 'log-erro');
+          erros++;
+        }
+      }
+
+      log(`\n[INFO] Concluído: ${ok} atualizados, ${skip} ignorados, ${erros} erros.`, 'log-info');
+
+      document.getElementById('res-ok').textContent    = ok;
+      document.getElementById('res-skip').textContent  = skip;
+      document.getElementById('res-erro').textContent  = erros;
+      document.getElementById('resultado').style.display = 'block';
+      document.getElementById('btn-executar').style.display = 'none';
+    } catch (e) {
+      log(`[ERRO GERAL] ${e.message}`, 'log-erro');
+    } finally {
+      btnEx.disabled = false;
+      btnDr.disabled = false;
+      btnEx.textContent = '✅ Executar Correção';
+    }
+  });
+
+  // ── Guard / Auth ─────────────────────────────────────────────────────
+  window._rmpfGuardCallback = async function(user, grupo) {
+    if (grupo !== 'Administrador') {
+      document.getElementById('app').innerHTML =
+        '<div style="padding:40px;text-align:center;color:var(--verm)">⛔ Acesso restrito a administradores.</div>';
+      document.getElementById('app').style.display = 'block';
+      document.getElementById('loading-overlay').style.display = 'none';
+      return;
+    }
+    _currentUserEmail = user.email;
+    buildSidebar(grupo);
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = 'flex';
+  };
+</script>
+</body>
+</html>
