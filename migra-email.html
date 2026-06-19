@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Migração de E-mail — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+  <link rel="icon" type="image/x-icon"     href="icons/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+  <link rel="icon" type="image/svg+xml"    href="icons/favicon.svg">
+  <link rel="apple-touch-icon"             href="icons/apple-touch-icon.png">
+  <link rel="manifest"                     href="manifest.webmanifest">
+  <meta name="theme-color" content="#1565c0">
+  <style>
+    body { background: var(--cinzaB); }
+    .wrap { max-width: 760px; margin: 40px auto; padding: 20px; }
+    .log-box { background: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: .82rem;
+               padding: 14px; border-radius: 8px; max-height: 480px; overflow-y: auto; white-space: pre-wrap; }
+    .log-ok   { color: #4ec94e; }
+    .log-err  { color: #f44747; }
+    .log-info { color: #9cdcfe; }
+    .log-warn { color: #e5c07b; }
+    .email-box { font-family: monospace; font-size: .9rem; background: var(--cinzaB);
+                 border: 1px solid var(--cinzaB2); border-radius: 6px; padding: 10px 12px; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div style="font-size:1.4rem;font-weight:700;color:var(--verm);margin-bottom:4px">📧 Migração de E-mail — RMPF</div>
+  <p style="color:var(--cinzaT);margin-bottom:20px">
+    Transfere todos os documentos do Firestore de um e-mail para outro.<br>
+    <strong>Restrito a Administrador.</strong>
+  </p>
+
+  <div id="login-section">
+    <div id="login-alert" class="mb-2"></div>
+    <button class="btn btn-primary" id="btn-login">🔐 Autenticar com Google</button>
+  </div>
+
+  <div id="main-section" style="display:none">
+    <div class="alert alert-info mb-3">
+      <span class="alert-icon">ℹ️</span>
+      <div>Logado como <strong id="user-email-display">—</strong></div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-title">Configuração da migração</div>
+      <div class="form-group">
+        <label class="form-label">E-mail de origem (antigo)</label>
+        <input class="form-control email-box" id="email-old" value="thiago_gobo@yahoo.com.br">
+      </div>
+      <div class="form-group">
+        <label class="form-label">E-mail de destino (novo)</label>
+        <input class="form-control email-box" id="email-new" value="thiagogomesgobo@gmail.com">
+      </div>
+      <div class="alert alert-danger mb-0" style="font-size:.85rem">
+        <span class="alert-icon">⚠️</span>
+        <div>
+          Esta operação é <strong>irreversível</strong>. O documento do usuário antigo será excluído após a migração.
+          Certifique-se de que o usuário de destino já existe na coleção <code>usuarios</code>.
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-group mb-3">
+      <button class="btn btn-danger" id="btn-migrar">🔄 Executar Migração</button>
+      <button class="btn btn-default btn-sm" id="btn-logout">Sair</button>
+    </div>
+
+    <div class="log-box" id="log" style="display:none"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/utils.js"></script>
+<script>
+  const db  = () => firebase.firestore();
+  const logEl = document.getElementById('log');
+
+  function log(msg, cls = '') {
+    logEl.style.display = '';
+    const span = document.createElement('span');
+    span.className = cls;
+    span.textContent = msg + '\n';
+    logEl.appendChild(span);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function sanEmail(email) {
+    return String(email).replace(/[.@+]/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  }
+
+  // ── Auth ──────────────────────────────────────────────────────
+  firebase.auth().onAuthStateChanged(user => {
+    if (user) {
+      document.getElementById('login-section').style.display = 'none';
+      document.getElementById('main-section').style.display  = '';
+      document.getElementById('user-email-display').textContent = user.email;
+    } else {
+      document.getElementById('login-section').style.display = '';
+      document.getElementById('main-section').style.display  = 'none';
+    }
+  });
+
+  document.getElementById('btn-login').addEventListener('click', async () => {
+    try {
+      await firebase.auth().signInWithPopup(window.googleProvider);
+    } catch (e) {
+      document.getElementById('login-alert').innerHTML =
+        `<div class="alert alert-danger"><span class="alert-icon">🚨</span><div>${e.message}</div></div>`;
+    }
+  });
+
+  document.getElementById('btn-logout').addEventListener('click', () => firebase.auth().signOut());
+
+  // ── Migração ──────────────────────────────────────────────────
+  document.getElementById('btn-migrar').addEventListener('click', async () => {
+    const emailOld = document.getElementById('email-old').value.trim().toLowerCase();
+    const emailNew = document.getElementById('email-new').value.trim().toLowerCase();
+
+    if (!emailOld || !emailNew) { alert('Preencha os dois e-mails.'); return; }
+    if (emailOld === emailNew)  { alert('Os e-mails são iguais.'); return; }
+
+    // Verificar perfil do usuário logado
+    const authUser = firebase.auth().currentUser;
+    if (!authUser) { alert('Não autenticado.'); return; }
+
+    const selfSnap = await db().collection('usuarios').doc(authUser.email).get();
+    if (!selfSnap.exists || selfSnap.data().perfil !== 'Administrador') {
+      alert('Acesso negado. Apenas Administrador pode executar esta operação.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-migrar');
+    btn.disabled = true;
+    logEl.innerHTML = '';
+
+    const sanOld = sanEmail(emailOld);
+    const sanNew = sanEmail(emailNew);
+
+    log(`Iniciando migração:`, 'log-info');
+    log(`  DE: ${emailOld}  (sanitizado: ${sanOld})`, 'log-info');
+    log(`  PARA: ${emailNew}  (sanitizado: ${sanNew})`, 'log-info');
+    log('', '');
+
+    let totalOk = 0, totalErr = 0;
+
+    // ── 1. manuais ────────────────────────────────────────────
+    log('── manuais ──────────────────────────────────', 'log-info');
+    try {
+      const snap = await db().collection('manuais')
+        .where('fiscal_email', '==', emailOld)
+        .get();
+      log(`  ${snap.size} documento(s) encontrado(s).`, 'log-info');
+
+      for (const docSnap of snap.docs) {
+        const data   = docSnap.data();
+        const origem = data.origem || 'manual';
+        const oldId  = docSnap.id;
+
+        try {
+          const newData = { ...data, fiscal_email: emailNew };
+
+          if (origem === 'visa_csv') {
+            // ID: visa_{controle}_{email_san}  — precisa recriar com novo ID
+            const controle = data.visa_controle || data.controle || '';
+            const newId = 'visa_' + String(controle).trim() + '_' + sanNew;
+            await db().collection('manuais').doc(newId).set(newData);
+            await db().collection('manuais').doc(oldId).delete();
+            log(`  ✔ [visa_csv] ${oldId} → ${newId}`, 'log-ok');
+          } else if (origem === 'sim_csv') {
+            // ID: sim_{osNum}_{email_san}  — precisa recriar com novo ID
+            const osNum = data.sim_os || '';
+            const newId = 'sim_' + String(osNum).trim() + '_' + sanNew;
+            await db().collection('manuais').doc(newId).set(newData);
+            await db().collection('manuais').doc(oldId).delete();
+            log(`  ✔ [sim_csv] ${oldId} → ${newId}`, 'log-ok');
+          } else {
+            // ID auto-gerado — só atualizar campo
+            await db().collection('manuais').doc(oldId).update({ fiscal_email: emailNew });
+            log(`  ✔ [manual] ${oldId}`, 'log-ok');
+          }
+          totalOk++;
+        } catch (e) {
+          log(`  ✘ ${oldId}: ${e.message}`, 'log-err');
+          totalErr++;
+        }
+      }
+    } catch (e) {
+      log(`  ✘ Erro ao buscar manuais: ${e.message}`, 'log-err');
+      totalErr++;
+    }
+
+    // ── 2. ocorrencias ────────────────────────────────────────
+    log('', '');
+    log('── ocorrencias ──────────────────────────────', 'log-info');
+    try {
+      const snap = await db().collection('ocorrencias')
+        .where('fiscal_email', '==', emailOld)
+        .get();
+      log(`  ${snap.size} documento(s) encontrado(s).`, 'log-info');
+
+      for (const docSnap of snap.docs) {
+        try {
+          await db().collection('ocorrencias').doc(docSnap.id).update({ fiscal_email: emailNew });
+          log(`  ✔ ${docSnap.id}`, 'log-ok');
+          totalOk++;
+        } catch (e) {
+          log(`  ✘ ${docSnap.id}: ${e.message}`, 'log-err');
+          totalErr++;
+        }
+      }
+    } catch (e) {
+      log(`  ✘ Erro ao buscar ocorrencias: ${e.message}`, 'log-err');
+      totalErr++;
+    }
+
+    // ── 3. fechamentos ────────────────────────────────────────
+    log('', '');
+    log('── fechamentos ───────────────────────────────', 'log-info');
+    try {
+      const snap = await db().collection('fechamentos')
+        .where('fiscal_email', '==', emailOld)
+        .get();
+      log(`  ${snap.size} documento(s) encontrado(s).`, 'log-info');
+
+      for (const docSnap of snap.docs) {
+        const data  = docSnap.data();
+        const oldId = docSnap.id;
+        try {
+          // ID: {ano}-{mes_pad}-{email_san}  — recriar com novo ID
+          const newId = oldId.replace(sanOld, sanNew);
+          await db().collection('fechamentos').doc(newId).set({ ...data, fiscal_email: emailNew });
+          await db().collection('fechamentos').doc(oldId).delete();
+          log(`  ✔ ${oldId} → ${newId}`, 'log-ok');
+          totalOk++;
+        } catch (e) {
+          log(`  ✘ ${oldId}: ${e.message}`, 'log-err');
+          totalErr++;
+        }
+      }
+    } catch (e) {
+      log(`  ✘ Erro ao buscar fechamentos: ${e.message}`, 'log-err');
+      totalErr++;
+    }
+
+    // ── 4. usuarios ───────────────────────────────────────────
+    log('', '');
+    log('── usuarios ──────────────────────────────────', 'log-info');
+    try {
+      const oldSnap = await db().collection('usuarios').doc(emailOld).get();
+      if (!oldSnap.exists) {
+        log(`  ⚠ Documento ${emailOld} não encontrado em usuarios — nada a fazer.`, 'log-warn');
+      } else {
+        const data = oldSnap.data();
+
+        // Verificar se o destino já existe
+        const newSnap = await db().collection('usuarios').doc(emailNew).get();
+        if (newSnap.exists) {
+          log(`  ⚠ Documento ${emailNew} já existe — mantendo o destino e apenas excluindo a origem.`, 'log-warn');
+        } else {
+          await db().collection('usuarios').doc(emailNew).set({ ...data, email: emailNew });
+          log(`  ✔ Documento criado: ${emailNew}`, 'log-ok');
+        }
+
+        await db().collection('usuarios').doc(emailOld).delete();
+        log(`  ✔ Documento excluído: ${emailOld}`, 'log-ok');
+        totalOk++;
+      }
+    } catch (e) {
+      log(`  ✘ Erro em usuarios: ${e.message}`, 'log-err');
+      totalErr++;
+    }
+
+    // ── Resumo ────────────────────────────────────────────────
+    log('', '');
+    log(`════════════════════════════════════════════`, 'log-info');
+    log(`Migração concluída: ${totalOk} OK  |  ${totalErr} erro(s)`, totalErr > 0 ? 'log-warn' : 'log-ok');
+    log(`════════════════════════════════════════════`, 'log-info');
+
+    btn.disabled = false;
+  });
+</script>
+</body>
+</html>
