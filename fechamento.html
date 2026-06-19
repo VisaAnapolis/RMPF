@@ -123,7 +123,7 @@
           <table class="rmpf-table" id="tbl-atividades">
             <thead>
               <tr>
-                <th>Controle</th><th>Data</th><th>Tipo</th><th>Descrição</th><th class="td-num">Pontos</th>
+                <th>Data</th><th>Tipo</th><th style="width:45%">Descrição</th><th class="td-num">Pontos</th>
               </tr>
             </thead>
             <tbody id="tbody-ativ"></tbody>
@@ -156,11 +156,10 @@
           <table class="rel-table">
             <thead>
               <tr>
-                <th>Controle</th>
-                <th>Data</th>
-                <th>Tipo</th>
+                <th style="width:70px">Data</th>
+                <th style="width:120px">Tipo</th>
                 <th>Descrição</th>
-                <th style="text-align:right">Pontos</th>
+                <th style="width:55px;text-align:right">Pontos</th>
               </tr>
             </thead>
             <tbody id="rel-tbody-ativ"></tbody>
@@ -358,10 +357,10 @@
     const aceitas = _manuais.filter(m => m.status === 'aceito' || m.status === 'fechado' || m.status === 'homologado').sort((a, b) => (a.data || '').localeCompare(b.data || ''));
     const tbodyAtiv = document.getElementById('tbody-ativ');
     tbodyAtiv.innerHTML = aceitas.length ? aceitas.map(m =>
-      `<tr><td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle||'—')}</span></td><td data-label="Data">${fmtData(m.data)}</td>
+      `<tr><td data-label="Data">${fmtData(m.data)}</td>
        <td data-label="Tipo">${escHtml(m.tipo_nome||m.tipo_codigo||'—')}</td><td data-label="Descrição">${escHtml(m.descricao||'—')}</td>
        <td data-label="Pontos" class="td-num">${m.pontos_homologado??m.pontos}</td></tr>`
-    ).join('') : '<tr class="empty-row"><td colspan="5">Nenhuma atividade aceita</td></tr>';
+    ).join('') : '<tr class="empty-row"><td colspan="4">Nenhuma atividade aceita</td></tr>';
 
     document.getElementById('summary-wrap').style.display = '';
     if (_user.grupo === 'Administrador') {
@@ -381,12 +380,11 @@
     document.getElementById('rel-apur').textContent  = `R$ ${_result.apuracao},00`;
 
     document.getElementById('rel-tbody-ativ').innerHTML = aceitas.length ? aceitas.map(m =>
-      `<tr><td style="border:1px solid #ccc;padding:4px 7px">${escHtml(m.controle||'—')}</td>
-       <td style="border:1px solid #ccc;padding:4px 7px">${fmtData(m.data)}</td>
+      `<tr><td style="border:1px solid #ccc;padding:4px 7px">${fmtData(m.data)}</td>
        <td style="border:1px solid #ccc;padding:4px 7px">${escHtml(m.tipo_nome||m.tipo_codigo||'—')}</td>
        <td style="border:1px solid #ccc;padding:4px 7px">${escHtml(m.descricao||'—')}</td>
        <td style="border:1px solid #ccc;padding:4px 7px;text-align:right">${m.pontos_homologado??m.pontos}</td></tr>`
-    ).join('') : '<tr><td colspan="5" style="padding:8px;text-align:center;color:#999">Sem atividades</td></tr>';
+    ).join('') : '<tr><td colspan="4" style="padding:8px;text-align:center;color:#999">Sem atividades</td></tr>';
 
     // Always reset the occurrences section before conditionally repopulating it,
     // so that switching to a different fiscal never leaves stale data visible.
