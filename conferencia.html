@@ -193,11 +193,11 @@
 <script>
   let _user        = null;
   let _manuais     = [];
-  let _grupo       = '';
+  let _perfil       = '';
   let _homPendente = false; // true quando o modal foi aberto para autorizar (status 'pendente')
 
-  function buildSidebar(grupo) {
-    const links = grupo === 'Fiscal' ? [
+  function buildSidebar(perfil) {
+    const links = perfil === 'Fiscal' ? [
       ['dashboard.html','📊','Dashboard'],
       ['lancamento.html','✏️','Lançar Atividade'],
       ['meus-lancamentos.html','📋','Meus Lançamentos'],
@@ -212,7 +212,7 @@
     const base = links.map(([href,icon,label]) =>
       `<a href="${href}" class="sidebar-link${cur===href?' active':''}"><span class="icon">${icon}</span>${label}</a>`
     ).join('');
-    const admin = grupo === 'Administrador'
+    const admin = perfil === 'Administrador'
       ? `<a href="admin.html" class="sidebar-link${cur==='admin.html'?' active':''}"><span class="icon">⚙️</span>Admin</a>`
         + `<a href="parametrizacao.html" class="sidebar-link${cur==='parametrizacao.html'?' active':''}"><span class="icon">🔧</span>Parametrização</a>`
       : '';
@@ -286,7 +286,7 @@
 
   function renderTabela() {
     const tbody = document.getElementById('tbody-conferencia');
-    const isAdmin = _grupo === 'Administrador';
+    const isAdmin = _perfil === 'Administrador';
 
     if (!_manuais.length) {
       tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Nenhum lançamento nesta competência</td></tr>';
@@ -475,22 +475,22 @@
   });
 
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.grupo);
+    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
     _user  = user;
-    _grupo = user.grupo;
-    if (user.grupo === 'Fiscal') {
+    _perfil = user.perfil;
+    if (user.perfil === 'Fiscal') {
       window.location.href = 'meus-lancamentos.html'; return;
-    } else if (user.grupo !== 'Administrador') {
+    } else if (user.perfil !== 'Administrador') {
       window.location.href = 'dashboard.html'; return;
     }
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
-    document.getElementById('sidebar').innerHTML = buildSidebar(user.grupo);
+    document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     // Fiscal sees own data; Administrador sees all fiscais
-    if (user.grupo === 'Fiscal') {
+    if (user.perfil === 'Fiscal') {
       const sel = document.getElementById('sel-fiscal');
       sel.innerHTML = `<option value="${escHtml(user.email)}">${escHtml(user.nome||user.email)}</option>`;
       sel.disabled = true;
@@ -513,7 +513,7 @@
     // ── Importação VISA e SIM (Administrador) ───────────
     const btnImportVisa = document.getElementById('btn-import-visa');
     const btnImportSim  = document.getElementById('btn-import-sim');
-    if (_grupo === 'Administrador') {
+    if (_perfil === 'Administrador') {
       btnImportVisa.style.display = '';
       btnImportSim.style.display  = '';
     }

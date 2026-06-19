@@ -467,8 +467,8 @@
   }
 
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.grupo);
-    if (user.grupo !== 'Fiscal') {
+    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
+    if (user.perfil !== 'Fiscal') {
       window.location.href = 'dashboard.html';
       return;
     }

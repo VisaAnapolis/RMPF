@@ -141,7 +141,7 @@
               <th></th>
               <th>Nome</th>
               <th>E-mail</th>
-              <th>Grupo</th>
+              <th>Perfil</th>
               <th>Status</th>
               <th>Último Acesso</th>
               <th>Versão App</th>
@@ -191,8 +191,8 @@
         <input class="form-control" id="edit-nome" disabled>
       </div>
       <div class="form-group">
-        <label class="form-label" for="edit-grupo">Grupo</label>
-        <select class="form-control" id="edit-grupo">
+        <label class="form-label" for="edit-perfil">Perfil</label>
+        <select class="form-control" id="edit-perfil">
           <option value="Fiscal">Fiscal</option>
           <option value="Administrativo">Administrativo</option>
           <option value="Administrador">Administrador</option>
@@ -231,8 +231,8 @@
   let _todosUsuarios    = [];
 
   // ── Sidebar ──────────────────────────────────────────────────
-  function buildSidebar(grupo) {
-    const links = grupo === 'Fiscal' ? [
+  function buildSidebar(perfil) {
+    const links = perfil === 'Fiscal' ? [
       { href: 'dashboard.html',        icon: '📊', label: 'Dashboard'        },
       { href: 'lancamento.html',       icon: '✏️',  label: 'Lançar Atividade' },
       { href: 'meus-lancamentos.html', icon: '📋', label: 'Meus Lançamentos' },
@@ -244,7 +244,7 @@
       { href: 'ocorrencias.html', icon: '📌', label: 'Ocorrências'},
       { href: 'fechamento.html',  icon: '🔒', label: 'Fechamento' },
     ];
-    if (grupo === 'Administrador') {
+    if (perfil === 'Administrador') {
       links.push({ href: 'admin.html',          icon: '⚙️', label: 'Admin'          });
       links.push({ href: 'parametrizacao.html', icon: '🔧', label: 'Parametrização'  });
     }
@@ -267,9 +267,9 @@
   // ── Estatísticas ──────────────────────────────────────────────
   function renderEstatisticas() {
     const us = _todosUsuarios;
-    document.getElementById('cnt-fiscal').textContent  = us.filter(u => u.grupo === 'Fiscal').length;
-    document.getElementById('cnt-adm').textContent     = us.filter(u => u.grupo === 'Administrativo').length;
-    document.getElementById('cnt-admin').textContent   = us.filter(u => u.grupo === 'Administrador').length;
+    document.getElementById('cnt-fiscal').textContent  = us.filter(u => u.perfil === 'Fiscal').length;
+    document.getElementById('cnt-adm').textContent     = us.filter(u => u.perfil === 'Administrativo').length;
+    document.getElementById('cnt-admin').textContent   = us.filter(u => u.perfil === 'Administrador').length;
     document.getElementById('cnt-ativo').textContent   = us.filter(u => u.status === 'Ativo').length;
     document.getElementById('cnt-inativo').textContent = us.filter(u => u.status === 'Inativo').length;
   }
@@ -345,16 +345,16 @@
       const statusBadge = (u.status || '').toLowerCase() !== 'inativo'
         ? '<span class="badge badge-aceito">Ativo</span>'
         : '<span class="badge badge-recusado">Inativo</span>';
-      const grupoBadge = u.grupo === 'Administrador'
-        ? `<span class="badge badge-cvs">${escHtml(u.grupo)}</span>`
-        : u.grupo === 'Administrativo'
-          ? `<span class="badge badge-manual">${escHtml(u.grupo)}</span>`
-          : `<span class="badge badge-pendente">${escHtml(u.grupo || '—')}</span>`;
+      const grupoBadge = u.perfil === 'Administrador'
+        ? `<span class="badge badge-cvs">${escHtml(u.perfil)}</span>`
+        : u.perfil === 'Administrativo'
+          ? `<span class="badge badge-manual">${escHtml(u.perfil)}</span>`
+          : `<span class="badge badge-pendente">${escHtml(u.perfil || '—')}</span>`;
       return `<tr>
         <td class="td-center">${avatar}</td>
         <td data-label="Nome">${escHtml(u.nome || '—')}</td>
         <td data-label="E-mail" style="font-size:.8rem">${escHtml(email)}</td>
-        <td data-label="Grupo">${grupoBadge}</td>
+        <td data-label="Perfil">${grupoBadge}</td>
         <td data-label="Status">${statusBadge}</td>
         <td data-label="Último Acesso" style="font-size:.8rem">${ultimoAcesso}</td>
         <td data-label="Versão App" style="font-size:.8rem">${escHtml(u.rmpf_appVersion || '—')}</td>
@@ -388,12 +388,12 @@
     document.getElementById('edit-email').value         = email;
     document.getElementById('edit-email-display').value = email;
     document.getElementById('edit-nome').value          = u.nome || '';
-    document.getElementById('edit-grupo').value         = u.grupo || 'Fiscal';
+    document.getElementById('edit-perfil').value         = u.perfil || 'Fiscal';
 
     const statusVal = (u.status || '').toLowerCase() === 'inativo' ? 'Inativo' : 'Ativo';
     document.getElementById('edit-status').value = statusVal;
 
-    document.getElementById('edit-grupo').disabled  = isSelf;
+    document.getElementById('edit-perfil').disabled  = isSelf;
     document.getElementById('edit-status').disabled = isSelf;
 
     const infoEl = document.getElementById('edit-info-dispositivo');
@@ -419,7 +419,7 @@
     }
 
     document.getElementById('edit-alert').innerHTML = isSelf
-      ? alerta('warn', 'Você não pode alterar seu próprio grupo ou status.')
+      ? alerta('warn', 'Você não pode alterar seu próprio perfil ou status.')
       : '';
 
     document.getElementById('modal-edit').style.display = 'flex';
@@ -442,8 +442,8 @@
 
   // ── Init ──────────────────────────────────────────────────────
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.grupo);
-    if (user.grupo !== 'Administrador') {
+    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
+    if (user.perfil !== 'Administrador') {
       window.location.href = 'dashboard.html';
       return;
     }
@@ -453,7 +453,7 @@
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
-    document.getElementById('sidebar').innerHTML = buildSidebar(user.grupo);
+    document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
 
     document.getElementById('btn-logout').addEventListener('click', () => {
       firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });

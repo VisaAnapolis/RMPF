@@ -144,8 +144,8 @@
 <script>
   let _currentUserEmail = '';
 
-  function buildSidebar(grupo) {
-    const links = grupo === 'Administrador' ? [
+  function buildSidebar(perfil) {
+    const links = perfil === 'Administrador' ? [
       { href: 'dashboard.html',        icon: '📊', label: 'Dashboard'   },
       { href: 'conferencia.html',      icon: '🔍', label: 'Conferência' },
       { href: 'ocorrencias.html',      icon: '📌', label: 'Ocorrências' },
@@ -308,7 +308,7 @@
 
   // ── Guard / Auth ─────────────────────────────────────────────────────
   requireAuth(async user => {
-    if (user.grupo !== 'Administrador') {
+    if (user.perfil !== 'Administrador') {
       document.getElementById('app').innerHTML =
         '<div style="padding:40px;text-align:center;color:var(--verm)">⛔ Acesso restrito a administradores.</div>';
       document.getElementById('app').style.display = 'block';
@@ -316,7 +316,7 @@
       return;
     }
     _currentUserEmail = user.email;
-    buildSidebar(user.grupo);
+    buildSidebar(user.perfil);
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
   });

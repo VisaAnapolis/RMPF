@@ -664,8 +664,8 @@
   window.removerAnexo     = removerAnexo;
 
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.grupo);
-    if (user.grupo !== 'Fiscal') { window.location.href = 'dashboard.html'; return; }
+    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
+    if (user.perfil !== 'Fiscal') { window.location.href = 'dashboard.html'; return; }
     _user = user;
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
