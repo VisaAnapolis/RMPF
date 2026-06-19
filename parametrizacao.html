@@ -198,6 +198,59 @@
       <div id="seed-cnae-log" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── Importação VISA e SIM ── -->
+    <div class="card" id="card-import-visa-sim">
+      <div class="card-title">📥 Importação VISA e SIM</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Importe inspeções do VISA e auditorias do SIM para todos os fiscais em uma competência
+        específica, ou apague todos os lançamentos importados de um mês.
+        Lançamentos realizados pelos próprios fiscais <strong>não são apagados</strong>.
+      </p>
+      <div class="form-row cols-2" style="max-width:320px;margin-bottom:14px">
+        <div class="form-group">
+          <label class="form-label" for="import-param-mes">Mês</label>
+          <select class="form-control" id="import-param-mes"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="import-param-ano">Ano</label>
+          <select class="form-control" id="import-param-ano"></select>
+        </div>
+      </div>
+      <div class="btn-group" style="flex-wrap:wrap">
+        <button class="btn btn-outline" id="param-btn-import-visa-todos" type="button">
+          📥 Importar Todos os Fiscais
+        </button>
+        <button class="btn btn-outline" id="param-btn-import-sim-todos" type="button">
+          📥 Importar SIM — Todos os Fiscais
+        </button>
+        <button class="btn btn-outline" id="param-btn-apagar-todos" type="button"
+                style="color:var(--verm);border-color:var(--verm)"
+                title="Apagar lançamentos importados (VISA e SIM) do mês — lançamentos dos fiscais NÃO são apagados">
+          🗑️ Apagar Lançamentos Importados (VISA e SIM)
+        </button>
+      </div>
+      <div id="param-import-visa-log" style="margin-top:12px"></div>
+      <div id="param-import-progress-wrap" class="progress-wrap" style="display:none">
+        <div class="progress-header">
+          <span class="progress-label" id="param-import-progress-label">Processando…</span>
+          <span class="progress-pct" id="param-import-progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="param-import-progress-fill"></div>
+        </div>
+      </div>
+      <div id="param-import-sim-log" style="margin-top:8px"></div>
+      <div id="param-import-sim-progress-wrap" class="progress-wrap" style="display:none">
+        <div class="progress-header">
+          <span class="progress-label" id="param-import-sim-progress-label">Processando…</span>
+          <span class="progress-pct" id="param-import-sim-progress-pct">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="param-import-sim-progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Armazenamento de Anexos (Firebase Storage) ── -->
     <div class="card" id="card-storage">
       <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -418,6 +471,8 @@
 <script src="js/firestore.js"></script>
 <script src="js/db-monitor.js"></script>
 <script src="js/guard.js"></script>
+<script src="js/visa-import.js"></script>
+<script src="js/sim-import.js"></script>
 <script>
   let _currentUserEmail = '';
 
@@ -1452,6 +1507,174 @@
         document.querySelectorAll('#storage-tbody button').forEach(b => { b.disabled = false; });
       }
     }
+
+    // ── Importação VISA e SIM ─────────────────────────────
+    (function() {
+      const selM = document.getElementById('import-param-mes');
+      const selA = document.getElementById('import-param-ano');
+      if (!selM || !selA) return;
+
+      (window.MESES || []).forEach((m, i) => {
+        const o = document.createElement('option');
+        o.value = i + 1; o.textContent = m;
+        if (i === new Date().getMonth()) o.selected = true;
+        selM.appendChild(o);
+      });
+      const yy = new Date().getFullYear();
+      for (let i = yy - 1; i <= yy + 1; i++) {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = i;
+        if (i === yy) o.selected = true;
+        selA.appendChild(o);
+      }
+
+      (async () => {
+        try {
+          const comp = await db_getProximaCompetencia();
+          if (comp) { selM.value = comp.mes; selA.value = comp.ano; }
+        } catch(e) { console.warn('[Param] Falha ao obter próxima competência para import:', e); }
+        atualizarBtnsImport();
+      })();
+
+      const btnVisaTodos  = document.getElementById('param-btn-import-visa-todos');
+      const btnSimTodos   = document.getElementById('param-btn-import-sim-todos');
+      const btnApagarTodos = document.getElementById('param-btn-apagar-todos');
+
+      function atualizarBtnsImport() {
+        const mes = Number(selM.value);
+        const ano = Number(selA.value);
+        if (typeof visaMesAberto === 'function') {
+          const aberto = visaMesAberto(mes, ano);
+          btnVisaTodos.disabled = !aberto;
+          btnVisaTodos.title = aberto ? 'Importar inspeções do VISA para todos os fiscais' : 'Mês anterior a Abril/2026 — impossível importar';
+        }
+        if (typeof simMesAberto === 'function') {
+          const aberto = simMesAberto(mes, ano);
+          btnSimTodos.disabled = !aberto;
+          btnSimTodos.title = aberto ? 'Importar auditorias do SIM para todos os fiscais' : 'Mês anterior a Abril/2026 — impossível importar';
+        }
+      }
+      selM.addEventListener('change', atualizarBtnsImport);
+      selA.addEventListener('change', atualizarBtnsImport);
+
+      const progressWrap  = document.getElementById('param-import-progress-wrap');
+      const progressLabel = document.getElementById('param-import-progress-label');
+      const progressPct   = document.getElementById('param-import-progress-pct');
+      const progressFill  = document.getElementById('param-import-progress-fill');
+
+      function mostrarProgresso(atual, total) {
+        if (!total) return;
+        progressWrap.style.display = '';
+        const pct = Math.round((atual / total) * 100);
+        progressFill.style.width  = pct + '%';
+        progressPct.textContent   = pct + '%';
+        progressLabel.textContent = `Processando inspeção ${atual} de ${total}…`;
+      }
+      function ocultarProgresso() {
+        progressWrap.style.display = 'none';
+        progressFill.style.width   = '0%';
+      }
+
+      const simProgressWrap  = document.getElementById('param-import-sim-progress-wrap');
+      const simProgressLabel = document.getElementById('param-import-sim-progress-label');
+      const simProgressPct   = document.getElementById('param-import-sim-progress-pct');
+      const simProgressFill  = document.getElementById('param-import-sim-progress-fill');
+
+      function mostrarProgressoSim(atual, total) {
+        if (!total) return;
+        simProgressWrap.style.display = '';
+        const pct = Math.round((atual / total) * 100);
+        simProgressFill.style.width  = pct + '%';
+        simProgressPct.textContent   = pct + '%';
+        simProgressLabel.textContent = `Processando auditoria ${atual} de ${total}…`;
+      }
+      function ocultarProgressoSim() {
+        simProgressWrap.style.display = 'none';
+        simProgressFill.style.width   = '0%';
+      }
+
+      btnVisaTodos.addEventListener('click', async () => {
+        const mes = Number(selM.value);
+        const ano = Number(selA.value);
+        const mesNome = selM.options[selM.selectedIndex]?.text || mes;
+        if (!confirm(`Importar inspeções do VISA para TODOS os fiscais em ${mesNome}/${ano}?\n\nEsta ação pode criar ou atualizar lançamentos de múltiplos fiscais.`)) return;
+        const logEl = document.getElementById('param-import-visa-log');
+        btnVisaTodos.disabled = true;
+        logEl.innerHTML = '';
+        ocultarProgresso();
+        const msgs = [];
+        const onProgress = (msg, type) => {
+          msgs.push(alerta(type, msg));
+          logEl.innerHTML = msgs.slice(-6).join('');
+        };
+        try {
+          const allFiscais = await db_getTodosFiscais();
+          await importarInspecoesVISA({ fiscalEmail: null, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
+        } catch(e) {
+          logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
+        } finally {
+          btnVisaTodos.disabled = typeof visaMesAberto === 'function' && !visaMesAberto(mes, ano);
+          ocultarProgresso();
+        }
+      });
+
+      btnSimTodos.addEventListener('click', async () => {
+        const mes = Number(selM.value);
+        const ano = Number(selA.value);
+        const mesNome = selM.options[selM.selectedIndex]?.text || mes;
+        if (!confirm(`Importar auditorias do SIM para TODOS os fiscais em ${mesNome}/${ano}?\n\nEsta ação pode criar ou atualizar lançamentos de múltiplos fiscais.`)) return;
+        const logEl = document.getElementById('param-import-sim-log');
+        btnSimTodos.disabled = true;
+        logEl.innerHTML = '';
+        ocultarProgressoSim();
+        const msgs = [];
+        const onProgress = (msg, type) => {
+          msgs.push(alerta(type, msg));
+          logEl.innerHTML = msgs.slice(-6).join('');
+        };
+        try {
+          const allFiscais = await db_getTodosFiscais();
+          await importarAuditoriasSIM({ fiscalEmail: null, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgressoSim });
+        } catch(e) {
+          logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
+        } finally {
+          btnSimTodos.disabled = typeof simMesAberto === 'function' && !simMesAberto(mes, ano);
+          ocultarProgressoSim();
+        }
+      });
+
+      btnApagarTodos.addEventListener('click', async () => {
+        const mes = Number(selM.value);
+        const ano = Number(selA.value);
+        const mesNome = selM.options[selM.selectedIndex]?.text || mes;
+        const logEl = document.getElementById('param-import-visa-log');
+
+        const fechamentosMes = await db_getFechamentosMes(mes, ano);
+        if (fechamentosMes.length > 0) {
+          logEl.innerHTML = alerta('warn',
+            `A competência <strong>${escHtml(mesNome)}/${ano}</strong> já está fechada. Não é permitido apagar lançamentos de uma competência já fechada.`);
+          return;
+        }
+
+        if (!confirm(`⚠️ Apagar lançamentos importados (VISA e SIM) de ${mesNome}/${ano}?\n\nLançamentos dos fiscais NÃO serão apagados.\nEsta ação é IRREVERSÍVEL.`)) return;
+        if (!confirm(`Confirmação final: apagar lançamentos importados (VISA e SIM) de ${mesNome}/${ano}?`)) return;
+
+        btnApagarTodos.disabled = true;
+        logEl.innerHTML = alerta('info', '🗑️ Apagando lançamentos importados…');
+        let lockAcquired = false;
+        try {
+          await window.db_acquireVisaImportLock(mes, ano, user.email, user.nome || user.email);
+          lockAcquired = true;
+          const total = await db_deleteImportadosMes(mes, ano);
+          logEl.innerHTML = alerta('ok', `✅ ${total} lançamento(s) importado(s) apagado(s) em ${mesNome}/${ano}.`);
+        } catch(e) {
+          logEl.innerHTML = alerta('danger', '🚨 Erro ao apagar: ' + escHtml(e.message));
+        } finally {
+          if (lockAcquired) await window.db_releaseVisaImportLock(mes, ano);
+          btnApagarTodos.disabled = false;
+        }
+      });
+    })();
 
     carregarStorageStats();
   });
