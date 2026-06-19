@@ -95,11 +95,11 @@
 
   // ── Seed data ─────────────────────────────────────────
   const USUARIOS_SEED = [
-    { email: 'fiscal01@anapolis.go.gov.br', nome: 'Ana Clara Rodrigues', grupo: 'Fiscal', status: 'Ativo' },
-    { email: 'fiscal02@anapolis.go.gov.br', nome: 'Bruno Henrique Silva', grupo: 'Fiscal', status: 'Ativo' },
-    { email: 'fiscal03@anapolis.go.gov.br', nome: 'Camila Souza Lima', grupo: 'Fiscal', status: 'Ativo' },
-    { email: 'admin@anapolis.go.gov.br',    nome: 'Dra. Fernanda Meireles', grupo: 'Administrador', status: 'Ativo' },
-    { email: 'administrativo@anapolis.go.gov.br', nome: 'Gustavo Mendes', grupo: 'Administrativo', status: 'Ativo' },
+    { email: 'fiscal01@anapolis.go.gov.br', nome: 'Ana Clara Rodrigues', perfil: 'Fiscal', status: 'Ativo' },
+    { email: 'fiscal02@anapolis.go.gov.br', nome: 'Bruno Henrique Silva', perfil: 'Fiscal', status: 'Ativo' },
+    { email: 'fiscal03@anapolis.go.gov.br', nome: 'Camila Souza Lima', perfil: 'Fiscal', status: 'Ativo' },
+    { email: 'admin@anapolis.go.gov.br',    nome: 'Dra. Fernanda Meireles', perfil: 'Administrador', status: 'Ativo' },
+    { email: 'administrativo@anapolis.go.gov.br', nome: 'Gustavo Mendes', perfil: 'Administrativo', status: 'Ativo' },
   ];
 
   const MANUAIS_SEED = [
@@ -149,7 +149,7 @@
           ...u,
           created_at: firebase.firestore.FieldValue.serverTimestamp(),
         }, { merge: true });
-        log(`✔ ${u.email} (${u.grupo})`, 'log-ok');
+        log(`✔ ${u.email} (${u.perfil})`, 'log-ok');
       } catch(e) { log(`✘ ${u.email}: ${e.message}`, 'log-err'); }
     }
   }

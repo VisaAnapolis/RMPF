@@ -334,9 +334,9 @@
 <script src="js/guard.js"></script>
 <script>
   // ── Sidebar helper ────────────────────────────────────────
-  function buildSidebar(grupo) {
+  function buildSidebar(perfil) {
     let links;
-    if (grupo === 'Fiscal') {
+    if (perfil === 'Fiscal') {
       links = [
         { href: 'dashboard.html',        icon: '📊', label: 'Dashboard'        },
         { href: 'lancamento.html',        icon: '✏️',  label: 'Lançar Atividade' },
@@ -344,7 +344,7 @@
         { href: 'ocorrencias.html',       icon: '📌', label: 'Ocorrências'      },
         { href: 'changelog.html',         icon: '📜', label: 'Changelog'        },
       ];
-    } else if (grupo === 'Administrador') {
+    } else if (perfil === 'Administrador') {
       links = [
         { href: 'dashboard.html',   icon: '📊', label: 'Dashboard'   },
         { href: 'conferencia.html', icon: '🔍', label: 'Conferência' },
@@ -664,11 +664,11 @@
 
   // ── Init ──────────────────────────────────────────────────
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.grupo);
+    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
-    document.getElementById('sidebar-links').innerHTML = buildSidebar(user.grupo);
+    document.getElementById('sidebar-links').innerHTML = buildSidebar(user.perfil);
     document.getElementById('dash-sub').textContent = '— ' + (user.nome || user.email);
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
@@ -682,7 +682,7 @@
       hamburger.setAttribute('aria-expanded', sidebar.classList.contains('open') ? 'true' : 'false');
     });
 
-    if (user.grupo === 'Fiscal') {
+    if (user.perfil === 'Fiscal') {
       document.getElementById('comp-selector-wrap').style.display = '';
       document.getElementById('view-fiscal').style.display = '';
       document.getElementById('visa-sync-fiscal').style.display = '';
@@ -704,7 +704,7 @@
       document.getElementById('btn-carregar').addEventListener('click', () => loadFiscal(user));
       // Carregar sincronizações do VISA
       carregarSyncVISA('fiscal');
-    } else if (user.grupo === 'Administrador') {
+    } else if (user.perfil === 'Administrador') {
       document.getElementById('view-admin').style.display = '';
       document.getElementById('visa-sync-admin').style.display = '';
       buildMesSelect('admin-sel-mes');

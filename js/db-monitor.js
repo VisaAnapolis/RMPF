@@ -258,11 +258,11 @@
 
   window.dbMonitor = {
     /**
-     * Ativa o monitor. Só exibe o badge se grupo === 'Administrador'.
-     * @param {string} grupo  Grupo do usuário atual (ex: 'Administrador', 'Fiscal').
+     * Ativa o monitor. Só exibe o badge se perfil === 'Administrador'.
+     * @param {string} perfil  Perfil do usuário atual (ex: 'Administrador', 'Fiscal').
      */
-    enable(grupo) {
-      if (grupo !== 'Administrador') return;
+    enable(perfil) {
+      if (perfil !== 'Administrador') return;
       enabled = true;
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', createBadge);

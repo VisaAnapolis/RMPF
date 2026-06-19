@@ -477,8 +477,8 @@
   let _currentUserEmail = '';
 
   // ── Sidebar ──────────────────────────────────────────────────
-  function buildSidebar(grupo) {
-    const links = grupo === 'Fiscal' ? [
+  function buildSidebar(perfil) {
+    const links = perfil === 'Fiscal' ? [
       { href: 'dashboard.html',        icon: '📊', label: 'Dashboard'        },
       { href: 'lancamento.html',       icon: '✏️',  label: 'Lançar Atividade' },
       { href: 'meus-lancamentos.html', icon: '📋', label: 'Meus Lançamentos' },
@@ -490,7 +490,7 @@
       { href: 'ocorrencias.html', icon: '📌', label: 'Ocorrências'},
       { href: 'fechamento.html',  icon: '🔒', label: 'Fechamento' },
     ];
-    if (grupo === 'Administrador') {
+    if (perfil === 'Administrador') {
       links.push({ href: 'admin.html',          icon: '⚙️', label: 'Admin'          });
       links.push({ href: 'parametrizacao.html', icon: '🔧', label: 'Parametrização'  });
     }
@@ -504,8 +504,8 @@
 
   // ── Init ──────────────────────────────────────────────────────
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.grupo);
-    if (user.grupo !== 'Administrador') {
+    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
+    if (user.perfil !== 'Administrador') {
       window.location.href = 'dashboard.html';
       return;
     }
@@ -515,7 +515,7 @@
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
-    document.getElementById('sidebar').innerHTML = buildSidebar(user.grupo);
+    document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
 
     document.getElementById('btn-logout').addEventListener('click', () => {
       firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });

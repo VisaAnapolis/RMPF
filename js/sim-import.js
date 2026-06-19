@@ -95,7 +95,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
 
     const ordens = await window.db_getOrdensServicoConcluidas(mes, ano, fiscalEmail || null);
 
-    // Conjunto de e-mails de fiscais válidos (somente grupo Fiscal são importados)
+    // Conjunto de e-mails de fiscais válidos (somente perfil Fiscal são importados)
     const fiscaisValidos = new Set();
     for (const f of (allFiscais || [])) {
       if (f.email) fiscaisValidos.add(String(f.email).toLowerCase());

@@ -302,7 +302,7 @@
       document.getElementById('pn-extra').disabled = false;
       document.getElementById('f-obs').value       = '';
       document.getElementById('f-obs').disabled    = false;
-      if (_user.grupo === 'Administrador') {
+      if (_user.perfil === 'Administrador') {
         document.getElementById('btn-recalc').disabled = false;
         document.getElementById('btn-fechar').disabled = false;
       }
@@ -317,7 +317,7 @@
     document.getElementById('pn-extra').disabled = true;
     document.getElementById('f-obs').value       = rec.obs || '';
     document.getElementById('f-obs').disabled    = true;
-    if (_user.grupo === 'Administrador') {
+    if (_user.perfil === 'Administrador') {
       document.getElementById('btn-recalc').disabled = true;
       document.getElementById('btn-fechar').disabled = true;
     }
@@ -363,7 +363,7 @@
     ).join('') : '<tr class="empty-row"><td colspan="4">Nenhuma atividade aceita</td></tr>';
 
     document.getElementById('summary-wrap').style.display = '';
-    if (_user.grupo === 'Administrador') {
+    if (_user.perfil === 'Administrador') {
       document.getElementById('admin-controls').style.display = '';
     }
 
@@ -495,9 +495,9 @@
   }
 
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.grupo);
+    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
     _user = user;
-    if (user.grupo !== 'Administrador') {
+    if (user.perfil !== 'Administrador') {
       window.location.href = 'dashboard.html'; return;
     }
     document.getElementById('loading-overlay').style.display = 'none';
@@ -505,7 +505,7 @@
     document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
-    if (user.grupo === 'Administrador') {
+    if (user.perfil === 'Administrador') {
       document.getElementById('sidebar-admin-link').innerHTML =
         '<a href="admin.html" class="sidebar-link"><span class="icon">⚙️</span>Admin</a>';
       document.getElementById('sidebar-param-link').innerHTML =
@@ -535,7 +535,7 @@
       document.getElementById('sidebar').classList.toggle('open');
     });
 
-    if (user.grupo === 'Administrador') {
+    if (user.perfil === 'Administrador') {
       document.getElementById('btn-fechar').addEventListener('click', fecharCompetencia);
       document.getElementById('btn-recalc').addEventListener('click', () => {
         const pn = Number(document.getElementById('pn-extra').value || 0);

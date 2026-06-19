@@ -165,7 +165,7 @@
 <script src="js/notifications.js"></script>
 <script>
   let _user  = null;
-  let _grupo = '';
+  let _perfil = '';
   let _ocorrs = [];
 
   const TIPO_LABELS = {
@@ -176,8 +176,8 @@
     outros: 'Outros',
   };
 
-  function buildSidebar(grupo) {
-    const links = grupo === 'Fiscal' ? [
+  function buildSidebar(perfil) {
+    const links = perfil === 'Fiscal' ? [
       ['dashboard.html','📊','Dashboard'],
       ['lancamento.html','✏️','Lançar Atividade'],
       ['meus-lancamentos.html','📋','Meus Lançamentos'],
@@ -192,7 +192,7 @@
     const base = links.map(([href,icon,label]) =>
       `<a href="${href}" class="sidebar-link${cur===href?' active':''}"><span class="icon">${icon}</span>${label}</a>`
     ).join('');
-    const admin = grupo === 'Administrador'
+    const admin = perfil === 'Administrador'
       ? `<a href="admin.html" class="sidebar-link${cur==='admin.html'?' active':''}"><span class="icon">⚙️</span>Admin</a>`
         + `<a href="parametrizacao.html" class="sidebar-link${cur==='parametrizacao.html'?' active':''}"><span class="icon">🔧</span>Parametrização</a>`
       : '';
@@ -270,7 +270,7 @@
     tbody.innerHTML = '<tr class="empty-row"><td colspan="6"><div class="spinner"></div></td></tr>';
 
     try {
-      if (_grupo === 'Fiscal') {
+      if (_perfil === 'Fiscal') {
         _ocorrs = await db_getOcorrencias(_user.email, mes, ano);
       } else {
         const fiscalFilter = document.getElementById('sel-fiscal').value;
@@ -285,7 +285,7 @@
 
   function renderOcorrs() {
     const tbody = document.getElementById('tbody-ocorrencias');
-    const isAdmin = _grupo === 'Administrador';
+    const isAdmin = _perfil === 'Administrador';
     if (!_ocorrs.length) {
       tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma ocorrência nesta competência</td></tr>';
       return;
@@ -298,7 +298,7 @@
       } else if (isAdmin) {
         acoes = `<button class="btn btn-default btn-sm" onclick="abrirRev('${o.id}')">✏️ Rever</button>`;
       }
-      const fiscalCol = (_grupo !== 'Fiscal') ? `<td data-label="Fiscal">${escHtml(o.fiscal_nome||o.fiscal_email)}</td>` : '';
+      const fiscalCol = (_perfil !== 'Fiscal') ? `<td data-label="Fiscal">${escHtml(o.fiscal_nome||o.fiscal_email)}</td>` : '';
       return `<tr>
         ${fiscalCol}
         <td data-label="Tipo">${TIPO_LABELS[o.tipo]||escHtml(o.tipo)}</td>
@@ -425,27 +425,27 @@
   });
 
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.grupo);
+    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
     _user  = user;
-    _grupo = user.grupo;
-    if (user.grupo !== 'Fiscal' && user.grupo !== 'Administrador') {
+    _perfil = user.perfil;
+    if (user.perfil !== 'Fiscal' && user.perfil !== 'Administrador') {
       window.location.href = 'dashboard.html'; return;
     }
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
-    document.getElementById('sidebar').innerHTML = buildSidebar(user.grupo);
+    document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     buildSels('sel-mes','sel-ano');
-    const _emailParaUm = user.grupo === 'Fiscal' ? user.email : null;
+    const _emailParaUm = user.perfil === 'Fiscal' ? user.email : null;
     let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
     try { ({ mes: _um, ano: _ua } = await db_getProximaCompetencia(_emailParaUm)); }
     catch (e) { console.warn('[Ocorrencias] Falha ao obter próxima competência:', e); }
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
 
-    if (user.grupo === 'Fiscal') {
+    if (user.perfil === 'Fiscal') {
       document.getElementById('form-wrap').style.display = '';
       buildSels('o-mes','o-ano');
       document.getElementById('o-mes').value = _um;

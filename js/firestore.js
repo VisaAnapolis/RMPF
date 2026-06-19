@@ -163,7 +163,7 @@ async function getUsuario(email) {
 
 async function getTodosFiscais() {
   const snap = await window.db.collection('usuarios')
-    .where('grupo', '==', 'Fiscal')
+    .where('perfil', '==', 'Fiscal')
     .get();
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
@@ -596,7 +596,7 @@ async function getProximaCompetencia(fiscalEmail) {
 
   const [snap, fiscaisSnap] = await Promise.all([
     window.db.collection('fechamentos').get(),
-    window.db.collection('usuarios').where('grupo', '==', 'Fiscal').get(),
+    window.db.collection('usuarios').where('perfil', '==', 'Fiscal').get(),
   ]);
   if (snap.empty) return { mes: now.getMonth() + 1, ano: now.getFullYear() };
 
