@@ -314,6 +314,7 @@ table.rmpf-table {
   width: 100%;
   border-collapse: collapse;
   font-size: .84rem;
+  table-layout: fixed;
 }
 .rmpf-table thead tr { background: var(--cinzaB); }
 .rmpf-table thead th {
@@ -326,11 +327,14 @@ table.rmpf-table {
   border-bottom: 2px solid var(--cinzaL);
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
 }
 .rmpf-table td {
   padding: 9px 12px;
   border-bottom: 1px solid var(--cinzaL);
   vertical-align: middle;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 .rmpf-table tbody tr:hover { background: var(--cinzaB); }
 .rmpf-table tbody tr:last-child td { border-bottom: none; }
