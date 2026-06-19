@@ -743,45 +743,41 @@ table.rmpf-table {
   }
   .rmpf-table tbody tr:hover { background: var(--branco); }
 
+  /* Label em cima, valor abaixo — evita coluna estreita */
   .rmpf-table tbody td {
     display: flex;
-    justify-content: space-between;
+    flex-direction: column;
     align-items: flex-start;
-    padding: 8px 12px;
+    padding: 7px 12px;
     border-bottom: 1px solid var(--cinzaL);
-    text-align: right;
-    gap: 8px;
+    text-align: left;
     word-break: normal;
     overflow-wrap: break-word;
+    gap: 2px;
   }
+  .rmpf-table tbody td:last-child { border-bottom: none; }
   .rmpf-table tbody td::before {
     content: attr(data-label);
-    font-weight: 600;
-    font-size: .75rem;
+    font-weight: 700;
+    font-size: .68rem;
     text-transform: uppercase;
-    letter-spacing: .4px;
+    letter-spacing: .5px;
     color: var(--cinzaT);
-    text-align: left;
-    flex-shrink: 0;
-    min-width: 100px;
-    padding-top: 2px;
   }
-  .rmpf-table tbody td.td-num { text-align: right; }
-  .rmpf-table tbody td.td-center { justify-content: space-between; }
 
-  /* Last column (Ações): label full-width on top, buttons right-aligned below */
+  /* Ações (última coluna): botões em linha, com quebra */
   .rmpf-table tbody td:last-child {
     border-bottom: none;
+    flex-direction: row;
     flex-wrap: wrap;
-    justify-content: flex-end;
     align-items: center;
+    justify-content: flex-end;
     gap: 6px;
   }
   .rmpf-table tbody td:last-child::before {
     flex: 0 0 100%;
-    min-width: unset;
-    padding-top: 0;
     margin-bottom: 2px;
+    justify-content: flex-start;
   }
 
   /* Empty/spinner row stays centered */
