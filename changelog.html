@@ -44,6 +44,25 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.2</span>
+            <span class="badge-date">19/06/2026</span>
+          </div>
+          <div class="changelog-title">Campos OS e Documento na importação VISA, botões de lote em Parametrização e melhorias visuais</div>
+          <ul class="changelog-changes">
+            <li><strong>Importação VISA — campos OS e Documento</strong> — <code>js/visa-import.js</code> extrai agora <code>os_numero</code> (derivado da Modalidade: DE OFÍCIO→Oficio, PROTOCOLO→Protocolo, DENUNCIA→Denuncia, REQUERIMENTO→coluna OS) e <code>documento</code> (tipo bruto do CSV) e os persiste na coleção <code>manuais</code>. Ambos os campos são exibidos entre Origem da Demanda e Descrição em <code>conferencia.html</code> e <code>meus-lancamentos.html</code>, e a coluna Origem da Demanda foi adicionada a <code>meus-lancamentos.html</code>.</li>
+            <li><strong>Descrição limitada ao CNAE</strong> — o campo <code>descricao</code> dos registros VISA passa a conter apenas o código e nome do CNAE; tipo e número de OS/Ofício, já armazenados em campos dedicados, foram removidos da descrição para eliminar redundância.</li>
+            <li><strong>Backfill de campos VISA</strong> — novo script Python (<code>.github/scripts/backfill_visa_fields.py</code>) e workflow GitHub Actions (<code>backfill-visa-fields.yml</code>) para corrigir registros <code>visa_csv</code> existentes: reescreve <code>os_numero</code> e <code>descricao</code> em todos os registros (incluindo homologados) e preenche <code>motivo_os</code>/<code>documento</code> apenas quando vazios. Suporta modo <code>dry_run</code> (padrão), timeout e tratamento robusto de falhas por registro.</li>
+            <li><strong>Correção: CERTIDÃO do CSV VISA com 2 pontos fixos</strong> — lançamentos do tipo CERTIDÃO importados via CSV VISA recebem sempre 2 pontos fixos, independente do CNAE consultado em <code>cnae_complexidade</code>.</li>
+            <li><strong>Importação em lote movida para Parametrização</strong> — os botões <em>📥 Importar Todos os Fiscais</em>, <em>📥 Importar SIM — Todos os Fiscais</em> e <em>🗑️ Apagar Lançamentos Importados</em> foram transferidos de <code>conferencia.html</code> para <code>parametrizacao.html</code> (card "Importação VISA e SIM"), incluindo seletores de mês/ano, barras de progresso e logs. Os botões individuais por fiscal permanecem em Conferência.</li>
+            <li><strong>Dashboard fiscal — tabela "Atividades Pendentes"</strong> — a seção "Minhas Atividades" foi renomeada para "Atividades Pendentes" e passa a filtrar apenas registros não homologados, com novas colunas Origem da Demanda, OS, Documento, Anexo e Ações (com link direto para edição em <code>meus-lancamentos.html</code>).</li>
+            <li><strong>Correção: larguras de coluna inconsistentes em Meus Lançamentos</strong> — aplicado <code>table-layout: fixed</code> com <code>colgroup</code> garantindo larguras determinísticas; coluna Descrição mantém 18% independente do conteúdo das demais células; textos longos respeitam <code>overflow-wrap</code>.</li>
+            <li><strong>Vigilância Ativa — alinhamento visual</strong> — o badge de "Vigilância Ativa" foi substituído por texto colorido seguindo o mesmo padrão visual dos demais badges do sistema.</li>
+            <li><strong>Correção: spinner infinito em <code>corrige-certidoes.html</code></strong> — auth guard corrigido para não bloquear indefinidamente o carregamento da página.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.0</span>
             <span class="badge-date">10/06/2026</span>
           </div>
