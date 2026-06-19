@@ -270,8 +270,8 @@
     document.getElementById('cnt-fiscal').textContent  = us.filter(u => u.perfil === 'Fiscal').length;
     document.getElementById('cnt-adm').textContent     = us.filter(u => u.perfil === 'Administrativo').length;
     document.getElementById('cnt-admin').textContent   = us.filter(u => u.perfil === 'Administrador').length;
-    document.getElementById('cnt-ativo').textContent   = us.filter(u => u.status === 'Ativo').length;
-    document.getElementById('cnt-inativo').textContent = us.filter(u => u.status === 'Inativo').length;
+    document.getElementById('cnt-ativo').textContent   = us.filter(u => u.ativo !== false).length;
+    document.getElementById('cnt-inativo').textContent = us.filter(u => u.ativo === false).length;
   }
 
   // ── Pills ─────────────────────────────────────────────────────
@@ -342,7 +342,7 @@
       const ultimoAcesso = u.rmpf_ultimoLogin
         ? fmtData(u.rmpf_ultimoLogin.toDate ? u.rmpf_ultimoLogin.toDate() : new Date(u.rmpf_ultimoLogin))
         : '—';
-      const statusBadge = (u.status || '').toLowerCase() !== 'inativo'
+      const statusBadge = u.ativo !== false
         ? '<span class="badge badge-aceito">Ativo</span>'
         : '<span class="badge badge-recusado">Inativo</span>';
       const grupoBadge = u.perfil === 'Administrador'
@@ -390,7 +390,7 @@
     document.getElementById('edit-nome').value          = u.nome || '';
     document.getElementById('edit-perfil').value         = u.perfil || 'Fiscal';
 
-    const statusVal = (u.status || '').toLowerCase() === 'inativo' ? 'Inativo' : 'Ativo';
+    const statusVal = u.ativo === false ? 'Inativo' : 'Ativo';
     document.getElementById('edit-status').value = statusVal;
 
     document.getElementById('edit-perfil').disabled  = isSelf;
