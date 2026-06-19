@@ -195,7 +195,7 @@
       if (user && !window.__rmpfVersionReloading) {
         try {
           const snap = await firebase.firestore().collection('usuarios').doc(user.email).get();
-          if (snap.exists && (snap.data().status || '').toLowerCase() !== 'inativo') {
+          if (snap.exists && snap.data().ativo !== false) {
             window.location.href = 'dashboard.html';
             return;
           }
