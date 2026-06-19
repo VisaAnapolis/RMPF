@@ -746,13 +746,14 @@ table.rmpf-table {
   .rmpf-table tbody td {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     padding: 8px 12px;
     border-bottom: 1px solid var(--cinzaL);
     text-align: right;
     gap: 8px;
+    word-break: normal;
+    overflow-wrap: break-word;
   }
-  .rmpf-table tbody td:last-child { border-bottom: none; }
   .rmpf-table tbody td::before {
     content: attr(data-label);
     font-weight: 600;
@@ -762,17 +763,25 @@ table.rmpf-table {
     color: var(--cinzaT);
     text-align: left;
     flex-shrink: 0;
+    min-width: 100px;
+    padding-top: 2px;
   }
   .rmpf-table tbody td.td-num { text-align: right; }
   .rmpf-table tbody td.td-center { justify-content: space-between; }
 
-  /* Actions cell: wrap buttons naturally */
-  .rmpf-table tbody td.nao-imprimir {
-    display: flex;
+  /* Last column (Ações): label full-width on top, buttons right-aligned below */
+  .rmpf-table tbody td:last-child {
+    border-bottom: none;
     flex-wrap: wrap;
     justify-content: flex-end;
+    align-items: center;
     gap: 6px;
-    border-bottom: none;
+  }
+  .rmpf-table tbody td:last-child::before {
+    flex: 0 0 100%;
+    min-width: unset;
+    padding-top: 0;
+    margin-bottom: 2px;
   }
 
   /* Empty/spinner row stays centered */
