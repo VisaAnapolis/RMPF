@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.3</span>
+            <span class="badge-date">25/06/2026</span>
+          </div>
+          <div class="changelog-title">Correção das notificações push (FCM) e e-mail de produtividade</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: VAPID Key não era lida do Firestore</strong> — <code>db_getVapidKey()</code> em <code>js/firebase-config.js</code> lia o campo <code>value</code>, mas o documento <code>app_config/vapid_key</code> usa o campo <code>key</code>. Com isso <code>resolveVapidKey()</code> retornava <code>null</code>, <code>getToken()</code> nunca era chamado e <code>rmpf_fcmTokens</code> ficava vazio para todos — silenciando todas as notificações push do RMPF. Agora lê <code>value || key</code> e mantém a chave pública como fallback.</li>
+            <li><strong>Diagnóstico de registro de token</strong> — <code>initFCM()</code> grava <code>rmpf_notifDiag</code> no Firestore em cada ponto de saída (<code>ok</code>, <code>vapid_key_ausente</code>, <code>token_null</code>, <code>permissao_negada</code>), permitindo ao administrador descobrir, direto no Firestore, por que um usuário que "aceitou" não recebe push.</li>
+            <li><strong>Jobs de notificação falham visivelmente</strong> — os workflows de push e e-mail (semanal e mensal) agora terminam em vermelho (<code>exit 1</code>) quando nenhum token está registrado ou quando todos os envios falham, em vez de passar "verde" mascarando a falha. Os scripts de e-mail validam as credenciais SMTP antes de iterar.</li>
+            <li><strong>Service Worker — limpeza de caches antigos</strong> — o <code>activate</code> passa a remover caches de versões anteriores, evitando que um <code>firebase-config.js</code> obsoleto permaneça em cache e mantenha o usuário no código velho.</li>
+            <li><strong>Correção: Resumo Semanal mostrava 0 pts</strong> — o e-mail e o push semanais somavam apenas lançamentos <em>criados nos últimos 7 dias</em> (<code>criadoEm &gt;= segunda-feira</code>), exibindo 0 pts para fiscais cuja pontuação vinha de importações VISA do início do mês. Agora ambos apuram a pontuação <strong>acumulada na competência aberta</strong> (<code>mes</code>/<code>ano</code> de <code>app_config/competencia_aberta</code>), exatamente como o dashboard — somando <code>pontos_homologado ?? pontos</code> dos status aceito/fechado/homologado.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.2</span>
             <span class="badge-date">19/06/2026</span>
           </div>
