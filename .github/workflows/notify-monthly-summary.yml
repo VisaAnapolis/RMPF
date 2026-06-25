@@ -300,12 +300,21 @@ jobs:
                       print(f"  🗑️  Token inválido removido para {a['email']}")
 
           # ── Resumo final ───────────────────────────────────────────────
-          total_enviados = len(fiscais) + len(admins) - erros
+          total_destinatarios = len(fiscais) + len(admins)
+          if not total_destinatarios:
+              print('::error::Nenhum usuário com rmpf_fcmTokens registrado — '
+                    'nenhum push foi enviado. Verifique a VAPID key '
+                    '(app_config/vapid_key) e o registro do token no app RMPF.',
+                    file=sys.stderr)
+              sys.exit(1)
+
+          if erros == total_destinatarios:
+              print(f'::error::Nenhuma notificação entregue ({erros}/{total_destinatarios}). '
+                    f'Push falhou para todos os tokens registrados.', file=sys.stderr)
+              sys.exit(1)
+
           if erros:
               print(f'::warning::{erros} notificação(ões) não entregue(s).')
           else:
               print(f'✅ Notificações enviadas: {len(fiscais)} fiscal(is), {len(admins)} administrador(es).')
-
-          if not fiscais and not admins:
-              print('Nenhum usuário com token FCM registrado.')
           EOF
