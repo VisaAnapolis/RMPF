@@ -35,16 +35,14 @@ window.googleProvider.setCustomParameters({ prompt: 'select_account' });
 //   nenhum token FCM é gerado/salvo.
 //   Preferencialmente mantenha a chave no Firestore em app_config/vapid_key
 //   (campo "value"), para evitar hardcode em repositório público.
-// Mantido null por padrão para evitar hardcode de chave pública em repositório.
-// Produção deve preferir app_config/vapid_key (campo "value") no Firestore.
-const _FCM_VAPID_KEY = null;
+const _FCM_VAPID_KEY = 'BE9_750iCXVu1uz9bOsvlVZIeAPpujMOcGAbBQa-uzFnKs7-RTROCMNASyf9KrNoRSibXo4RFIpzffiMXwgyVaQ';
 const _FCM_VAPID_PLACEHOLDER_FLAGS = ['PLACEHOLDER_SUBSTITUA'];
 
 async function db_getVapidKey() {
   const snap = await window.db.collection('app_config').doc('vapid_key').get();
   if (!snap.exists) return null;
   const data = snap.data() || {};
-  return (data.value || '').trim() || null;
+  return (data.value || data.key || '').trim() || null;
 }
 
 async function resolveVapidKey() {
