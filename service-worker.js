@@ -7,11 +7,23 @@
 // especialmente em PWAs no iOS e Android.
 // ============================================================
 
-const CACHE_NAME = 'rmpf-v1.9.2';
+const CACHE_NAME = 'rmpf-v1.9.3';
 
 // Assume controle imediatamente, sem aguardar abas serem fechadas
 self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+
+// Ao ativar, remove caches de versões anteriores e assume o controle das abas.
+// Sem esta limpeza, um firebase-config.js antigo poderia permanecer no cache de
+// uma versão passada e ser servido offline, mantendo o usuário no código velho.
+self.addEventListener('activate', (e) => e.waitUntil(
+  (async () => {
+    const nomes = await caches.keys();
+    await Promise.all(
+      nomes.filter((n) => n !== CACHE_NAME).map((n) => caches.delete(n))
+    );
+    await self.clients.claim();
+  })()
+));
 
 // ── Network First: tenta a rede, cai para cache apenas se offline ──
 self.addEventListener('fetch', (event) => {
