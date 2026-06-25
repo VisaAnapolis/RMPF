@@ -22,6 +22,7 @@ jobs:
           pip install google-auth --quiet
           python3 - <<'EOF'
           import json, os, sys, urllib.request, urllib.error
+          from datetime import datetime, timezone, timedelta
           import google.oauth2.service_account
           import google.auth.transport.requests
 
@@ -78,17 +79,39 @@ jobs:
               arr = fv.get('arrayValue', {}).get('values', [])
               return [v.get('stringValue', '') for v in arr if v.get('stringValue', '').strip()]
 
-          # ── 1. Buscar todos os manuais e filtrar por status válido ──
-          print('Consultando pontos homologados…')
-          url_m = f'{FIRESTORE_URL}:runQuery'
-          body_m = json.dumps({
-              'structuredQuery': {
-                  'from': [{'collectionId': 'manuais'}],
-              }
-          }).encode()
-          req_m = urllib.request.Request(url_m, data=body_m, method='POST', headers=headers)
-          with urllib.request.urlopen(req_m) as r:
-              results = json.loads(r.read())
+          def resolver_competencia():
+              """Competência aberta (mes/ano) — a MESMA base do dashboard.
+
+              O dashboard apura por competência (mes/ano), não por data. Lê
+              app_config/competencia_aberta; se ausente, usa o mês corrente (BRT).
+              """
+              tz = timezone(timedelta(hours=-3))
+              hoje = datetime.now(tz)
+              mes, ano = hoje.month, hoje.year
+              try:
+                  url = f'{FIRESTORE_URL}/app_config/competencia_aberta'
+                  req = urllib.request.Request(url, method='GET', headers=headers)
+                  with urllib.request.urlopen(req) as r:
+                      doc = json.loads(r.read())
+                  f = doc.get('fields', {})
+                  if 'mes' in f and 'integerValue' in f['mes']:
+                      mes = int(f['mes']['integerValue'])
+                  if 'ano' in f and 'integerValue' in f['ano']:
+                      ano = int(f['ano']['integerValue'])
+              except Exception as exc:
+                  print(f'  ⚠️  Falha ao ler competência aberta, usando mês corrente: {exc}')
+              return mes, ano
+
+          # ── 1. Buscar manuais da competência aberta e filtrar status ──
+          MES, ANO = resolver_competencia()
+          print(f'Competência de referência: {MES:02d}/{ANO}')
+          print('Consultando pontos da competência…')
+          results = firestore_query('manuais', [
+              {'fieldFilter': {'field': {'fieldPath': 'mes'}, 'op': 'EQUAL',
+                               'value': {'integerValue': str(MES)}}},
+              {'fieldFilter': {'field': {'fieldPath': 'ano'}, 'op': 'EQUAL',
+                               'value': {'integerValue': str(ANO)}}},
+          ])
 
           VALID_STATUSES = ('aceito', 'fechado', 'homologado')
 
@@ -216,8 +239,8 @@ jobs:
               pts = pontos_por_fiscal.get(f['email'], 0.0)
               titulo = '📊 Resumo Semanal RMPF'
               corpo  = (
-                  f"Você tem {pts:.0f} pontos homologados até o momento. "
-                  f"Total geral da equipe: {total_geral:.0f} pts."
+                  f"Competência {MES:02d}/{ANO}: você tem {pts:.0f} pontos válidos. "
+                  f"Total da equipe: {total_geral:.0f} pts."
               )
               ok, resp = send_fcm(
                   f['fcm_token'], titulo, corpo,

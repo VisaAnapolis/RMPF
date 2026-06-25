@@ -1,9 +1,11 @@
 """
 Resumo Semanal de Pontos — e-mail para cada fiscal ativo.
 
-Busca os manuais com criadoEm >= segunda-feira desta semana (00:00 BRT),
-filtra pelos status válidos, agrupa pontos por fiscal e envia um e-mail
-com cards de desempenho individual e total da equipe.
+Enviado semanalmente, mostra a pontuação ACUMULADA na competência aberta
+(mesma base do dashboard: manuais com mes/ano da competência, status válido,
+usando pontos_homologado quando presente), e não apenas os lançamentos dos
+últimos 7 dias. Agrupa pontos por fiscal e envia um e-mail com cards de
+desempenho individual e total da equipe.
 """
 
 import json, os, sys, smtplib
@@ -63,6 +65,39 @@ def list_collection(collection):
     r = requests.post(url, json=body, headers=_auth_headers())
     r.raise_for_status()
     return r.json()
+
+
+def get_doc(path):
+    """GET de um documento do Firestore. Retorna o JSON ou None se 404."""
+    url = f"{BASE_URL}/{path}"
+    r = requests.get(url, headers=_auth_headers())
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    return r.json()
+
+
+def resolver_competencia():
+    """Resolve a competência aberta (mes/ano) — a MESMA base do dashboard.
+
+    O dashboard apura a produtividade por competência (mês), não por data de
+    criação do lançamento. Lê app_config/competencia_aberta; se ausente, usa
+    o mês corrente em horário de Brasília.
+    """
+    tz = timezone(timedelta(hours=-3))
+    hoje = datetime.now(tz)
+    mes, ano = hoje.month, hoje.year
+    try:
+        doc = get_doc("app_config/competencia_aberta")
+        if doc and "fields" in doc:
+            f = doc["fields"]
+            if "mes" in f and "integerValue" in f["mes"]:
+                mes = int(f["mes"]["integerValue"])
+            if "ano" in f and "integerValue" in f["ano"]:
+                ano = int(f["ano"]["integerValue"])
+    except Exception as exc:
+        print(f"  ⚠️  Falha ao ler competência aberta, usando mês corrente: {exc}")
+    return mes, ano
 
 
 def field_value(item, field):
@@ -155,28 +190,33 @@ def html_email(titulo: str, subtitulo: str, corpo_html: str,
 </body></html>"""
 
 
-# ── Cálculo da semana atual ───────────────────────────────────────────────────
-tz_brasilia     = timezone(timedelta(hours=-3))
-hoje            = datetime.now(tz_brasilia)
-monday_brt      = (hoje - timedelta(days=hoje.weekday())).replace(
-                      hour=0, minute=0, second=0, microsecond=0)
-monday_utc      = monday_brt.astimezone(timezone.utc)
-monday_iso      = monday_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-semana_label    = monday_brt.strftime("%d/%m")
+# ── Competência aberta (mesma base do dashboard) ──────────────────────────────
+# O resumo é ENVIADO semanalmente, mas mostra a pontuação ACUMULADA na
+# competência aberta — exatamente como o dashboard apura (por mes/ano), e não
+# apenas os lançamentos criados nos últimos 7 dias (que dariam 0 na maioria
+# das semanas, pois as importações VISA ocorrem no início do mês).
+MES, ANO  = resolver_competencia()
+mes_label = f"{MES:02d}/{ANO}"
+print(f"Competência de referência: {mes_label}")
 
-print(f"Semana de referência: {semana_label} (monday UTC={monday_iso})")
-
-# ── 1. Buscar manuais criados a partir desta segunda-feira ────────────────────
-print("Consultando manuais da semana...")
+# ── 1. Buscar manuais da competência aberta ───────────────────────────────────
+print("Consultando manuais da competência...")
 try:
     results = run_query("manuais", [
         {
             "fieldFilter": {
-                "field": {"fieldPath": "criadoEm"},
-                "op": "GREATER_THAN_OR_EQUAL",
-                "value": {"timestampValue": monday_iso},
+                "field": {"fieldPath": "mes"},
+                "op": "EQUAL",
+                "value": {"integerValue": str(MES)},
             }
-        }
+        },
+        {
+            "fieldFilter": {
+                "field": {"fieldPath": "ano"},
+                "op": "EQUAL",
+                "value": {"integerValue": str(ANO)},
+            }
+        },
     ])
 except Exception as exc:
     print(f"::error::Falha ao consultar manuais: {exc}", file=sys.stderr)
@@ -203,7 +243,7 @@ for item in results:
     pontos_por_fiscal[email] = pontos_por_fiscal.get(email, 0.0) + pts
 
 total_equipe = sum(pontos_por_fiscal.values())
-print(f"Total da equipe na semana: {total_equipe:.0f} pts | "
+print(f"Total da equipe na competência {mes_label}: {total_equipe:.0f} pts | "
       f"Fiscais com pontos: {len(pontos_por_fiscal)}")
 
 # ── 3. Buscar usuários fiscais ativos ─────────────────────────────────────────
@@ -244,15 +284,15 @@ for f in fiscais:
     pct = round(pts_fiscal / total_equipe * 100, 1) if total_equipe > 0 else 0.0
 
     corpo = (
-        card("Seus pontos esta semana", f"{pts_fiscal:.0f} pts", "#1a237e") +
-        card("Total da equipe",         f"{total_equipe:.0f} pts", "#546e7a") +
-        card("Sua participação",         f"{pct:.1f}%", "#00897b")
+        card(f"Seus pontos válidos — competência {mes_label}", f"{pts_fiscal:.0f} pts", "#1a237e") +
+        card("Total da equipe",   f"{total_equipe:.0f} pts", "#546e7a") +
+        card("Sua participação",  f"{pct:.1f}%", "#00897b")
     )
 
-    subject = f"\U0001f4ca Resumo Semanal RMPF — semana de {semana_label}"
+    subject = f"\U0001f4ca Resumo Semanal RMPF — competência {mes_label}"
     html = html_email(
-        titulo=f"Semana de {semana_label}",
-        subtitulo=f"Olá, {f['nome']}! Veja seu desempenho desta semana:",
+        titulo=f"Competência {mes_label}",
+        subtitulo=f"Olá, {f['nome']}! Veja sua pontuação acumulada na competência:",
         corpo_html=corpo,
         url_cta=DASHBOARD_URL,
         label_cta="Ver Dashboard",
