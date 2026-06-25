@@ -89,6 +89,27 @@ def send_email(to: str, subject: str, html_body: str):
         smtp.sendmail(SENDER_EMAIL, to, msg.as_string())
 
 
+def smtp_preflight():
+    """Valida as credenciais SMTP antes de iterar pelos destinatários.
+
+    Falha cedo e em VERMELHO (exit 1) se o secret GMAIL_APP_PASSWORD estiver
+    inválido/expirado (erro 535 BadCredentials), em vez de tentar — e falhar —
+    para cada destinatário e ainda assim terminar verde.
+    """
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+            smtp.starttls()
+            smtp.login(SENDER_EMAIL, os.environ["GMAIL_APP_PASSWORD"])
+    except smtplib.SMTPAuthenticationError as exc:
+        print(f"::error::Credenciais SMTP rejeitadas pelo Gmail ({exc.smtp_code}). "
+              f"Atualize o secret GMAIL_APP_PASSWORD com uma App Password válida "
+              f"da conta {SENDER_EMAIL}.", file=sys.stderr)
+        sys.exit(1)
+    except Exception as exc:
+        print(f"::error::Falha ao conectar/autenticar no SMTP: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def card(label: str, valor: str, cor: str = "#1a237e") -> str:
     return (
         f'<div style="background:#f8f9ff;border-left:4px solid {cor};'
@@ -234,6 +255,9 @@ for item in usuarios_raw:
 print(f"Fiscais ativos: {len(fiscais)} | Administradores ativos: {len(admins)}")
 
 # ── 4. Enviar e-mail para cada Fiscal ─────────────────────────────────────────
+# Valida as credenciais antes de iterar — evita run "verde" mascarando 535.
+smtp_preflight()
+
 erros = 0
 
 for f in fiscais:
@@ -340,7 +364,13 @@ if admins:
             print(f"  ❌ [admin] Falha para {a['email']}: {exc}", file=sys.stderr)
             erros += 1
 
-if erros:
+total_destinatarios = len(fiscais) + len(admins)
+if total_destinatarios and erros == total_destinatarios:
+    print(f"::error::Nenhum e-mail entregue ({erros}/{total_destinatarios}). "
+          f"Verifique o secret GMAIL_APP_PASSWORD e a conta remetente "
+          f"{SENDER_EMAIL}.", file=sys.stderr)
+    sys.exit(1)
+elif erros:
     print(f"::warning::{erros} e-mail(s) não entregue(s).")
 else:
     print(f"✅ Resumo mensal: {len(fiscais)} fiscal(is), {len(admins)} administrador(es).")

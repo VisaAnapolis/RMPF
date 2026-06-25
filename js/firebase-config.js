@@ -289,10 +289,29 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
       }
     };
 
+    /**
+     * Registra um diagnóstico do registro de token em rmpf_notifDiag.
+     * Permite a um administrador descobrir, direto no Firestore, POR QUE um
+     * usuário que "aceitou" não recebe push — sem precisar do console de cada
+     * navegador. Valores típicos: 'ok', 'vapid_key_ausente', 'token_null',
+     * 'permissao_negada', 'permissao_default', 'erro:<mensagem>'.
+     */
+    const salvarDiag = async (motivo) => {
+      try {
+        await userRef.set({
+          rmpf_notifDiag:         motivo,
+          rmpf_notifDiagEm:       firebase.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } catch (e) {
+        console.warn('[FCM] Falha ao salvar diagnóstico:', e);
+      }
+    };
+
     // Se a permissão já foi negada pelo browser, não é possível exibir o
     // diálogo nativo novamente — sugerimos reativar a cada 15 dias.
     if (Notification.permission === 'denied') {
       await salvarPermissao('denied');
+      await salvarDiag('permissao_negada');
       maybeShowFCMReminderBanner();
       return;
     }
@@ -307,11 +326,17 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
 
     const permission = await Notification.requestPermission();
     await salvarPermissao(permission);
-    if (permission !== 'granted') return;
+    if (permission !== 'granted') {
+      await salvarDiag('permissao_' + permission);
+      return;
+    }
 
     const vapidKey = await resolveVapidKey();
     if (!vapidKey) {
-      console.warn('[FCM] VAPID Key ausente. Configure app_config/vapid_key (value) no Firestore ou substitua o placeholder em js/firebase-config.js.');
+      console.warn('[FCM] VAPID Key ausente. O usuário concedeu permissão, mas '
+        + 'getToken() NÃO será chamado e rmpf_fcmTokens ficará vazio. '
+        + 'Configure app_config/vapid_key (campo "value") no Firestore.');
+      await salvarDiag('vapid_key_ausente');
       return;
     }
 
@@ -324,7 +349,12 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
 
     // getToken() retorna um token atual ou gera um novo se expirado
     const token = await messaging.getToken({ vapidKey, serviceWorkerRegistration: swReg });
-    if (!token) return;
+    if (!token) {
+      console.warn('[FCM] getToken() retornou null/vazio — token não gerado. '
+        + 'rmpf_fcmTokens não será atualizado.');
+      await salvarDiag('token_null');
+      return;
+    }
 
     const snap = await userRef.get();
     const data = snap.exists ? (snap.data() || {}) : {};
@@ -338,7 +368,14 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
 
     // Persiste tokens sem sobrescrever os demais campos do usuário
     await userRef.set({ rmpf_fcmTokens: existing }, { merge: true });
+    await salvarDiag('ok');
   } catch (e) {
     console.warn('[FCM] initFCM erro:', e);
+    try {
+      await window.db.collection('usuarios').doc(email).set({
+        rmpf_notifDiag:   'erro:' + (e && e.message ? e.message : String(e)),
+        rmpf_notifDiagEm: firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    } catch (_) { /* noop */ }
   }
 };

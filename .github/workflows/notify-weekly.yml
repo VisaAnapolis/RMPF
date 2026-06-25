@@ -153,8 +153,12 @@ jobs:
           print(f'Usuários com token FCM: {len(fiscais)}')
 
           if not fiscais:
-              print('Nenhum usuário com token FCM registrado. Encerrando.')
-              sys.exit(0)
+              print('::error::Nenhum usuário com rmpf_fcmTokens registrado — '
+                    'nenhum push foi enviado, apesar de existirem fiscais com pontos. '
+                    'Verifique se o app RMPF está gravando rmpf_fcmTokens '
+                    '(VAPID key em app_config/vapid_key e registro do token no login).',
+                    file=sys.stderr)
+              sys.exit(1)
 
           # ── 3. Enviar push personalizado a cada fiscal ─────────────
           def send_fcm(fcm_token, titulo, corpo, link):
@@ -228,7 +232,11 @@ jobs:
                       remove_fcm_token(f['doc_name'], f['fcm_token'], f['campo'])
                       print(f"  🗑️  Token inválido removido para {f['email']}")
 
-          if erros:
+          if erros and erros == len(fiscais):
+              print(f'::error::Nenhuma notificação entregue ({erros}/{len(fiscais)}). '
+                    f'Push falhou para todos os tokens registrados.', file=sys.stderr)
+              sys.exit(1)
+          elif erros:
               print(f'::warning::{erros} notificação(ões) não entregue(s).')
           else:
               print(f'✅ Resumo semanal enviado para {len(fiscais)} fiscal(is).')
