@@ -406,6 +406,21 @@
       return;
     }
 
+    // ── Plantão fiscal não pode ser lançado em data que já possui ──
+    // vistorias importadas do VISA (a não cumulatividade só pode ser
+    // garantida quando o plantão é lançado antes da importação).
+    if (tipo.codigo === 'PLT') {
+      const vistorias = await window.vistoriasImportadasNoDia(user.email, data);
+      if (vistorias.length) {
+        showAlert('danger',
+          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA. ` +
+          `O dia <strong>${fmtData(data)}</strong> já possui <strong>${vistorias.length}</strong> ` +
+          `vistoria(s) importada(s).`);
+        btns.forEach(b => { b.disabled = false; });
+        return;
+      }
+    }
+
     const pontosNum = Number(pontos);
     if (Number.isNaN(pontosNum)) {
       showAlert('warn', 'Informe os pontos corretamente.');

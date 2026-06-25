@@ -282,6 +282,28 @@ O Administrador tem um botão **"🔄 Sincronizar CNAE com Firestore"** em `admi
 
 ---
 
+## 15.1. Plantão Fiscal × Vistorias (não cumulatividade)
+
+Regra: **Plantão fiscal não é cumulativo com a pontuação das vistorias realizadas no mesmo dia** (Tabela de Pontuação, item 6). A regra é **por fiscal** — o plantão de um fiscal só afeta as vistorias dele.
+
+| Situação | Comportamento |
+|---|---|
+| Plantão manual (PLT) lançado **antes** da importação | Ao importar, as vistorias (`VIS`) do VISA naquela data entram com **pontos = 0** automaticamente. Log: *"vistoria zerada — plantão fiscal manual em DD/MM"*. |
+| Vistorias importadas **antes** + tentativa de lançar plantão manual | **Bloqueado** em `lancamento.html` (e ao editar/corrigir em `meus-lancamentos.html`) com a mensagem *"Impossível lançar plantão em data com vistoria(s) importada(s) do VISA"*. |
+| Vistoria já homologada (`aceito`/`fechado`) | **Não é zerada** automaticamente — só reportada. O admin decide via conferência. |
+
+**Identificação:**
+- Plantão manual → `tipo_codigo === 'PLT'` e `origem !== 'visa_csv'` (controle `PLT-AAAA-MM-NNN`).
+- Vistoria importada → `origem === 'visa_csv'` e `tipo_codigo === 'VIS'`.
+
+**Helpers** (`js/visa-import.js`): `ehPlantaoManual`, `ehVistoriaImportada`, `datasComPlantaoManual`, `vistoriasImportadasNoDia`.
+
+### Correção retroativa — `corrige-plantao.html`
+
+Página de utilidade (admin) que varre os lançamentos de **Junho/2026**, identifica vistorias importadas em datas com plantão manual do mesmo fiscal e **zera os pontos** (com simulação prévia + log). Vistorias homologadas são ignoradas. Acesso direto pela URL `corrige-plantao.html`.
+
+---
+
 ## 16. Regras de Negócio — Resumo Rápido
 
 | Regra | Detalhe |
@@ -295,6 +317,7 @@ O Administrador tem um botão **"🔄 Sincronizar CNAE com Firestore"** em `admi
 | Seed CNAE | Uma vez (ou quando `cnae.csv` do VISA mudar) |
 | Descrição | `Vistoria VISA — OS X — CNAE Y — [descrição]` |
 | Controle RMPF | `VISA-{CONTROLE do CSV}` |
+| Plantão × Vistoria | Por fiscal: plantão manual zera vistorias importadas na data; bloqueia plantão posterior se já houver vistorias importadas |
 
 ---
 

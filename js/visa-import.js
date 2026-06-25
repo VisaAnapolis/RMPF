@@ -43,9 +43,47 @@ async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano) {
     const docs = await window.db_getManuais(emailFiscal, mes, ano);
     const byDia = new Map();
     for (const d of docs) _aplicarManualNoMapaPontosVisa(byDia, d, 1);
-    cache.set(key, { docsById: new Map(docs.map(d => [d.id, d])), byDia });
+    cache.set(key, {
+      docsById: new Map(docs.map(d => [d.id, d])),
+      byDia,
+      plantaoDatas: datasComPlantaoManual(docs),
+    });
   }
   return cache.get(key);
+}
+
+// ── Regra Plantão fiscal × Vistoria importada ────────────
+// Um lançamento manual de Plantão Fiscal (tipo PLT) torna as vistorias
+// importadas do VISA na mesma data não cumulativas → pontos zerados.
+
+function ehPlantaoManual(m) {
+  return !!m && m.tipo_codigo === 'PLT' && m.origem !== 'visa_csv' && m.status !== 'recusado';
+}
+
+function ehVistoriaImportada(m) {
+  return !!m && m.origem === 'visa_csv' && m.tipo_codigo === 'VIS';
+}
+
+// Conjunto de datas (yyyy-mm-dd) que possuem plantão manual na lista informada.
+function datasComPlantaoManual(manuais) {
+  const s = new Set();
+  for (const m of (manuais || [])) {
+    if (ehPlantaoManual(m) && m.data) s.add(m.data);
+  }
+  return s;
+}
+
+// Vistorias importadas (origem visa_csv, tipo VIS) lançadas em uma data para um fiscal.
+// `excluirId` ignora um documento específico (útil ao editar o próprio registro).
+async function vistoriasImportadasNoDia(fiscalEmail, dataISO, excluirId = null) {
+  if (!fiscalEmail || !dataISO) return [];
+  const parts = String(dataISO).split('-');
+  if (parts.length !== 3) return [];
+  const ano = Number(parts[0]);
+  const mes = Number(parts[1]);
+  if (!ano || !mes) return [];
+  const manuais = await window.db_getManuais(fiscalEmail, mes, ano);
+  return manuais.filter(m => m.id !== excluirId && m.data === dataISO && ehVistoriaImportada(m));
 }
 
 function visaMesAberto(mes, ano) {
@@ -306,6 +344,22 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         try {
           const existing = await window.db_getVISAManual(controleVisa, emailFiscal);
           let estadoPontos = null;
+          let pontosFiscal = pontosFinal;
+
+          // ── Vistoria não cumulativa com Plantão Fiscal manual na data ─
+          // Se o fiscal tem lançamento manual de plantão (PLT) nesta data,
+          // a vistoria importada do VISA entra com pontos zerados.
+          if (tipoInfo.tipo_codigo === 'VIS' && dataISO && pontosFiscal > 0) {
+            estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
+            if (estadoPontos.plantaoDatas.has(dataISO)) {
+              pontosFiscal = 0;
+              onProgress(
+                `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
+                `plantão fiscal manual em ${fmtData(dataISO)}.`,
+                'warn'
+              );
+            }
+          }
 
           // ── Verificar limite de 24 pts em dia com ocorrência aceita ─
           if (dataISO) {
@@ -321,7 +375,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   ? (Number(existing.pontos) || 0)
                   : 0;
               const baseDia = somaDia - pontosExistenteMesmoDoc;
-              const totalDia = baseDia + (Number(pontosFinal) || 0);
+              const totalDia = baseDia + (Number(pontosFiscal) || 0);
               if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
                 ignorados++;
                 onProgress(
@@ -347,7 +401,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               tipo_nome: tipoInfo.tipo_nome,
               item_pontuacao: tipoInfo.item_pontuacao,
               complexidade: cnaeInfo.complexidade,
-              pontos: pontosFinal, descricao,
+              pontos: pontosFiscal, descricao,
               motivo_os: motivoOS,
               os_numero: osNumero,
               documento,
@@ -403,7 +457,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               tipo_nome: tipoInfo.tipo_nome,
               item_pontuacao: tipoInfo.item_pontuacao,
               complexidade: cnaeInfo.complexidade,
-              pontos: pontosFinal, descricao,
+              pontos: pontosFiscal, descricao,
               motivo_os: motivoOS,
               os_numero: osNumero,
               documento,
@@ -414,7 +468,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             }, null, true);
             const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
             _aplicarManualNoMapaPontosVisa(estado.byDia, {
-              data: dataISO, pontos: pontosFinal, origem: 'visa_csv', status: statusInicial,
+              data: dataISO, pontos: pontosFiscal, origem: 'visa_csv', status: statusInicial,
             }, 1);
             criados++;
           }
@@ -459,5 +513,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
   }
 }
 
-window.visaMesAberto         = visaMesAberto;
-window.importarInspecoesVISA = importarInspecoesVISA;
+window.visaMesAberto            = visaMesAberto;
+window.importarInspecoesVISA    = importarInspecoesVISA;
+window.ehPlantaoManual          = ehPlantaoManual;
+window.ehVistoriaImportada      = ehVistoriaImportada;
+window.datasComPlantaoManual    = datasComPlantaoManual;
+window.vistoriasImportadasNoDia = vistoriasImportadasNoDia;
