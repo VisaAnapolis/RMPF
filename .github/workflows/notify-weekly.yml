@@ -175,11 +175,53 @@ jobs:
 
           print(f'Usuários com token FCM: {len(fiscais)}')
 
+          # ── Diagnóstico de registro de token (por que rmpf_fcmTokens está vazio) ──
+          # O app grava em cada usuário, a cada execução do initFCM, o motivo da
+          # falha em rmpf_notifDiag. Aqui agregamos esses motivos sobre TODA a
+          # base — é o que diz, com dado real, por que ninguém registrou token.
+          from collections import Counter
+          diag_counter   = Counter()
+          perm_counter   = Counter()
+          ver_counter    = Counter()
+          fiscais_pontos = set(pontos_por_fiscal.keys())
+          diag_dos_com_pontos = {}
+          for item in usuarios_results:
+              doc = item.get('document')
+              if not doc:
+                  continue
+              email = field_value(item, 'email') or doc.get('name', '').split('/')[-1]
+              diag  = field_value(item, 'rmpf_notifDiag')      or '(sem rmpf_notifDiag)'
+              perm  = field_value(item, 'rmpf_notifPermissao') or '(sem rmpf_notifPermissao)'
+              ver   = field_value(item, 'rmpf_appVersion')     or '(sem rmpf_appVersion)'
+              diag_counter[diag] += 1
+              perm_counter[perm] += 1
+              ver_counter[ver]   += 1
+              if email in fiscais_pontos:
+                  diag_dos_com_pontos[email] = (diag, perm, ver)
+
+          print('── Diagnóstico rmpf_notifDiag (toda a base) ──')
+          for k, v in diag_counter.most_common():
+              print(f'   {v:>3}×  {k}')
+          print('── rmpf_notifPermissao ──')
+          for k, v in perm_counter.most_common():
+              print(f'   {v:>3}×  {k}')
+          print('── rmpf_appVersion ──')
+          for k, v in ver_counter.most_common():
+              print(f'   {v:>3}×  {k}')
+          print('── Fiscais COM pontos nesta competência e seu diagnóstico de token ──')
+          for email in sorted(fiscais_pontos):
+              d = diag_dos_com_pontos.get(email)
+              if d:
+                  print(f'   {email}: diag={d[0]} | perm={d[1]} | ver={d[2]}')
+              else:
+                  print(f'   {email}: (sem documento em usuarios ou sem campos rmpf_)')
+
           if not fiscais:
               print('::error::Nenhum usuário com rmpf_fcmTokens registrado — '
                     'nenhum push foi enviado, apesar de existirem fiscais com pontos. '
                     'Verifique se o app RMPF está gravando rmpf_fcmTokens '
-                    '(VAPID key em app_config/vapid_key e registro do token no login).',
+                    '(VAPID key em app_config/vapid_key e registro do token no login). '
+                    'Veja o diagnóstico rmpf_notifDiag acima para a causa por usuário.',
                     file=sys.stderr)
               sys.exit(1)
 

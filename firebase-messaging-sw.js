@@ -1,9 +1,13 @@
 // firebase-messaging-sw.js
 // Service Worker para receber notificações push em background via Firebase Cloud Messaging.
 //
-// Este arquivo é registrado AUTOMATICAMENTE pelo SDK firebase-messaging-compat.js
-// quando o usuário concede permissão de notificações.
-// Deve estar na raiz do site (mesmo escopo do service-worker.js principal).
+// Registrado por js/firebase-config.js em escopo dedicado do RMPF
+// (./firebase-cloud-messaging-push-scope), para que o token FCM fique atrelado
+// a ESTE service worker e não ao do VISA na raiz da origem.
+//
+// IMPORTANTE: este SW vive em /RMPF/, mas a origem (visaanapolis.github.io) tem
+// o VISA na raiz. Por isso todos os caminhos abaixo são prefixados com /RMPF/ —
+// um caminho absoluto como /dashboard.html ou /icons/... abriria o app VISA.
 
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
@@ -25,11 +29,11 @@ messaging.onBackgroundMessage((payload) => {
   const data  = payload.data || {};
   const title = notif.title || data.title || 'RMPF';
   const body  = notif.body  || data.body  || '';
-  const url   = data.link || '/dashboard.html';
+  const url   = data.link || '/RMPF/dashboard.html';
   self.registration.showNotification(title, {
     body,
-    icon:  '/icons/favicon-192.png',
-    badge: '/icons/favicon-192.png',
+    icon:  '/RMPF/icons/rmpf-192.png',
+    badge: '/RMPF/icons/rmpf-192.png',
     data:  { url },
   });
 });
@@ -37,7 +41,7 @@ messaging.onBackgroundMessage((payload) => {
 // Abre/foca a aba correta ao clicar na notificação
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const url = (event.notification.data || {}).url || '/dashboard.html';
+  const url = (event.notification.data || {}).url || '/RMPF/dashboard.html';
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       for (const client of windowClients) {
