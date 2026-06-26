@@ -1,7 +1,7 @@
 """
 Resumo Mensal de Pontos — e-mail para fiscais e administradores.
 
-- Cada fiscal recebe seu total de pontos no mês anterior + barra de progresso.
+- Cada fiscal recebe seu total de pontos na competência aberta + barra de progresso.
 - Cada administrador recebe relatório consolidado dos fiscais abaixo de 1000 pts.
 """
 
@@ -63,6 +63,39 @@ def list_collection(collection):
     r = requests.post(url, json=body, headers=_auth_headers())
     r.raise_for_status()
     return r.json()
+
+
+def get_doc(path):
+    """GET de um documento do Firestore. Retorna o JSON ou None se 404."""
+    url = f"{BASE_URL}/{path}"
+    r = requests.get(url, headers=_auth_headers())
+    if r.status_code == 404:
+        return None
+    r.raise_for_status()
+    return r.json()
+
+
+def resolver_competencia():
+    """Resolve a competência aberta (mes/ano) — a MESMA base do dashboard.
+
+    O dashboard apura a produtividade por competência aberta, não pelo mês
+    anterior. Lê app_config/competencia_aberta; se ausente, usa o mês corrente
+    em horário de Brasília.
+    """
+    tz = timezone(timedelta(hours=-3))
+    hoje = datetime.now(tz)
+    mes, ano = hoje.month, hoje.year
+    try:
+        doc = get_doc("app_config/competencia_aberta")
+        if doc and "fields" in doc:
+            f = doc["fields"]
+            if "mes" in f and "integerValue" in f["mes"]:
+                mes = int(f["mes"]["integerValue"])
+            if "ano" in f and "integerValue" in f["ano"]:
+                ano = int(f["ano"]["integerValue"])
+    except Exception as exc:
+        print(f"  ⚠️  Falha ao ler competência aberta, usando mês corrente: {exc}")
+    return mes, ano
 
 
 def field_value(item, field):
@@ -167,35 +200,30 @@ def html_email(titulo: str, subtitulo: str, corpo_html: str,
 </body></html>"""
 
 
-# ── Mês anterior ──────────────────────────────────────────────────────────────
-tz_brasilia = timezone(timedelta(hours=-3))
-hoje = datetime.now(tz_brasilia)
-if hoje.month == 1:
-    prev_month = 12
-    prev_year  = hoje.year - 1
-else:
-    prev_month = hoje.month - 1
-    prev_year  = hoje.year
-
-mes_label = f"{prev_month:02d}/{prev_year}"
+# ── Competência aberta (mesma base do dashboard) ──────────────────────────────
+# Antes este resumo usava o MÊS ANTERIOR, divergindo do dashboard e do push
+# mensal (que usam a competência corrente). Passa a usar a competência aberta,
+# para que a pontuação enviada coincida com a exibida no sistema.
+MES, ANO  = resolver_competencia()
+mes_label = f"{MES:02d}/{ANO}"
 print(f"Competência de referência: {mes_label}")
 
-# ── 1. Buscar manuais do mês anterior ────────────────────────────────────────
-print("Consultando manuais do mês anterior...")
+# ── 1. Buscar manuais da competência aberta ───────────────────────────────────
+print("Consultando manuais da competência...")
 try:
     results = run_query("manuais", [
         {
             "fieldFilter": {
                 "field": {"fieldPath": "mes"},
                 "op": "EQUAL",
-                "value": {"integerValue": str(prev_month)},
+                "value": {"integerValue": str(MES)},
             }
         },
         {
             "fieldFilter": {
                 "field": {"fieldPath": "ano"},
                 "op": "EQUAL",
-                "value": {"integerValue": str(prev_year)},
+                "value": {"integerValue": str(ANO)},
             }
         },
     ])

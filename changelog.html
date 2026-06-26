@@ -44,6 +44,18 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.4</span>
+            <span class="badge-date">26/06/2026</span>
+          </div>
+          <div class="changelog-title">Notificações mensais por competência aberta (alinhadas ao dashboard)</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: e-mail mensal enviava a pontuação do mês anterior</strong> — <code>.github/scripts/notify_monthly_email.py</code> usava <code>mes - 1</code>, enviando, por exemplo, os pontos de <em>maio</em> durante <em>junho</em> e divergindo do dashboard. Passa a usar a <strong>competência aberta</strong> (<code>app_config/competencia_aberta</code>, com fallback para o mês corrente em BRT).</li>
+            <li><strong>Push mensal alinhado à competência aberta</strong> — <code>notify-monthly-summary.yml</code> usava o mês corrente em UTC; passa a resolver a competência aberta pela mesma fonte, evitando divergência na virada do mês. Com isso, e-mail mensal, push mensal, resumo semanal e dashboard mostram sempre a mesma competência.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.3</span>
             <span class="badge-date">25/06/2026</span>
           </div>

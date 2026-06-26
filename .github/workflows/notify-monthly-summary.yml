@@ -25,21 +25,13 @@ jobs:
           pip install google-auth --quiet
           python3 - <<'EOF'
           import json, os, sys, urllib.request, urllib.error
-          from datetime import datetime, timezone
+          from datetime import datetime, timezone, timedelta
           import google.oauth2.service_account
           import google.auth.transport.requests
 
           PROJECT_ID    = 'visam-3a30b'
           FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
           FCM_URL       = f'https://fcm.googleapis.com/v1/projects/{PROJECT_ID}/messages:send'
-
-          # ── Mês corrente ───────────────────────────────────────────────
-          hoje   = datetime.now(timezone.utc)
-          MES    = hoje.month
-          ANO    = hoje.year
-          MES_NOME = hoje.strftime('%B/%Y')   # ex: "May/2025"
-
-          print(f'Mês de referência: {MES}/{ANO}')
 
           # ── Autenticação OAuth2 (Firestore + FCM) ──────────────────────
           sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
@@ -55,6 +47,33 @@ jobs:
               'Authorization': 'Bearer ' + creds.token,
               'Content-Type': 'application/json',
           }
+
+          # ── Competência aberta (mesma base do dashboard) ───────────────
+          def resolver_competencia():
+              """Competência aberta (mes/ano) — a MESMA base do dashboard.
+
+              Lê app_config/competencia_aberta; se ausente, usa o mês corrente
+              em horário de Brasília.
+              """
+              tz = timezone(timedelta(hours=-3))
+              hoje = datetime.now(tz)
+              mes, ano = hoje.month, hoje.year
+              try:
+                  url = f'{FIRESTORE_URL}/app_config/competencia_aberta'
+                  req = urllib.request.Request(url, method='GET', headers=headers)
+                  with urllib.request.urlopen(req) as r:
+                      doc = json.loads(r.read())
+                  f = doc.get('fields', {})
+                  if 'mes' in f and 'integerValue' in f['mes']:
+                      mes = int(f['mes']['integerValue'])
+                  if 'ano' in f and 'integerValue' in f['ano']:
+                      ano = int(f['ano']['integerValue'])
+              except Exception as exc:
+                  print(f'  ⚠️  Falha ao ler competência aberta, usando mês corrente: {exc}')
+              return mes, ano
+
+          MES, ANO = resolver_competencia()
+          print(f'Competência de referência: {MES:02d}/{ANO}')
 
           def firestore_query(collection, filters):
               """runQuery estruturada no Firestore."""
