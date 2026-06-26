@@ -166,9 +166,13 @@
           const newData = { ...data, fiscal_email: emailNew };
 
           if (origem === 'visa_csv') {
-            // ID: visa_{controle}_{email_san}  — precisa recriar com novo ID
+            // ID: visa_{controle}_{cnae}_{email_san}  — precisa recriar com novo ID.
+            // O CNAE entra na chave desde a importação multi-CNAE (1 lançamento
+            // por CNAE de competência do regulado); preservá-lo evita colapsar
+            // vários lançamentos do mesmo controle num único documento.
             const controle = data.visa_controle || data.controle || '';
-            const newId = 'visa_' + String(controle).trim() + '_' + sanNew;
+            const cnaePart = data.visa_cnae ? String(data.visa_cnae).replace(/[^a-zA-Z0-9]/g, '') + '_' : '';
+            const newId = 'visa_' + String(controle).trim() + '_' + cnaePart + sanNew;
             await db().collection('manuais').doc(newId).set(newData);
             await db().collection('manuais').doc(oldId).delete();
             log(`  ✔ [visa_csv] ${oldId} → ${newId}`, 'log-ok');
