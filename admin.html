@@ -145,11 +145,12 @@
               <th>Status</th>
               <th>Último Acesso</th>
               <th>Versão App</th>
+              <th>Notificações</th>
               <th class="nao-imprimir">Ações</th>
             </tr>
           </thead>
           <tbody id="tbody-usuarios">
-            <tr class="empty-row"><td colspan="8"><div class="spinner"></div></td></tr>
+            <tr class="empty-row"><td colspan="9"><div class="spinner"></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -308,6 +309,31 @@
       + `<button class="pill" style="cursor:default">Navegador <span class="pill-count">${nav}</span></button>`;
   }
 
+  // ── Status FCM (notificações push) por usuário ────────────────
+  // Deriva a situação a partir dos campos gravados por initFCM:
+  //   rmpf_notifPermissao : 'granted' | 'denied' | 'default'
+  //   rmpf_fcmTokens      : array de tokens (vazio = sem token registrado)
+  //   rmpf_notifDiag      : 'ok' | 'permissao_negada' | 'token_null' | 'erro:…' …
+  function fcmStatusInfo(u) {
+    const perm     = u.rmpf_notifPermissao || '';
+    const temToken = Array.isArray(u.rmpf_fcmTokens) && u.rmpf_fcmTokens.length > 0;
+    const diag     = u.rmpf_notifDiag || '';
+
+    if (temToken && (diag === 'ok' || !diag)) {
+      return { cls: 'badge-aceito',   label: '🟢 Ativo',    title: 'Token registrado — recebendo notificações' };
+    }
+    if (perm === 'denied') {
+      return { cls: 'badge-recusado', label: '🔴 Negou',    title: 'Usuário negou as notificações no dispositivo' };
+    }
+    if (perm === 'granted' && !temToken) {
+      return { cls: 'badge-pendente', label: '🟡 Sem token', title: 'Permitiu, mas o token não foi gerado — diag: ' + (diag || '—') };
+    }
+    if (perm === 'default' || (!perm && !diag)) {
+      return { cls: 'badge-manual',   label: '⚪ Pendente',  title: 'Ainda não decidiu sobre as notificações' };
+    }
+    return { cls: 'badge-pendente',   label: '❔ —',         title: 'diag: ' + (diag || '—') + (perm ? ' | perm: ' + perm : '') };
+  }
+
   // Simple semver compare — returns 1 if a > b, -1 if a < b, 0 if equal
   function compareVer(a, b) {
     const pa = String(a).split('.').map(Number);
@@ -331,7 +357,7 @@
       );
     }
     if (!lista.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Nenhum usuário encontrado</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Nenhum usuário encontrado</td></tr>';
       return;
     }
     tbody.innerHTML = lista.map(u => {
@@ -350,6 +376,8 @@
         : u.perfil === 'Administrativo'
           ? `<span class="badge badge-manual">${escHtml(u.perfil)}</span>`
           : `<span class="badge badge-pendente">${escHtml(u.perfil || '—')}</span>`;
+      const fcm = fcmStatusInfo(u);
+      const fcmBadge = `<span class="badge ${fcm.cls}" title="${escHtml(fcm.title)}">${fcm.label}</span>`;
       return `<tr>
         <td class="td-center">${avatar}</td>
         <td data-label="Nome">${escHtml(u.nome || '—')}</td>
@@ -358,6 +386,7 @@
         <td data-label="Status">${statusBadge}</td>
         <td data-label="Último Acesso" style="font-size:.8rem">${ultimoAcesso}</td>
         <td data-label="Versão App" style="font-size:.8rem">${escHtml(u.rmpf_appVersion || '—')}</td>
+        <td data-label="Notificações" style="font-size:.8rem">${fcmBadge}</td>
         <td data-label="Ações" class="nao-imprimir">
           <button class="btn btn-outline btn-sm" onclick="abrirEdicao('${escHtml(email)}')">👁️ Ver</button>
         </td>
@@ -398,8 +427,16 @@
 
     const infoEl = document.getElementById('edit-info-dispositivo');
     const loginEl = document.getElementById('edit-info-login');
-    const temDados = u.rmpf_ultimoLogin || u.rmpf_navegador || u.rmpf_so;
+    const temFcm = u.rmpf_notifPermissao || u.rmpf_notifDiag ||
+      (Array.isArray(u.rmpf_fcmTokens) && u.rmpf_fcmTokens.length);
+    const temDados = u.rmpf_ultimoLogin || u.rmpf_navegador || u.rmpf_so || temFcm;
     if (temDados) {
+      const fcm = fcmStatusInfo(u);
+      const qtdTokens = Array.isArray(u.rmpf_fcmTokens) ? u.rmpf_fcmTokens.length : 0;
+      const fcmLinha =
+        `🔔 <strong>Notificações:</strong> ${fcm.label}` +
+        ` <span style="color:var(--cinzaT)">(perm: ${escHtml(u.rmpf_notifPermissao || '—')},` +
+        ` tokens: ${qtdTokens}, diag: ${escHtml(u.rmpf_notifDiag || '—')})</span>`;
       const dtLogin = u.rmpf_ultimoLogin
         ? fmtData(u.rmpf_ultimoLogin.toDate ? u.rmpf_ultimoLogin.toDate() : new Date(u.rmpf_ultimoLogin))
         : '—';
@@ -412,7 +449,8 @@
         `🌐 <strong>Navegador:</strong> ${escHtml(u.rmpf_navegador || '—')}${u.rmpf_versaoNavegador ? ' ' + escHtml(u.rmpf_versaoNavegador) : ''}<br>` +
         `💻 <strong>SO:</strong> ${escHtml(u.rmpf_so || '—')}<br>` +
         `📱 <strong>Modo:</strong> ${escHtml(u.rmpf_modoAcesso || '—')}<br>` +
-        `🖥️ <strong>Tela:</strong> ${escHtml(u.rmpf_tamanhoTela || '—')}`;
+        `🖥️ <strong>Tela:</strong> ${escHtml(u.rmpf_tamanhoTela || '—')}<br>` +
+        fcmLinha;
       infoEl.style.display = '';
     } else {
       infoEl.style.display = 'none';
@@ -470,7 +508,7 @@
     } catch(e) {
       document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao carregar usuários: ' + escHtml(e.message));
       document.getElementById('tbody-usuarios').innerHTML =
-        '<tr class="empty-row"><td colspan="8">Erro ao carregar dados. Tente recarregar a página.</td></tr>';
+        '<tr class="empty-row"><td colspan="9">Erro ao carregar dados. Tente recarregar a página.</td></tr>';
     }
   });
 </script>

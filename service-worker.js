@@ -7,7 +7,7 @@
 // especialmente em PWAs no iOS e Android.
 // ============================================================
 
-const CACHE_NAME = 'rmpf-v1.9.5';
+const CACHE_NAME = 'rmpf-v1.9.6';
 
 // Assume controle imediatamente, sem aguardar abas serem fechadas
 self.addEventListener('install', () => self.skipWaiting());
