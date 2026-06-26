@@ -149,21 +149,54 @@ function maybeShowFCMPromoBanner(email) {
 }
 
 // ── Banner de lembrete de notificações ───────────────────────────────────────
-// Exibido quando o usuário negou a permissão de notificação e 15 dias se
-// passaram desde o último lembrete. O browser não permite re-exibir o diálogo
-// nativo após negação, então orientamos o usuário a habilitar manualmente.
+// Exibido quando o usuário negou a permissão de notificação e o intervalo
+// configurado se passou desde o último lembrete. O browser não permite
+// re-exibir o diálogo nativo após negação, então orientamos o usuário a
+// habilitar manualmente — com instruções específicas por plataforma (o caminho
+// no iOS é diferente do desktop/Android).
+//
+// A frequência (em dias) com que o lembrete reaparece é configurável pelo
+// administrador em Parametrização → Notificações Push, persistida em
+// app_config/notif_config (campo denied_reminder_dias). Sem configuração,
+// usa o padrão abaixo.
 
-const _FCM_REMINDER_KEY   = 'fcmReminderLastShown';
-const _FCM_REMINDER_DAYS  = 15;
+const _FCM_REMINDER_KEY          = 'fcmReminderLastShown';
+const _FCM_REMINDER_DAYS_DEFAULT = 15;
 let   _fcmReminderShownThisSession = false; // evita re-exibição se localStorage falhar
 
-function _fcmReminder_shouldShow() {
+/** Detecta iPhone/iPad/iPod, incluindo iPadOS 13+ (que se reporta como Mac). */
+function _isIOS() {
+  const ua = navigator.userAgent || navigator.vendor || '';
+  const iOSClassic = /iPad|iPhone|iPod/.test(ua);
+  // iPadOS 13+ apresenta-se como "MacIntel" — distingue-se pelo toque.
+  const iPadOS = navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
+  return iOSClassic || iPadOS;
+}
+
+/**
+ * Resolve o intervalo (em dias) entre lembretes para quem negou a permissão.
+ * Lê app_config/notif_config (campo denied_reminder_dias); se ausente ou
+ * inválido, usa _FCM_REMINDER_DAYS_DEFAULT. Lê o Firestore diretamente
+ * (mesmo padrão de resolveVapidKey) para não depender de firestore.js.
+ */
+async function _resolveReminderDays() {
+  try {
+    const snap = await window.db.collection('app_config').doc('notif_config').get();
+    if (snap.exists) {
+      const v = Number((snap.data() || {}).denied_reminder_dias);
+      if (Number.isFinite(v) && v > 0) return v;
+    }
+  } catch (e) { /* usa padrão */ }
+  return _FCM_REMINDER_DAYS_DEFAULT;
+}
+
+function _fcmReminder_shouldShow(dias) {
   if (_fcmReminderShownThisSession) return false;
   try {
     const last = parseInt(localStorage.getItem(_FCM_REMINDER_KEY) || '0', 10);
     if (!last) return true; // primeira vez — mostra uma vez e registra
     const elapsed = Date.now() - last;
-    return elapsed >= _FCM_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+    return elapsed >= dias * 24 * 60 * 60 * 1000;
   } catch (e) {
     return true;
   }
@@ -173,12 +206,23 @@ function _fcmReminder_markShown() {
   try { localStorage.setItem(_FCM_REMINDER_KEY, String(Date.now())); } catch (e) { /* noop */ }
 }
 
-function maybeShowFCMReminderBanner() {
-  if (!_fcmReminder_shouldShow()) return;
+async function maybeShowFCMReminderBanner() {
+  const dias = await _resolveReminderDays();
+  if (!_fcmReminder_shouldShow(dias)) return;
   if (document.getElementById('fcm-reminder-banner')) return; // já visível
 
   _fcmReminderShownThisSession = true;
   _fcmReminder_markShown();
+
+  // Instruções de reativação dependem da plataforma: no iOS não há "cadeado na
+  // barra de endereço" — a permissão é gerenciada nos Ajustes do sistema.
+  const instrucoes = _isIOS()
+    ? `No iPhone/iPad, abra <em>Ajustes → Notificações</em>, role a lista até
+       encontrar <strong>RMPF</strong> e ative <em>Permitir Notificações</em>.
+       Se o app não aparecer, abra o RMPF pelo ícone instalado na tela de início
+       (não pelo Safari) e tente novamente.`
+    : `Habilite manualmente nas configurações do navegador:
+       <em>ícone de cadeado na barra de endereço → Notificações → Permitir</em>.`;
 
   const banner = document.createElement('div');
   banner.id = 'fcm-reminder-banner';
@@ -196,9 +240,8 @@ function maybeShowFCMReminderBanner() {
     <div style="flex:1">
       <strong>Ativar notificações push</strong>
       <p style="margin:4px 0 8px">
-        Você desativou as notificações. Para recebê-las, habilite manualmente
-        nas configurações do navegador:
-        <em>ícone de cadeado na barra de endereço → Notificações → Permitir</em>.
+        Você desativou as notificações. Para recebê-las novamente:
+        ${instrucoes}
       </p>
       <button id="fcm-reminder-close"
         style="background:var(--amar,#b45309);color:#fff;border:none;border-radius:6px;
@@ -345,7 +388,7 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
     if (Notification.permission === 'denied') {
       await salvarPermissao('denied');
       await salvarDiag('permissao_negada');
-      maybeShowFCMReminderBanner();
+      await maybeShowFCMReminderBanner();
       return;
     }
 

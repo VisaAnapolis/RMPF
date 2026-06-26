@@ -730,6 +730,26 @@ async function db_updateDeadlineConfig(dias_prazo, ativo) {
   });
 }
 
+// ── App Config / Notificações Push ─────────────────────────
+// Frequência (em dias) com que o app reexibe o lembrete de reativação para
+// quem NEGOU as notificações. Lido por initFCM (js/firebase-config.js) ao
+// montar o banner de lembrete. Padrão de 15 dias quando não configurado.
+
+async function db_getNotifConfig() {
+  const doc = await window.db.collection('app_config').doc('notif_config').get();
+  if (!doc.exists) return { denied_reminder_dias: 15 };
+  const d = doc.data() || {};
+  const v = Number(d.denied_reminder_dias);
+  return { denied_reminder_dias: (Number.isFinite(v) && v > 0) ? v : 15 };
+}
+
+async function db_updateNotifConfig(denied_reminder_dias) {
+  await window.db.collection('app_config').doc('notif_config').set({
+    denied_reminder_dias: Number(denied_reminder_dias),
+    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
 // Valida se a data do lançamento está dentro do prazo permitido
 // Retorna { permitido: boolean, diasAtraso: number, prazoDias: number, mensagem: string }
 async function db_validateDeadlineReleaseDate(dataISO) {
@@ -1012,4 +1032,6 @@ window.db_setCompetenciaAberta  = setCompetenciaAberta;
 window.db_deleteCompetenciaAberta = deleteCompetenciaAberta;
 window.db_getDeadlineConfig     = db_getDeadlineConfig;
 window.db_updateDeadlineConfig  = db_updateDeadlineConfig;
+window.db_getNotifConfig        = db_getNotifConfig;
+window.db_updateNotifConfig     = db_updateNotifConfig;
 window.db_validateDeadlineReleaseDate = db_validateDeadlineReleaseDate;

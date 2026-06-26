@@ -403,6 +403,28 @@
       <div id="deadline-log" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── Notificações Push ── -->
+    <div class="card" id="card-notif-config">
+      <div class="card-title">🔔 Notificações Push</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Para quem <strong>negou</strong> as notificações, o app não pode reabrir o diálogo do
+        sistema — apenas exibe um lembrete orientando a reativação manual.
+        Defina de quantos em quantos dias esse lembrete deve reaparecer para insistir na reativação.
+        <br><br>
+        <strong>Exemplo:</strong> 15 dias significa que, a cada 15 dias, quem negou verá o lembrete uma vez.
+      </p>
+      <div class="form-row cols-2" style="max-width:280px;margin-bottom:14px;align-items:flex-end">
+        <div class="form-group">
+          <label class="form-label required" for="notif-reminder-dias">Lembrete (dias)</label>
+          <input type="number" class="form-control" id="notif-reminder-dias" min="1" max="365" value="15">
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-save-notif-config" type="button">💾 Salvar Configuração</button>
+      </div>
+      <div id="notif-config-log" style="margin-top:12px"></div>
+    </div>
+
   </main>
 </div>
 
@@ -1192,6 +1214,40 @@
             `✅ Configuração salva. Prazo: <strong>${dias}</strong> dia(s), ` +
             `Status: <strong>${ativo ? 'Ativo' : 'Inativo'}</strong>.`
           );
+        } catch(e) {
+          logEl.innerHTML = alerta('danger', '🚨 Erro ao salvar: ' + escHtml(e.message));
+        } finally {
+          btnSalvar.disabled = false;
+        }
+      });
+    })();
+
+    // ── Notificações Push — frequência do lembrete (denied) ───
+    (async () => {
+      const inpDias   = document.getElementById('notif-reminder-dias');
+      const btnSalvar = document.getElementById('btn-save-notif-config');
+      const logEl     = document.getElementById('notif-config-log');
+      if (!inpDias || !btnSalvar) return;
+
+      try {
+        const config = await window.db_getNotifConfig();
+        inpDias.value = config.denied_reminder_dias;
+      } catch(e) {
+        logEl.innerHTML = alerta('warn', '⚠️ Não foi possível carregar a configuração: ' + escHtml(e.message));
+      }
+
+      btnSalvar.addEventListener('click', async () => {
+        const dias = Number(inpDias.value);
+        if (!Number.isFinite(dias) || dias < 1 || dias > 365) {
+          logEl.innerHTML = alerta('warn', '⚠️ O intervalo deve estar entre 1 e 365 dias.');
+          return;
+        }
+        btnSalvar.disabled = true;
+        logEl.innerHTML = alerta('info', '⏳ Salvando configuração…');
+        try {
+          await window.db_updateNotifConfig(dias);
+          logEl.innerHTML = alerta('ok',
+            `✅ Configuração salva. Quem negou verá o lembrete a cada <strong>${dias}</strong> dia(s).`);
         } catch(e) {
           logEl.innerHTML = alerta('danger', '🚨 Erro ao salvar: ' + escHtml(e.message));
         } finally {

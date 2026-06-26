@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.6</span>
+            <span class="badge-date">26/06/2026</span>
+          </div>
+          <div class="changelog-title">Reativação de notificações negadas (iOS), lembrete configurável e status de push no Admin</div>
+          <ul class="changelog-changes">
+            <li><strong>Instruções de reativação por plataforma</strong> — o banner de lembrete para quem negou as notificações (<code>js/firebase-config.js</code>) passa a detectar iPhone/iPad (incluindo iPadOS, que se reporta como Mac) e exibir o caminho correto — <em>Ajustes → Notificações → RMPF → Permitir</em> — em vez da instrução de "cadeado na barra de endereço", que não existe no iOS. Demais plataformas mantêm a orientação do navegador.</li>
+            <li><strong>Frequência do lembrete configurável</strong> — o intervalo (em dias) com que o lembrete reaparece para quem negou deixou de ser fixo (15 dias) e passa a ser ajustável pelo administrador em <strong>Parametrização → 🔔 Notificações Push</strong>, persistido em <code>app_config/notif_config</code> (campo <code>denied_reminder_dias</code>). O <code>initFCM()</code> lê esse valor ao montar o banner; sem configuração, mantém o padrão de 15 dias.</li>
+            <li><strong>Status de notificações na tabela de usuários (Admin)</strong> — <code>admin.html</code> ganhou a coluna <em>Notificações</em>, derivada de <code>rmpf_notifPermissao</code>, <code>rmpf_fcmTokens</code> e <code>rmpf_notifDiag</code>: 🟢 Ativo (token registrado), 🔴 Negou, 🟡 Sem token (permitiu mas o token falhou) e ⚪ Pendente. O modal de detalhes do usuário mostra permissão, quantidade de tokens e o diagnóstico, para administrar a frota de push.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.5</span>
             <span class="badge-date">26/06/2026</span>
           </div>
