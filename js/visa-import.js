@@ -393,10 +393,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       // tiver nenhum CNAE de alta complexidade. Demais tipos seguem com 1
       // lançamento pelo CNAE da própria inspeção.
       const codigoRegulado = String(row['CODIGO'] || '').replace(/"/g, '').trim();
+      const entregaRaw = String(row['entrega'] || row['Entrega'] || row['ENTREGA'] || '').replace(/"/g, '').trim().toLowerCase();
+      const entregaFalse = entregaRaw === 'false' || entregaRaw === '0' || entregaRaw === 'nao' || entregaRaw === 'não';
       const caeListMap = caeMap.get(codigoRegulado);
       const caeList = caeListMap ? [...caeListMap.values()] : [];
       const alvos = [];
-      if (tipoInfo.tipo_codigo === 'VIS') {
+      if (tipoInfo.tipo_codigo === 'VIS' && !entregaFalse) {
         for (const item of caeList) {
           const info = cnaeMap.get(item.cnae);
           if (!info) continue; // CNAE sem pontuação → fora da competência da vigilância
