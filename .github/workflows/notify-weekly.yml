@@ -67,7 +67,7 @@ jobs:
               """Extrai valor de um campo de um documento Firestore."""
               fields = doc.get('document', {}).get('fields', {})
               fv = fields.get(field, {})
-              for t in ('integerValue', 'doubleValue', 'stringValue', 'booleanValue'):
+              for t in ('integerValue', 'doubleValue', 'stringValue', 'booleanValue', 'timestampValue'):
                   if t in fv:
                       return fv[t]
               return None
@@ -193,11 +193,12 @@ jobs:
               diag  = field_value(item, 'rmpf_notifDiag')      or '(sem rmpf_notifDiag)'
               perm  = field_value(item, 'rmpf_notifPermissao') or '(sem rmpf_notifPermissao)'
               ver   = field_value(item, 'rmpf_appVersion')     or '(sem rmpf_appVersion)'
+              acesso = field_value(item, 'rmpf_ultimoAcesso')  or '(sem rmpf_ultimoAcesso)'
               diag_counter[diag] += 1
               perm_counter[perm] += 1
               ver_counter[ver]   += 1
               if email in fiscais_pontos:
-                  diag_dos_com_pontos[email] = (diag, perm, ver)
+                  diag_dos_com_pontos[email] = (diag, perm, ver, acesso)
 
           print('── Diagnóstico rmpf_notifDiag (toda a base) ──')
           for k, v in diag_counter.most_common():
@@ -208,11 +209,11 @@ jobs:
           print('── rmpf_appVersion ──')
           for k, v in ver_counter.most_common():
               print(f'   {v:>3}×  {k}')
-          print('── Fiscais COM pontos nesta competência e seu diagnóstico de token ──')
+          print('── Fiscais COM pontos: versão x ÚLTIMO ACESSO (decide cache-trap vs não-abriu) ──')
           for email in sorted(fiscais_pontos):
               d = diag_dos_com_pontos.get(email)
               if d:
-                  print(f'   {email}: diag={d[0]} | perm={d[1]} | ver={d[2]}')
+                  print(f'   {email}: ver={d[2]} | ultimoAcesso={d[3]} | diag={d[0]} | perm={d[1]}')
               else:
                   print(f'   {email}: (sem documento em usuarios ou sem campos rmpf_)')
 
