@@ -232,6 +232,37 @@ function maybeShowFCMReminderBanner() {
 const _FCM_SW_PATH  = './firebase-messaging-sw.js';
 const _FCM_SW_SCOPE = './firebase-cloud-messaging-push-scope';
 
+/**
+ * Aguarda o service worker do registro tornar-se `activated`.
+ *
+ * O getToken() do FCM chama internamente pushManager.subscribe(), que EXIGE um
+ * service worker ATIVO. Logo após register(), o SW costuma estar em
+ * `installing`/`waiting` e reg.active é null — chamar getToken() nesse momento
+ * falha com "Subscription failed - no active Service Worker". Esta função
+ * resolve quando o SW ativa (ou imediatamente, se já estiver ativo).
+ */
+function _aguardarServiceWorkerAtivo(reg) {
+  return new Promise((resolve) => {
+    if (reg.active) return resolve(reg);
+    const sw = reg.installing || reg.waiting;
+    if (!sw) {
+      // Ainda não há worker associado; aguarda o updatefound disparar.
+      reg.addEventListener('updatefound', () => {
+        const novo = reg.installing;
+        if (!novo) return resolve(reg);
+        novo.addEventListener('statechange', () => {
+          if (novo.state === 'activated') resolve(reg);
+        });
+      });
+      return;
+    }
+    if (sw.state === 'activated') return resolve(reg);
+    sw.addEventListener('statechange', () => {
+      if (sw.state === 'activated') resolve(reg);
+    });
+  });
+}
+
 async function _registerFcmServiceWorker() {
   // Reaproveita um registro existente no escopo dedicado, se houver.
   try {
@@ -240,7 +271,11 @@ async function _registerFcmServiceWorker() {
       return existing;
     }
   } catch (e) { /* segue para registrar */ }
-  return navigator.serviceWorker.register(_FCM_SW_PATH, { scope: _FCM_SW_SCOPE });
+  const reg = await navigator.serviceWorker.register(_FCM_SW_PATH, { scope: _FCM_SW_SCOPE });
+  // Aguarda o SW ativar antes de devolvê-lo: getToken()/pushManager.subscribe()
+  // exige um worker ATIVO, senão falha com "no active Service Worker".
+  await _aguardarServiceWorkerAtivo(reg);
+  return reg;
 }
 
 /**
