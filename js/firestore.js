@@ -306,19 +306,25 @@ async function deleteImportadosMes(mes, ano) {
 
 // ── VISA Manuais (importados do CSV) ─────────────────────
 
-function _visaDocId(visaControle, fiscalEmail) {
-  return 'visa_' + String(visaControle).trim() + '_' +
-    String(fiscalEmail).replace(/[.@+]/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+// ID do lançamento VISA. Desde a importação multi-CNAE, uma mesma inspeção
+// (CONTROLE) gera N lançamentos — um por CNAE de competência do regulado —,
+// portanto o CNAE entra na chave para garantir unicidade.
+// `cnae` é opcional: quando omitido, reproduz o ID legado (1 lançamento por
+// controle/fiscal), usado para localizar registros homologados antigos.
+function _visaDocId(visaControle, fiscalEmail, cnae) {
+  const emailSan = String(fiscalEmail).replace(/[.@+]/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  const cnaePart = cnae ? String(cnae).replace(/[^a-zA-Z0-9]/g, '') + '_' : '';
+  return 'visa_' + String(visaControle).trim() + '_' + cnaePart + emailSan;
 }
 
-async function getVISAManual(visaControle, fiscalEmail) {
-  const id   = _visaDocId(visaControle, fiscalEmail);
+async function getVISAManual(visaControle, fiscalEmail, cnae) {
+  const id   = _visaDocId(visaControle, fiscalEmail, cnae);
   const snap = await window.db.collection('manuais').doc(id).get();
   return snap.exists ? { id: snap.id, ...snap.data() } : null;
 }
 
-async function upsertVISAManual(visaControle, fiscalEmail, data, existingId, isNew) {
-  const id  = existingId || _visaDocId(visaControle, fiscalEmail);
+async function upsertVISAManual(visaControle, fiscalEmail, data, existingId, isNew, cnae) {
+  const id  = existingId || _visaDocId(visaControle, fiscalEmail, cnae);
   const ref = window.db.collection('manuais').doc(id);
   if (isNew) {
     await ref.set({

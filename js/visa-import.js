@@ -259,6 +259,64 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       console.error('Failed to load Oficio.csv:', err);
     }
 
+    // ── Tabela de complexidade CNAE (data/cnae.csv) ──────────
+    // Mapa CNAE → { complexidade, descricao }. A presença no mapa define que o
+    // CNAE é de competência da vigilância (tem pontuação). Complexidades inválidas
+    // (ex.: lixo "OS") são descartadas, logo o CNAE não conta como competência.
+    const cnaeMap = new Map();
+    try {
+      const cnaeText = await window.fetchGitHubCSV('data/cnae.csv');
+      if (cnaeText !== null) {
+        const cnaeParsed = Papa.parse(cnaeText, {
+          header: true,
+          delimiter: ';',
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
+        });
+        for (const r of cnaeParsed.data) {
+          const sub = String(r['Subclasse'] || '').replace(/"/g, '').trim();
+          if (!sub) continue;
+          const compNorm = normNomeVisa(r['Complexidade'] || '').toLowerCase();
+          if (compNorm !== 'alta' && compNorm !== 'media' && compNorm !== 'baixa') continue;
+          const desc = String(r['Atividade'] || '').replace(/"/g, '').trim();
+          cnaeMap.set(sub, { complexidade: compNorm, descricao: desc });
+        }
+        onProgress(`🧬 ${cnaeMap.size} CNAE(s) de competência carregado(s).`, 'info');
+      }
+    } catch (err) {
+      onProgress('⚠️ Não foi possível carregar cnae.csv — expansão por CNAE do regulado desabilitada.', 'warn');
+      console.error('Failed to load cnae.csv:', err);
+    }
+
+    // ── CNAEs do regulado (data/cae.csv) ─────────────────────
+    // Mapa Codigo(regulado) → Map<CNAE, { cnae, stats }>. Dedup por CNAE;
+    // linhas com Stats "Não Exerce" são excluídas; Subclasse vazia é ignorada.
+    const caeMap = new Map();
+    try {
+      const caeText = await window.fetchGitHubCSV('data/cae.csv');
+      if (caeText !== null) {
+        const caeParsed = Papa.parse(caeText, {
+          header: true,
+          delimiter: ';',
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
+        });
+        for (const r of caeParsed.data) {
+          const cod = String(r['Codigo'] || '').replace(/"/g, '').trim();
+          const sub = String(r['Subclasse'] || '').replace(/"/g, '').trim();
+          if (!cod || !sub) continue;
+          if (normNomeVisa(r['Stats'] || '') === 'NAO EXERCE') continue;
+          if (!caeMap.has(cod)) caeMap.set(cod, new Map());
+          const m = caeMap.get(cod);
+          if (!m.has(sub)) m.set(sub, { cnae: sub, stats: normNomeVisa(r['Stats'] || '') });
+        }
+        onProgress(`🏷️ ${caeMap.size} regulado(s) com CNAEs carregado(s).`, 'info');
+      }
+    } catch (err) {
+      onProgress('⚠️ Não foi possível carregar cae.csv — usando apenas o CNAE da inspeção.', 'warn');
+      console.error('Failed to load cae.csv:', err);
+    }
+
     const fiscalMap = new Map();
     for (const f of (allFiscais || [])) {
       if (f.nome) fiscalMap.set(normNomeVisa(f.nome), f.email || f.id);
@@ -276,7 +334,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
     let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
     const cnaeCache = new Map();
-    const processedKeys = new Set(); // "fiscalEmail::controleVisa"
+    const processedKeys = new Set(); // "fiscalEmail::controleVisa::cnae"
     const pontosEstadoCache = new Map();
 
     for (let idx = 0; idx < rowsFiltradas.length; idx++) {
@@ -319,11 +377,6 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       else if (motivoOSNorm === 'REQUERIMENTO') osNumero = os;
       const documento = tipoRaw;
 
-      const descParts = [];
-      if (subclasse) descParts.push('CNAE ' + subclasse);
-      if (cnaeInfo.descricao && cnaeInfo.descricao !== subclasse) descParts.push(cnaeInfo.descricao);
-      const descricao = descParts.join(' — ') || tipoInfo.descLabel;
-
       const rawFiscais = [
         { nome: row['Fiscal1'], isTerceiro: false },
         { nome: row['Fiscal2'], isTerceiro: false },
@@ -333,148 +386,203 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         .map(f => ({ ...f, nome: String(f.nome || '').replace(/"/g, '').trim() }))
         .filter(f => f.nome);
 
+      // ── CNAEs-alvo da inspeção ───────────────────────────
+      // Vistoria (VIS): expande em 1 lançamento por CNAE de competência do
+      // regulado (cae.csv ∩ cnae.csv, exceto "Não Exerce"). O CNAE informado
+      // na inspeção só entra se não constar no cae.csv do regulado e este não
+      // tiver nenhum CNAE de alta complexidade. Demais tipos seguem com 1
+      // lançamento pelo CNAE da própria inspeção.
+      const codigoRegulado = String(row['CODIGO'] || '').replace(/"/g, '').trim();
+      const caeListMap = caeMap.get(codigoRegulado);
+      const caeList = caeListMap ? [...caeListMap.values()] : [];
+      const alvos = [];
+      if (tipoInfo.tipo_codigo === 'VIS') {
+        for (const item of caeList) {
+          const info = cnaeMap.get(item.cnae);
+          if (!info) continue; // CNAE sem pontuação → fora da competência da vigilância
+          alvos.push({ cnae: item.cnae, complexidade: info.complexidade, descricao: info.descricao });
+        }
+        const informadoConsta = !!subclasse && caeList.some(i => i.cnae === subclasse);
+        const temAlta = caeList.some(i => (cnaeMap.get(i.cnae) || {}).complexidade === 'alta');
+        if (subclasse && !informadoConsta && !temAlta) {
+          alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao });
+        }
+      } else {
+        alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao });
+      }
+
+      if (alvos.length === 0) {
+        ignorados++;
+        onProgress(`⚠️ CONTROLE ${controleVisa}: regulado ${codigoRegulado || '—'} sem CNAE de competência, ignorado.`, 'warn');
+        continue;
+      }
+
       for (const { nome: nomeFiscalCsv, isTerceiro } of fiscaisCsv) {
         const emailFiscal = fiscalMap.get(normNomeVisa(nomeFiscalCsv));
         if (!emailFiscal) continue;
         if (fiscalEmail && emailFiscal !== fiscalEmail) continue;
 
-        // Marca como presente no CSV para detecção de registros órfãos
-        processedKeys.add(emailFiscal + '::' + controleVisa);
-
+        // Preserva lançamento legado homologado (esquema antigo: 1 por controle,
+        // sem CNAE no ID). Mantém o registro intacto e não expande, evitando
+        // dupla contagem do mesmo CNAE.
         try {
-          const existing = await window.db_getVISAManual(controleVisa, emailFiscal);
-          let estadoPontos = null;
-          let pontosFiscal = pontosFinal;
-
-          // ── Vistoria não cumulativa com Plantão Fiscal manual na data ─
-          // Se o fiscal tem lançamento manual de plantão (PLT) nesta data,
-          // a vistoria importada do VISA entra com pontos zerados.
-          if (tipoInfo.tipo_codigo === 'VIS' && dataISO && pontosFiscal > 0) {
-            estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
-            if (estadoPontos.plantaoDatas.has(dataISO)) {
-              pontosFiscal = 0;
-              onProgress(
-                `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
-                `plantão fiscal manual em ${fmtData(dataISO)}.`,
-                'warn'
-              );
-            }
+          const legacy = await window.db_getVISAManual(controleVisa, emailFiscal);
+          if (legacy && (legacy.status === 'aceito' || legacy.status === 'fechado')) {
+            processedKeys.add(emailFiscal + '::' + controleVisa + '::' + (legacy.visa_cnae || ''));
+            ignorados++;
+            onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado (legado), preservado.`, 'warn');
+            continue;
           }
+        } catch (_) { /* sem registro legado — segue para a expansão normal */ }
 
-          // ── Verificar limite de 24 pts em dia com ocorrência aceita ─
-          if (dataISO) {
-            const dtParts = dataISO.split('-');
-            const dtMes = Number(dtParts[1]);
-            const dtAno = Number(dtParts[0]);
-            const ocorrAceitas = await _getOcorrenciasAceitasVisa(emailFiscal, dtMes, dtAno);
-            if (_dataCobertaOcorrVisa(dataISO, ocorrAceitas)) {
-              estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, dtMes, dtAno);
-              const somaDia = estadoPontos.byDia.get(dataISO) || 0;
-              const pontosExistenteMesmoDoc =
-                existing && _manualContaNoLimiteOcorrenciaVisa(existing) && existing.data === dataISO
-                  ? (Number(existing.pontos) || 0)
-                  : 0;
-              const baseDia = somaDia - pontosExistenteMesmoDoc;
-              const totalDia = baseDia + (Number(pontosFiscal) || 0);
-              if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
-                ignorados++;
+        for (const alvo of alvos) {
+          const tipoInfoA    = resolverTipoVisa(tipoRaw, alvo.complexidade);
+          const pontosFinalA = motivoOSNorm === 'PLANTAO FISCAL' ? 0 : tipoInfoA.pontos;
+          const descPartsA   = [];
+          if (alvo.cnae) descPartsA.push('CNAE ' + alvo.cnae);
+          if (alvo.descricao && alvo.descricao !== alvo.cnae) descPartsA.push(alvo.descricao);
+          const descricaoA   = descPartsA.join(' — ') || tipoInfoA.descLabel;
+
+          // Marca como presente no CSV para detecção de registros órfãos
+          processedKeys.add(emailFiscal + '::' + controleVisa + '::' + alvo.cnae);
+
+          try {
+            const existing = await window.db_getVISAManual(controleVisa, emailFiscal, alvo.cnae);
+            let estadoPontos = null;
+            let pontosFiscal = pontosFinalA;
+
+            // ── Vistoria não cumulativa com Plantão Fiscal manual na data ─
+            // Se o fiscal tem lançamento manual de plantão (PLT) nesta data,
+            // a vistoria importada do VISA entra com pontos zerados.
+            if (tipoInfoA.tipo_codigo === 'VIS' && dataISO && pontosFiscal > 0) {
+              estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
+              if (estadoPontos.plantaoDatas.has(dataISO)) {
+                pontosFiscal = 0;
                 onProgress(
-                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: dia ${dataISO} com ocorrência aceita ` +
-                  `ultrapassaria ${LIMITE_PONTOS_OCORRENCIA_DIA} pontos (total projetado: ${totalDia}). Importação rejeitada.`,
+                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
+                  `plantão fiscal manual em ${fmtData(dataISO)}.`,
                   'warn'
                 );
+              }
+            }
+
+            // ── Verificar limite de 24 pts em dia com ocorrência aceita ─
+            if (dataISO) {
+              const dtParts = dataISO.split('-');
+              const dtMes = Number(dtParts[1]);
+              const dtAno = Number(dtParts[0]);
+              const ocorrAceitas = await _getOcorrenciasAceitasVisa(emailFiscal, dtMes, dtAno);
+              if (_dataCobertaOcorrVisa(dataISO, ocorrAceitas)) {
+                estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, dtMes, dtAno);
+                const somaDia = estadoPontos.byDia.get(dataISO) || 0;
+                const pontosExistenteMesmoDoc =
+                  existing && _manualContaNoLimiteOcorrenciaVisa(existing) && existing.data === dataISO
+                    ? (Number(existing.pontos) || 0)
+                    : 0;
+                const baseDia = somaDia - pontosExistenteMesmoDoc;
+                const totalDia = baseDia + (Number(pontosFiscal) || 0);
+                if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
+                  ignorados++;
+                  onProgress(
+                    `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: dia ${dataISO} com ocorrência aceita ` +
+                    `ultrapassaria ${LIMITE_PONTOS_OCORRENCIA_DIA} pontos (total projetado: ${totalDia}). Importação rejeitada.`,
+                    'warn'
+                  );
+                  continue;
+                }
+              }
+            }
+
+            if (existing) {
+              if (existing.status === 'aceito' || existing.status === 'fechado') {
+                ignorados++;
+                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado, ignorado.`, 'warn');
                 continue;
               }
-            }
-          }
-
-          if (existing) {
-            if (existing.status === 'aceito' || existing.status === 'fechado') {
-              ignorados++;
-              onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado, ignorado.`, 'warn');
-              continue;
-            }
-            const updateData = {
-              fiscal_nome: nomeFiscalCsv,
-              mes, ano, data: dataISO,
-              tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
-              tipo_nome: tipoInfo.tipo_nome,
-              item_pontuacao: tipoInfo.item_pontuacao,
-              complexidade: cnaeInfo.complexidade,
-              pontos: pontosFiscal, descricao,
-              motivo_os: motivoOS,
-              os_numero: osNumero,
-              documento,
-              origem: 'visa_csv',
-              visa_controle: controleVisa,
-            };
-            if (existing.status === 'recusado') {
-              updateData.status = 'enviado';
-              updateData.motivo_recusa = null;
-              onProgress(`🔄 CONTROLE ${controleVisa}: recusado anteriormente, resubmetido para conferência.`, 'info');
-            }
-            // Verificação de autorização do terceiro fiscal na atualização
-            if (isTerceiro) {
-              const autorizado = isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);
-              if (!autorizado) {
-                updateData.status = 'pendente';
-                updateData.motivo_pendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
-                onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
-              } else if (existing.status === 'pendente') {
+              const updateData = {
+                fiscal_nome: nomeFiscalCsv,
+                mes, ano, data: dataISO,
+                tipo_id: tipoInfoA.tipo_id, tipo_codigo: tipoInfoA.tipo_codigo,
+                tipo_nome: tipoInfoA.tipo_nome,
+                item_pontuacao: tipoInfoA.item_pontuacao,
+                complexidade: alvo.complexidade,
+                pontos: pontosFiscal, descricao: descricaoA,
+                motivo_os: motivoOS,
+                os_numero: osNumero,
+                documento,
+                origem: 'visa_csv',
+                visa_controle: controleVisa,
+                visa_cnae: alvo.cnae,
+              };
+              if (existing.status === 'recusado') {
                 updateData.status = 'enviado';
-                updateData.motivo_pendencia = null;
-                onProgress(`✅ CONTROLE ${controleVisa} — Fiscal3 agora autorizado, restaurado para enviado.`, 'info');
+                updateData.motivo_recusa = null;
+                onProgress(`🔄 CONTROLE ${controleVisa}: recusado anteriormente, resubmetido para conferência.`, 'info');
               }
+              // Verificação de autorização do terceiro fiscal na atualização
+              if (isTerceiro) {
+                const autorizado = isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);
+                if (!autorizado) {
+                  updateData.status = 'pendente';
+                  updateData.motivo_pendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
+                  onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
+                } else if (existing.status === 'pendente') {
+                  updateData.status = 'enviado';
+                  updateData.motivo_pendencia = null;
+                  onProgress(`✅ CONTROLE ${controleVisa} — Fiscal3 agora autorizado, restaurado para enviado.`, 'info');
+                }
+              }
+              await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false, alvo.cnae);
+              const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
+              _aplicarManualNoMapaPontosVisa(estado.byDia, existing, -1);
+              const manualAtualizado = { ...existing, ...updateData, id: existing.id };
+              _aplicarManualNoMapaPontosVisa(estado.byDia, manualAtualizado, 1);
+              estado.docsById.set(existing.id, manualAtualizado);
+              atualizados++;
+            } else {
+              const fechamento = await window.db_getFechamento(emailFiscal, mes, ano);
+              if (fechamento) {
+                ignorados++;
+                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
+                continue;
+              }
+              // Determinar status inicial considerando autorização do terceiro fiscal
+              let statusInicial = 'enviado';
+              let motivoPendencia = null;
+              if (isTerceiro && !isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap)) {
+                statusInicial = 'pendente';
+                motivoPendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
+                onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
+              }
+              await window.db_upsertVISAManual(controleVisa, emailFiscal, {
+                controle: 'VISA-' + controleVisa,
+                fiscal_email: emailFiscal,
+                fiscal_nome: nomeFiscalCsv,
+                mes, ano, data: dataISO,
+                tipo_id: tipoInfoA.tipo_id, tipo_codigo: tipoInfoA.tipo_codigo,
+                tipo_nome: tipoInfoA.tipo_nome,
+                item_pontuacao: tipoInfoA.item_pontuacao,
+                complexidade: alvo.complexidade,
+                pontos: pontosFiscal, descricao: descricaoA,
+                motivo_os: motivoOS,
+                os_numero: osNumero,
+                documento,
+                status: statusInicial,
+                motivo_pendencia: motivoPendencia,
+                origem: 'visa_csv',
+                visa_controle: controleVisa,
+                visa_cnae: alvo.cnae,
+              }, null, true, alvo.cnae);
+              const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
+              _aplicarManualNoMapaPontosVisa(estado.byDia, {
+                data: dataISO, pontos: pontosFiscal, origem: 'visa_csv', status: statusInicial,
+              }, 1);
+              criados++;
             }
-            await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false);
-            const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
-            _aplicarManualNoMapaPontosVisa(estado.byDia, existing, -1);
-            const manualAtualizado = { ...existing, ...updateData, id: existing.id };
-            _aplicarManualNoMapaPontosVisa(estado.byDia, manualAtualizado, 1);
-            estado.docsById.set(existing.id, manualAtualizado);
-            atualizados++;
-          } else {
-            const fechamento = await window.db_getFechamento(emailFiscal, mes, ano);
-            if (fechamento) {
-              ignorados++;
-              onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
-              continue;
-            }
-            // Determinar status inicial considerando autorização do terceiro fiscal
-            let statusInicial = 'enviado';
-            let motivoPendencia = null;
-            if (isTerceiro && !isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap)) {
-              statusInicial = 'pendente';
-              motivoPendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
-              onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
-            }
-            await window.db_upsertVISAManual(controleVisa, emailFiscal, {
-              controle: 'VISA-' + controleVisa,
-              fiscal_email: emailFiscal,
-              fiscal_nome: nomeFiscalCsv,
-              mes, ano, data: dataISO,
-              tipo_id: tipoInfo.tipo_id, tipo_codigo: tipoInfo.tipo_codigo,
-              tipo_nome: tipoInfo.tipo_nome,
-              item_pontuacao: tipoInfo.item_pontuacao,
-              complexidade: cnaeInfo.complexidade,
-              pontos: pontosFiscal, descricao,
-              motivo_os: motivoOS,
-              os_numero: osNumero,
-              documento,
-              status: statusInicial,
-              motivo_pendencia: motivoPendencia,
-              origem: 'visa_csv',
-              visa_controle: controleVisa,
-            }, null, true);
-            const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
-            _aplicarManualNoMapaPontosVisa(estado.byDia, {
-              data: dataISO, pontos: pontosFiscal, origem: 'visa_csv', status: statusInicial,
-            }, 1);
-            criados++;
+          } catch(e) {
+            erros++;
+            onProgress('🚨 Erro CONTROLE ' + controleVisa + ': ' + e.message, 'danger');
           }
-        } catch(e) {
-          erros++;
-          onProgress('🚨 Erro CONTROLE ' + controleVisa + ': ' + e.message, 'danger');
         }
       }
     }
@@ -488,7 +596,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       for (const m of candidatos) {
         if (m.origem !== 'visa_csv') continue;
         if (m.status === 'aceito' || m.status === 'fechado') continue;
-        const key = (m.fiscal_email || '') + '::' + (m.visa_controle || '');
+        const key = (m.fiscal_email || '') + '::' + (m.visa_controle || '') + '::' + (m.visa_cnae || '');
         if (!processedKeys.has(key)) {
           await window.db_deleteManual(m.id);
           excluidos++;

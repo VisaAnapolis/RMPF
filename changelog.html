@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.7</span>
+            <span class="badge-date">26/06/2026</span>
+          </div>
+          <div class="changelog-title">Importação VISA por CNAE do regulado (multi-CNAE)</div>
+          <ul class="changelog-changes">
+            <li><strong>Cada inspeção de vistoria pode gerar N lançamentos</strong> — a importação de inspeções do VISA (<code>js/visa-import.js</code>) deixa de pontuar por um único CNAE (o informado em <code>inspecoes.csv</code>) e passa a lançar, para cada vistoria, <strong>um registro por CNAE de competência do regulado</strong>. Os CNAEs vêm de <code>data/cae.csv</code> (relacionados pelo campo <code>Codigo</code>), considerando apenas os que têm pontuação em <code>data/cnae.csv</code> (competência da vigilância) e cujo <code>Stats</code> não seja <em>"Não Exerce"</em>.</li>
+            <li><strong>CNAE informado pelo fiscal entra como complemento</strong> — o CNAE da inspeção só é lançado adicionalmente quando <em>não</em> consta entre os CNAEs do regulado em <code>cae.csv</code> e o regulado <em>não</em> possui nenhum CNAE de alta complexidade. Regulado ausente do <code>cae.csv</code> mantém o comportamento anterior (lança o CNAE informado).</li>
+            <li><strong>Escopo restrito a Vistorias</strong> — a expansão multi-CNAE vale apenas para o tipo Vistoria (VIS); demais tipos (relatório técnico, coleta, certidão, intimação…) seguem gerando um único lançamento pelo CNAE da própria inspeção.</li>
+            <li><strong>Identidade por CNAE</strong> — o ID do lançamento VISA passou a incluir o CNAE (<code>visa_{controle}_{cnae}_{email}</code>, em <code>js/firestore.js</code>), com novo campo <code>visa_cnae</code>. Na reimportação, os lançamentos VISA não homologados são regravados no novo esquema; os já homologados são preservados sem dupla contagem. A migração de e-mail (<code>migra-email.html</code>) preserva o CNAE no novo ID.</li>
+            <li><strong>Índices do Firestore</strong> — nenhum índice composto novo é necessário: as consultas continuam por <code>fiscal_email + mes + ano</code> (já indexadas) e o acesso por ID é direto. A função <em>Criar / Atualizar Índices</em> em Parametrização não muda.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.6</span>
             <span class="badge-date">26/06/2026</span>
           </div>
