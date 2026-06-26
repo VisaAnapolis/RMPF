@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.5</span>
+            <span class="badge-date">26/06/2026</span>
+          </div>
+          <div class="changelog-title">Correção do registro de token push (SW ativo) e ícones do RMPF</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: token FCM não era gerado — "no active Service Worker"</strong> — <code>_registerFcmServiceWorker()</code> em <code>js/firebase-config.js</code> chamava <code>getToken()</code> logo após <code>register()</code>, antes de o service worker estar <code>activated</code>. Como o <code>pushManager.subscribe()</code> exige um worker ativo, o registro falhava com <em>"Subscription failed - no active Service Worker"</em> e <code>rmpf_fcmTokens</code> ficava vazio mesmo para quem aceitava as notificações. Agora aguarda o SW ativar antes de gerar o token.</li>
+            <li><strong>Correção: notificação push abria/ilustrava o app VISA</strong> — <code>firebase-messaging-sw.js</code> usava caminhos absolutos (<code>/dashboard.html</code>, <code>/icons/favicon-192.png</code>) que resolvem para a raiz da origem — o app VISA — e o ícone sequer existia no RMPF. Corrigido para <code>/RMPF/dashboard.html</code> e <code>/RMPF/icons/rmpf-192.png</code>.</li>
+            <li><strong>Diagnóstico de frota no resumo semanal</strong> — <code>notify-weekly.yml</code> agrega <code>rmpf_notifDiag</code>, <code>rmpf_notifPermissao</code> e <code>rmpf_appVersion</code> de toda a base e lista o diagnóstico de token de cada fiscal com pontos, revelando por que <code>rmpf_fcmTokens</code> está vazio sem depender de inspeção dispositivo a dispositivo.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.4</span>
             <span class="badge-date">26/06/2026</span>
           </div>
