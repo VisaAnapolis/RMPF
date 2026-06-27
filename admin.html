@@ -329,7 +329,7 @@
       return { cls: 'badge-pendente', label: '🟡 Sem token', title: 'Permitiu, mas o token não foi gerado — diag: ' + (diag || '—') };
     }
     if (perm === 'default' || (!perm && !diag)) {
-      return { cls: 'badge-manual',   label: '⚪ Pendente',  title: 'Ainda não decidiu sobre as notificações' };
+      return { cls: 'badge-enviado',  label: '🟡 Pendente',  title: 'Ainda não decidiu sobre as notificações' };
     }
     return { cls: 'badge-pendente',   label: '❔ —',         title: 'diag: ' + (diag || '—') + (perm ? ' | perm: ' + perm : '') };
   }

@@ -52,15 +52,36 @@
           ...snap.data()
         };
 
-        // Fire-and-forget: atualiza último acesso e versão do RMPF
+        // Fire-and-forget: atualiza último acesso e dados do dispositivo
         (async () => {
           try {
+            const ua = navigator.userAgent;
+            const isPWA = window.matchMedia('(display-mode: standalone)').matches;
+            let navegador = 'Desconhecido', versaoNavegador = '';
+            if      (/Edg\//.test(ua))     { navegador = 'Edge';    versaoNavegador = (ua.match(/Edg\/([\d.]+)/)    ||[])[1]||''; }
+            else if (/OPR\//.test(ua))     { navegador = 'Opera';   versaoNavegador = (ua.match(/OPR\/([\d.]+)/)    ||[])[1]||''; }
+            else if (/Chrome\//.test(ua))  { navegador = 'Chrome';  versaoNavegador = (ua.match(/Chrome\/([\d.]+)/) ||[])[1]||''; }
+            else if (/Firefox\//.test(ua)) { navegador = 'Firefox'; versaoNavegador = (ua.match(/Firefox\/([\d.]+)/)||[])[1]||''; }
+            else if (/Safari\//.test(ua))  { navegador = 'Safari';  versaoNavegador = (ua.match(/Version\/([\d.]+)/)||[])[1]||''; }
+            let so = 'Desconhecido';
+            if      (/Windows NT ([\d.]+)/.test(ua))  so = 'Windows '  + RegExp.$1;
+            else if (/Android ([\d.]+)/.test(ua))     so = 'Android '  + RegExp.$1;
+            else if (/iPhone|iPad|iPod/.test(ua))     so = 'iOS '      + ((ua.match(/OS ([\d_]+)/)||[])[1]||'').replace(/_/g,'.');
+            else if (/Mac OS X ([\d_]+)/.test(ua))    so = 'macOS '    + RegExp.$1.replace(/_/g,'.');
+            else if (/Linux/.test(ua))                so = 'Linux';
             await firebase.firestore()
               .collection('usuarios')
               .doc(user.email)
               .update({
-                rmpf_ultimoAcesso: firebase.firestore.FieldValue.serverTimestamp(),
-                rmpf_appVersion:   window.APP_VERSION || '',
+                rmpf_ultimoAcesso:    firebase.firestore.FieldValue.serverTimestamp(),
+                rmpf_ultimoLogin:     firebase.firestore.FieldValue.serverTimestamp(),
+                rmpf_appVersion:      window.APP_VERSION || '',
+                rmpf_userAgent:       ua,
+                rmpf_navegador:       navegador,
+                rmpf_versaoNavegador: versaoNavegador,
+                rmpf_so:              so,
+                rmpf_modoAcesso:      isPWA ? 'PWA' : 'Navegador',
+                rmpf_tamanhoTela:     screen.width + 'x' + screen.height,
               });
           } catch (e) {
             console.warn('Falha ao registrar acesso:', e);
