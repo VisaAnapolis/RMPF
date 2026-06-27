@@ -62,25 +62,60 @@ async function resolveVapidKey() {
 // Exibido quando o usuário ainda não tomou decisão sobre notificações push
 // (permission === 'default'). Oferece um convite amigável para ativar antes de
 // exibir o diálogo nativo do browser, explicando o benefício de acompanhar a
-// pontuação em tempo real. Reexibido a cada 7 dias se dispensado.
+// pontuação em tempo real.
+//
+// A frequência (em dias) de reexibição é configurável pelo administrador em
+// Parametrização → Notificações Push (campo promo_dias em app_config/notif_config);
+// sem configuração, usa o padrão abaixo. Além disso, o administrador pode disparar
+// uma campanha "re-oferecer agora" (campo promo_campaign): ao mudar seu valor, o
+// convite reaparece para todos os 'default' no próximo acesso, ignorando o throttle.
 
-const _FCM_PROMO_KEY  = 'fcmPromoLastShown';
-const _FCM_PROMO_DAYS = 7;
+const _FCM_PROMO_KEY          = 'fcmPromoLastShown';
+const _FCM_PROMO_CAMPAIGN_KEY = 'fcmPromoCampaign';
+const _FCM_PROMO_DAYS_DEFAULT = 7;
 let   _fcmPromoShownThisSession = false;
 
-function _fcmPromo_shouldShow() {
+/**
+ * Resolve a configuração do promo a partir de app_config/notif_config.
+ * Lê o Firestore diretamente (mesmo padrão de _resolveReminderDays), retornando
+ * o intervalo em dias e o marcador de campanha.
+ */
+async function _resolvePromoConfig() {
+  let dias = _FCM_PROMO_DAYS_DEFAULT, campaign = 0;
+  try {
+    const snap = await window.db.collection('app_config').doc('notif_config').get();
+    if (snap.exists) {
+      const d = snap.data() || {};
+      const v = Number(d.promo_dias);
+      if (Number.isFinite(v) && v > 0) dias = v;
+      campaign = Number(d.promo_campaign) || 0;
+    }
+  } catch (e) { /* usa padrão */ }
+  return { dias, campaign };
+}
+
+function _fcmPromo_shouldShow(dias, campaign) {
   if (_fcmPromoShownThisSession) return false;
   try {
+    // Campanha "re-oferecer agora": se o marcador do servidor difere do último
+    // visto neste navegador, mostra o convite ignorando o throttle de dias.
+    if (campaign) {
+      const seen = parseInt(localStorage.getItem(_FCM_PROMO_CAMPAIGN_KEY) || '0', 10);
+      if (campaign !== seen) return true;
+    }
     const last = parseInt(localStorage.getItem(_FCM_PROMO_KEY) || '0', 10);
     if (!last) return true;
-    return (Date.now() - last) >= _FCM_PROMO_DAYS * 24 * 60 * 60 * 1000;
+    return (Date.now() - last) >= dias * 24 * 60 * 60 * 1000;
   } catch (e) {
     return true;
   }
 }
 
-function _fcmPromo_markShown() {
-  try { localStorage.setItem(_FCM_PROMO_KEY, String(Date.now())); } catch (e) { /* noop */ }
+function _fcmPromo_markShown(campaign) {
+  try {
+    localStorage.setItem(_FCM_PROMO_KEY, String(Date.now()));
+    if (campaign) localStorage.setItem(_FCM_PROMO_CAMPAIGN_KEY, String(campaign));
+  } catch (e) { /* noop */ }
 }
 
 /**
@@ -89,14 +124,15 @@ function _fcmPromo_markShown() {
  *
  * @param {string} email  E-mail do usuário autenticado (passado ao initFCM ao clicar em Ativar)
  */
-function maybeShowFCMPromoBanner(email) {
+async function maybeShowFCMPromoBanner(email) {
   if (!email || typeof email !== 'string') return;
   if (Notification.permission !== 'default') return;
-  if (!_fcmPromo_shouldShow()) return;
+  const cfg = await _resolvePromoConfig();
+  if (!_fcmPromo_shouldShow(cfg.dias, cfg.campaign)) return;
   if (document.getElementById('fcm-promo-banner')) return;
 
   _fcmPromoShownThisSession = true;
-  _fcmPromo_markShown();
+  _fcmPromo_markShown(cfg.campaign);
 
   const banner = document.createElement('div');
   banner.id = 'fcm-promo-banner';
@@ -396,7 +432,7 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
     // a ativar notificações. O clique em "Ativar" chama initFCM novamente com
     // _skipPromo=true para ir diretamente ao requestPermission nativo.
     if (Notification.permission === 'default' && !_skipPromo) {
-      maybeShowFCMPromoBanner(email);
+      await maybeShowFCMPromoBanner(email);
       return;
     }
 
@@ -453,5 +489,75 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
         rmpf_notifDiagEm: firebase.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
     } catch (_) { /* noop */ }
+  }
+};
+
+// ── Botão fixo "Ativar 🔔" no cabeçalho ──────────────────────────────────────
+// Ponto de entrada permanente, acionado por GESTO do usuário (requisito do iOS
+// para o diálogo nativo de permissão), além do banner promocional automático.
+// Injetado uma única vez no .header-right (antes do botão "Sair") por
+// ensureFCMOptInButton, chamado pelo guard.js após a autenticação. Assim cobre
+// todas as páginas internas sem duplicar markup em cada HTML.
+
+/** Ajusta rótulo/visibilidade do botão conforme Notification.permission. */
+function _refreshFCMOptInButton(btn) {
+  const p = Notification.permission;
+  if (p === 'granted') { btn.style.display = 'none'; return; } // já ativo → oculta
+  btn.style.display = '';
+  if (p === 'denied') {
+    btn.textContent = '🔕 Reativar notificações';
+    btn.dataset.state = 'denied';
+  } else {
+    btn.textContent = 'Ativar 🔔';
+    btn.dataset.state = 'default';
+  }
+}
+
+/**
+ * Injeta (ou atualiza) o botão de opt-in de notificações no cabeçalho.
+ * Idempotente: reutiliza o botão existente. Não faz nada se o dispositivo não
+ * suporta Notification ou se a página não tem .header-right.
+ *
+ * @param {string} email  E-mail do usuário autenticado.
+ */
+window.ensureFCMOptInButton = function ensureFCMOptInButton(email) {
+  if (!('Notification' in window)) return;
+  const right = document.querySelector('.header-right');
+  if (!right) return;
+  let btn = document.getElementById('fcm-optin-btn');
+  if (!btn) {
+    btn = document.createElement('button');
+    btn.id = 'fcm-optin-btn';
+    btn.type = 'button';
+    btn.className = 'btn-logout';          // herda o estilo dos botões do header
+    btn.style.marginRight = '8px';
+    const logout = right.querySelector('.btn-logout');
+    right.insertBefore(btn, logout || null);
+    btn.addEventListener('click', () => window.fcmOptInClick(email));
+  }
+  _refreshFCMOptInButton(btn);
+};
+
+/**
+ * Handler do clique no botão de opt-in.
+ *  - Página sem o SDK de messaging (typeof firebase.messaging !== 'function'):
+ *    redireciona ao dashboard, onde o SDK existe e o guard re-roda initFCM.
+ *  - permission 'denied': o browser não reabre o diálogo nativo → exibe o banner
+ *    de instruções de reativação por plataforma.
+ *  - permission 'default': vai direto ao requestPermission (initFCM _skipPromo).
+ */
+window.fcmOptInClick = async function fcmOptInClick(email) {
+  if (typeof firebase.messaging !== 'function') {
+    window.location.href = 'dashboard.html';
+    return;
+  }
+  const btn = document.getElementById('fcm-optin-btn');
+  if (Notification.permission === 'denied') {
+    await maybeShowFCMReminderBanner();
+    return;
+  }
+  if (typeof window.initFCM === 'function' && email) {
+    await window.initFCM(email, true);
+    if (btn) _refreshFCMOptInButton(btn);
   }
 };

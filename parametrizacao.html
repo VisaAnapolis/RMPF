@@ -409,19 +409,29 @@
       <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
         Para quem <strong>negou</strong> as notificações, o app não pode reabrir o diálogo do
         sistema — apenas exibe um lembrete orientando a reativação manual.
-        Defina de quantos em quantos dias esse lembrete deve reaparecer para insistir na reativação.
+        Para quem <strong>ainda não decidiu</strong>, o app exibe um convite para ativar.
+        Defina de quantos em quantos dias cada aviso reaparece.
         <br><br>
-        <strong>Exemplo:</strong> 15 dias significa que, a cada 15 dias, quem negou verá o lembrete uma vez.
+        <strong>Exemplo:</strong> 15 dias significa que, a cada 15 dias, o usuário verá o aviso uma vez.
       </p>
-      <div class="form-row cols-2" style="max-width:280px;margin-bottom:14px;align-items:flex-end">
+      <div class="form-row cols-2" style="max-width:420px;margin-bottom:14px;align-items:flex-end">
         <div class="form-group">
-          <label class="form-label required" for="notif-reminder-dias">Lembrete (dias)</label>
+          <label class="form-label required" for="notif-reminder-dias">Lembrete — quem negou (dias)</label>
           <input type="number" class="form-control" id="notif-reminder-dias" min="1" max="365" value="15">
+        </div>
+        <div class="form-group">
+          <label class="form-label required" for="notif-promo-dias">Convite — quem não decidiu (dias)</label>
+          <input type="number" class="form-control" id="notif-promo-dias" min="1" max="365" value="7">
         </div>
       </div>
       <div class="btn-group">
         <button class="btn btn-primary" id="btn-save-notif-config" type="button">💾 Salvar Configuração</button>
+        <button class="btn btn-default" id="btn-reoffer-promo" type="button">📣 Re-oferecer agora</button>
       </div>
+      <p style="font-size:.82rem;color:var(--cinzaT);margin-top:10px">
+        <strong>Re-oferecer agora:</strong> faz o convite reaparecer para <strong>todos</strong> os usuários
+        que ainda não decidiram, no próximo acesso, ignorando o intervalo acima. Não afeta quem já aceitou ou negou.
+      </p>
       <div id="notif-config-log" style="margin-top:12px"></div>
     </div>
 
@@ -1222,38 +1232,66 @@
       });
     })();
 
-    // ── Notificações Push — frequência do lembrete (denied) ───
+    // ── Notificações Push — intervalos (lembrete/denied + convite/default) ───
     (async () => {
-      const inpDias   = document.getElementById('notif-reminder-dias');
-      const btnSalvar = document.getElementById('btn-save-notif-config');
-      const logEl     = document.getElementById('notif-config-log');
+      const inpDias    = document.getElementById('notif-reminder-dias');
+      const inpPromo   = document.getElementById('notif-promo-dias');
+      const btnSalvar  = document.getElementById('btn-save-notif-config');
+      const btnReoffer = document.getElementById('btn-reoffer-promo');
+      const logEl      = document.getElementById('notif-config-log');
       if (!inpDias || !btnSalvar) return;
 
       try {
         const config = await window.db_getNotifConfig();
         inpDias.value = config.denied_reminder_dias;
+        if (inpPromo) inpPromo.value = config.promo_dias;
       } catch(e) {
         logEl.innerHTML = alerta('warn', '⚠️ Não foi possível carregar a configuração: ' + escHtml(e.message));
       }
 
       btnSalvar.addEventListener('click', async () => {
-        const dias = Number(inpDias.value);
+        const dias  = Number(inpDias.value);
+        const promo = Number(inpPromo ? inpPromo.value : 7);
         if (!Number.isFinite(dias) || dias < 1 || dias > 365) {
-          logEl.innerHTML = alerta('warn', '⚠️ O intervalo deve estar entre 1 e 365 dias.');
+          logEl.innerHTML = alerta('warn', '⚠️ O intervalo do lembrete deve estar entre 1 e 365 dias.');
+          return;
+        }
+        if (!Number.isFinite(promo) || promo < 1 || promo > 365) {
+          logEl.innerHTML = alerta('warn', '⚠️ O intervalo do convite deve estar entre 1 e 365 dias.');
           return;
         }
         btnSalvar.disabled = true;
         logEl.innerHTML = alerta('info', '⏳ Salvando configuração…');
         try {
-          await window.db_updateNotifConfig(dias);
+          await window.db_updateNotifConfig({ denied_reminder_dias: dias, promo_dias: promo });
           logEl.innerHTML = alerta('ok',
-            `✅ Configuração salva. Quem negou verá o lembrete a cada <strong>${dias}</strong> dia(s).`);
+            `✅ Configuração salva. Quem negou verá o lembrete a cada <strong>${dias}</strong> dia(s); ` +
+            `quem não decidiu verá o convite a cada <strong>${promo}</strong> dia(s).`);
         } catch(e) {
           logEl.innerHTML = alerta('danger', '🚨 Erro ao salvar: ' + escHtml(e.message));
         } finally {
           btnSalvar.disabled = false;
         }
       });
+
+      // ── Re-oferecer agora (campanha): força o convite a todos os 'default' ──
+      if (btnReoffer) {
+        btnReoffer.addEventListener('click', async () => {
+          if (!confirm('Isto fará o convite de notificações reaparecer para TODOS os usuários '
+            + 'que ainda não decidiram, no próximo acesso. Continuar?')) return;
+          btnReoffer.disabled = true;
+          logEl.innerHTML = alerta('info', '⏳ Disparando campanha…');
+          try {
+            await window.db_updateNotifConfig({ promo_campaign: Date.now() });
+            logEl.innerHTML = alerta('ok',
+              '✅ Campanha disparada. Quem ainda não decidiu verá o convite no próximo acesso.');
+          } catch(e) {
+            logEl.innerHTML = alerta('danger', '🚨 Erro ao disparar: ' + escHtml(e.message));
+          } finally {
+            btnReoffer.disabled = false;
+          }
+        });
+      }
     })();
 
     // ── Storage Monitoring ───────────────────────────────

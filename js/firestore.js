@@ -737,23 +737,35 @@ async function db_updateDeadlineConfig(dias_prazo, ativo) {
 }
 
 // ── App Config / Notificações Push ─────────────────────────
-// Frequência (em dias) com que o app reexibe o lembrete de reativação para
-// quem NEGOU as notificações. Lido por initFCM (js/firebase-config.js) ao
-// montar o banner de lembrete. Padrão de 15 dias quando não configurado.
+// Configuração das notificações push, persistida em app_config/notif_config.
+// Lida por initFCM (js/firebase-config.js):
+//   denied_reminder_dias : frequência (dias) do lembrete para quem NEGOU.
+//   promo_dias           : frequência (dias) do convite para quem ainda NÃO
+//                          decidiu (permission 'default'). Padrão 7.
+//   promo_campaign       : marcador (epoch ms) de campanha "re-oferecer agora";
+//                          ao mudar, o convite reaparece para todos os 'default'
+//                          no próximo acesso, ignorando o throttle de dias.
 
 async function db_getNotifConfig() {
   const doc = await window.db.collection('app_config').doc('notif_config').get();
-  if (!doc.exists) return { denied_reminder_dias: 15 };
-  const d = doc.data() || {};
-  const v = Number(d.denied_reminder_dias);
-  return { denied_reminder_dias: (Number.isFinite(v) && v > 0) ? v : 15 };
+  const d = doc.exists ? (doc.data() || {}) : {};
+  const rem   = Number(d.denied_reminder_dias);
+  const promo = Number(d.promo_dias);
+  return {
+    denied_reminder_dias: (Number.isFinite(rem)   && rem   > 0) ? rem   : 15,
+    promo_dias:           (Number.isFinite(promo) && promo > 0) ? promo : 7,
+    promo_campaign:       Number(d.promo_campaign) || 0,
+  };
 }
 
-async function db_updateNotifConfig(denied_reminder_dias) {
-  await window.db.collection('app_config').doc('notif_config').set({
-    denied_reminder_dias: Number(denied_reminder_dias),
-    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
-  }, { merge: true });
+// Atualiza apenas os campos presentes em `patch` (objeto parcial), sempre com
+// { merge: true } para não sobrescrever os demais campos do documento.
+async function db_updateNotifConfig(patch) {
+  const out = { last_updated: firebase.firestore.FieldValue.serverTimestamp() };
+  if (patch && patch.denied_reminder_dias != null) out.denied_reminder_dias = Number(patch.denied_reminder_dias);
+  if (patch && patch.promo_dias           != null) out.promo_dias           = Number(patch.promo_dias);
+  if (patch && patch.promo_campaign       != null) out.promo_campaign       = Number(patch.promo_campaign);
+  await window.db.collection('app_config').doc('notif_config').set(out, { merge: true });
 }
 
 // Valida se a data do lançamento está dentro do prazo permitido

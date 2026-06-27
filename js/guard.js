@@ -95,6 +95,11 @@
           window.initFCM(user.email).catch(() => {});
         }
 
+        // Injeta o botão fixo "Ativar 🔔" no cabeçalho (gesto manual de opt-in)
+        if (typeof window.ensureFCMOptInButton === 'function') {
+          window.ensureFCMOptInButton(user.email);
+        }
+
         resolve(window.currentUser);
       } catch (e) {
         console.error('Auth guard error:', e);
