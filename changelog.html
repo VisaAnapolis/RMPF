@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.8</span>
+            <span class="badge-date">27/06/2026</span>
+          </div>
+          <div class="changelog-title">Registro de acesso confiável e controle das notificações push</div>
+          <ul class="changelog-changes">
+            <li><strong>Último acesso registrado em toda navegação</strong> — antes, a data/dispositivo só era gravada (<code>rmpf_ultimoLogin</code>) ao clicar em "Entrar com Google". Quem tinha sessão ativa (PWA, navegador persistente) ia direto ao dashboard e nunca registrava. O <code>js/guard.js</code> agora grava navegador, SO, modo de acesso e <code>rmpf_ultimoLogin</code> a cada página protegida.</li>
+            <li><strong>Coluna "Último Acesso" no Admin</strong> — passa a usar <code>rmpf_ultimoLogin || rmpf_ultimoAcesso</code>, surfaçando a data que o <code>guard.js</code> já vinha gravando para usuários com sessão ativa, sem esperar novo login. O badge de notificação "Pendente" mudou para amarelo.</li>
+            <li><strong>Intervalo do convite de notificação configurável</strong> — para quem ainda não decidiu (<code>permission 'default'</code>), a frequência do convite deixou de ser fixa (7 dias) e passa a ser ajustável em <strong>Parametrização → Notificações Push</strong> (campo <code>promo_dias</code> em <code>app_config/notif_config</code>), espelhando o lembrete de quem negou.</li>
+            <li><strong>"Re-oferecer agora" (campanha)</strong> — o administrador pode disparar o reaparecimento do convite para <strong>todos</strong> os usuários que ainda não decidiram, no próximo acesso, ignorando o intervalo (campo <code>promo_campaign</code>). Não afeta quem já aceitou ou negou.</li>
+            <li><strong>Botão fixo "Ativar 🔔" no cabeçalho</strong> — ponto de entrada permanente, acionado por gesto do usuário (requisito do iOS), injetado em todas as páginas internas pelo <code>guard.js</code>. Adapta-se ao estado da permissão: convida quem não decidiu, orienta a reativação de quem negou e some para quem já ativou.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.7</span>
             <span class="badge-date">26/06/2026</span>
           </div>
