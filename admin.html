@@ -345,6 +345,17 @@
     return 0;
   }
 
+  // ── Último acesso ─────────────────────────────────────────────
+  // Usa rmpf_ultimoLogin (gravado no login, com detalhes do dispositivo) e cai
+  // para rmpf_ultimoAcesso (gravado pelo guard.js a cada navegação). Usuários
+  // com sessão ativa que nunca passaram pela tela de login não têm
+  // rmpf_ultimoLogin, mas têm rmpf_ultimoAcesso — assim a data ainda aparece.
+  function ultimoAcessoDate(u) {
+    const ts = u.rmpf_ultimoLogin || u.rmpf_ultimoAcesso;
+    if (!ts) return null;
+    return ts.toDate ? ts.toDate() : new Date(ts);
+  }
+
   // ── Tabela de usuários ────────────────────────────────────────
   function renderTabela(filtro) {
     const tbody = document.getElementById('tbody-usuarios');
@@ -365,9 +376,8 @@
       const avatar = u.photoURL
         ? `<img class="user-avatar" src="${escHtml(u.photoURL)}" alt="" loading="lazy">`
         : `<div class="user-avatar-placeholder">👤</div>`;
-      const ultimoAcesso = u.rmpf_ultimoLogin
-        ? fmtData(u.rmpf_ultimoLogin.toDate ? u.rmpf_ultimoLogin.toDate() : new Date(u.rmpf_ultimoLogin))
-        : '—';
+      const _ua = ultimoAcessoDate(u);
+      const ultimoAcesso = _ua ? fmtData(_ua) : '—';
       const statusBadge = u.ativo !== false
         ? '<span class="badge badge-aceito">Ativo</span>'
         : '<span class="badge badge-recusado">Inativo</span>';
@@ -429,7 +439,8 @@
     const loginEl = document.getElementById('edit-info-login');
     const temFcm = u.rmpf_notifPermissao || u.rmpf_notifDiag ||
       (Array.isArray(u.rmpf_fcmTokens) && u.rmpf_fcmTokens.length);
-    const temDados = u.rmpf_ultimoLogin || u.rmpf_navegador || u.rmpf_so || temFcm;
+    const _uaModal = ultimoAcessoDate(u);
+    const temDados = _uaModal || u.rmpf_navegador || u.rmpf_so || temFcm;
     if (temDados) {
       const fcm = fcmStatusInfo(u);
       const qtdTokens = Array.isArray(u.rmpf_fcmTokens) ? u.rmpf_fcmTokens.length : 0;
@@ -437,11 +448,9 @@
         `🔔 <strong>Notificações:</strong> ${fcm.label}` +
         ` <span style="color:var(--cinzaT)">(perm: ${escHtml(u.rmpf_notifPermissao || '—')},` +
         ` tokens: ${qtdTokens}, diag: ${escHtml(u.rmpf_notifDiag || '—')})</span>`;
-      const dtLogin = u.rmpf_ultimoLogin
-        ? fmtData(u.rmpf_ultimoLogin.toDate ? u.rmpf_ultimoLogin.toDate() : new Date(u.rmpf_ultimoLogin))
-        : '—';
-      const hrLogin = u.rmpf_ultimoLogin
-        ? (() => { const d = u.rmpf_ultimoLogin.toDate ? u.rmpf_ultimoLogin.toDate() : new Date(u.rmpf_ultimoLogin); return d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}); })()
+      const dtLogin = _uaModal ? fmtData(_uaModal) : '—';
+      const hrLogin = _uaModal
+        ? _uaModal.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})
         : '';
       loginEl.innerHTML =
         `📅 <strong>Data/Hora:</strong> ${escHtml(dtLogin)}${hrLogin ? ' ' + escHtml(hrLogin) : ''}<br>` +
