@@ -17,7 +17,7 @@ O sistema deve buscar automaticamente as inspeções registradas no VISA (`garra
 | Arquivo | `https://raw.githubusercontent.com/garrado/VISA/main/data/inspecoes.csv` |
 | Separador | `;` |
 | Encoding | UTF-8 (com possível BOM — PapaParse trata automaticamente) |
-| Complexidade | Tabela `data/cnae.csv` do VISA → copiada permanentemente no Firestore (coleção `cnae_complexidade`) |
+| Complexidade | Tabela `data/cnae.csv` do VISA (fonte única) — buscada e carregada em memória (`cnaeMap`) a cada importação |
 
 ### Campos utilizados do `inspecoes.csv`
 
@@ -277,30 +277,33 @@ O Administrador pode homologar (`aceito`) ou recusar (`recusado`) normalmente em
 
 ---
 
-## 12. Tabela CNAE no Firestore (Seed Permanente)
+## 12. Tabela CNAE — `data/cnae.csv` (fonte única)
 
-### Coleção: `cnae_complexidade`
+A complexidade/competência CNAE vem **exclusivamente** do `data/cnae.csv` do VISA. A cada
+importação, `visa-import.js` busca o CSV via `fetchGitHubCSV('data/cnae.csv')` e monta o
+`cnaeMap` em memória:
 
-| Campo | Tipo | Descrição |
-|---|---|---|
-| `subclasse` | string | Código CNAE (ex: `4731-8/00`) — ID do documento |
-| `complexidade` | string | `Alta`, `Média` ou `Baixa` |
-| `descricao` | string | Descrição da atividade econômica |
-| `updated_at` | timestamp | Data da última sincronização |
+| Chave | Valor (`cnaeMap.get(subclasse)`) |
+|---|---|
+| `subclasse` (código CNAE) | `{ complexidade, complexidade_origem, descricao, equipe }` |
 
-### Por que Firestore e não buscar o CSV na hora?
+- `complexidade` — normalizada (`alta`/`media`/`baixa`), **já com o override do Decreto 49.723/2023 aplicado**
+- `complexidade_origem` — complexidade original antes do override (ou `null`)
+- `equipe` — equipe do CNAE (ex.: `IA`/`AG` marcam alimentação, usado na pontuação por área)
+- A **presença** no `cnaeMap` define que o CNAE é de competência da vigilância
 
-- O `cnae.csv` raramente muda (tabela oficial do IBGE/ANVISA)
-- Buscar o CSV a cada importação de inspeções adicionaria latência e leitura desnecessária
-- **Opção mais leve para o dia a dia:** seed no Firestore, lido localmente a cada importação
+### Por que CSV e não Firestore?
 
-### Seed via `admin.html`
+- O `cnae.csv` raramente muda, mas o import **já o baixa de qualquer forma** (para montar o
+  `cnaeMap` com `equipe`/competência) — manter uma cópia no Firestore era redundante.
+- Ler a tabela inteira no Firestore custaria ~268 leituras por carga; o CSV é 1 fetch estático
+  (0 leituras Firestore).
+- Fonte única elimina o risco de inconsistência (CSV atualizado sem re-seed da coleção).
 
-O Administrador tem um botão **"🔄 Sincronizar CNAE com Firestore"** em `admin.html` que:
-1. Busca `data/cnae.csv` do VISA (GitHub raw)
-2. Faz o parse com PapaParse
-3. Grava em lote (batch) na coleção `cnae_complexidade`
-4. Operação é **idempotente** — pode ser repetida quando o CSV do VISA for atualizado
+> **Histórico:** até esta versão existia uma coleção espelho `cnae_complexidade` (populada por um
+> botão "🔄 Sincronizar CNAE com Firestore") consultada via `db_getCNAEComplexidade`. Esse caminho
+> foi **aposentado** — `cnae.csv` é agora a fonte única. Documentos remanescentes da coleção ficam
+> inertes (não são lidos nem deletados pelo app).
 
 ---
 
@@ -309,12 +312,10 @@ O Administrador tem um botão **"🔄 Sincronizar CNAE com Firestore"** em `admi
 | Arquivo | Tipo | O que muda |
 |---|---|---|
 | `js/visa-import.js` | 🆕 Novo | Módulo central: busca CSV, resolve CNAE, cria/atualiza documentos |
-| `js/firestore.js` | ✏️ Modificado | + `db_getCNAEComplexidade`, `db_seedCNAEComplexidade`, `db_getVISAManual`, `db_upsertVISAManual` |
+| `js/firestore.js` | ✏️ Modificado | + `db_getVISAManual`, `db_upsertVISAManual` (CNAE lido do `cnae.csv`, não do Firestore) |
 | `lancamento.html` | ✏️ Modificado | + Card de importação acima do formulário + PapaParse + visa-import.js |
 | `meus-lancamentos.html` | ✏️ Modificado | + Botão de importação + badge CVS para registros bloqueados |
 | `conferencia.html` | ✏️ Modificado | + Botão de importação (admin only) + badge CVS |
-| `admin.html` | ✏️ Modificado | + Card "Seed CNAE" com botão de sincronização + PapaParse |
-| `firestore.rules` | ✏️ Modificado | + Regra de leitura para `cnae_complexidade` por autenticados |
 
 ---
 
@@ -333,29 +334,25 @@ O Administrador tem um botão **"🔄 Sincronizar CNAE com Firestore"** em `admi
 ## 15. Fluxo Completo de Uso
 
 ```
-1. ADMINISTRADOR (primeiro uso):
-   └── admin.html → "🔄 Sincronizar CNAE com Firestore"
-       └── Popula coleção cnae_complexidade
-
-2. FISCAL (todo mês a partir de Abril/2026):
+1. FISCAL (todo mês a partir de Abril/2026):
    └── lancamento.html OU meus-lancamentos.html
        └── Seleciona mês/ano
        └── Clica "📥 Importar Inspeções do CSV"
-       └── Sistema busca inspecoes.csv do VISA
+       └── Sistema busca inspecoes.csv + cnae.csv do VISA (monta cnaeMap em memória)
        └── Filtra por mês/ano e pelo email do fiscal logado
        └── Para cada inspeção encontrada:
-           └── Busca complexidade no Firestore (cnae_complexidade)
+           └── Resolve complexidade pelo cnaeMap (data/cnae.csv) — fonte única
            └── Cria ou atualiza lançamento na coleção manuais
        └── Exibe log de progresso (criados / atualizados / ignorados / erros)
 
-3. ADMINISTRADOR (homologação):
+2. ADMINISTRADOR (homologação):
    └── conferencia.html
        └── Seleciona fiscal + competência
        └── Pode importar pelo botão (para qualquer fiscal)
        └── Homologa ou recusa cada lançamento individualmente
        └── Registro homologado → bloqueado para re-importação
 
-4. ADMINISTRADOR (fechamento):
+3. ADMINISTRADOR (fechamento):
    └── fechamento.html
        └── Fecha competência → todos os aceitos viram "fechado"
        └── Bloqueio definitivo para re-importação
@@ -395,7 +392,7 @@ Página de utilidade (admin) que varre os lançamentos de **Junho/2026**, identi
 | Re-importação | Sobrescreve se não homologado; ignora se homologado |
 | Edição pelo fiscal | Proibida para `origem: 'visa_csv'` |
 | Homologação | Admin homologa individualmente por fiscal |
-| Seed CNAE | Uma vez (ou quando `cnae.csv` do VISA mudar) |
+| Fonte CNAE | `data/cnae.csv` do VISA, carregado em memória a cada importação |
 | Descrição | `Vistoria VISA — OS X — CNAE Y — [descrição]` |
 | Controle RMPF | `VISA-{CONTROLE do CSV}` |
 | Plantão × Vistoria | Por fiscal: plantão manual zera vistorias importadas na data; bloqueia plantão posterior se já houver vistorias importadas |
