@@ -489,6 +489,7 @@
 <script src="js/guard.js"></script>
 <script src="js/visa-import.js"></script>
 <script src="js/sim-import.js"></script>
+<script src="js/visa-auto-import.js"></script>
 <script>
   let _currentUserEmail = '';
 
@@ -532,6 +533,12 @@
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
     document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
+
+    // Importação automática do VISA (todos os fiscais) enquanto o admin estiver
+    // nesta página: ao carregar e por polling, quando o CSV mudar.
+    if (typeof window.iniciarAutoImportVISA === 'function') {
+      window.iniciarAutoImportVISA(user);
+    }
 
     document.getElementById('btn-logout').addEventListener('click', () => {
       firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });

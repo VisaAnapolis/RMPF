@@ -512,9 +512,19 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     const processedKeys = new Set(); // "fiscalEmail::controleVisa::cnae"
     const pontosEstadoCache = new Map();
 
+    // Heartbeat do lock: uma importação de todos os fiscais pode passar dos 3 min
+    // do timeout de "stale". Renovamos o lock a cada ~60s para evitar que outra
+    // sessão o considere abandonado e dispare uma importação duplicada.
+    let _ultimoHeartbeat = Date.now();
+
     for (let idx = 0; idx < rowsFiltradas.length; idx++) {
       const row = rowsFiltradas[idx];
       if (onProgressBar) onProgressBar(idx + 1, rowsFiltradas.length);
+
+      if (Date.now() - _ultimoHeartbeat > 60000) {
+        _ultimoHeartbeat = Date.now();
+        try { await window.db_refreshVisaImportLock(mes, ano); } catch (_) {}
+      }
 
       const controleVisa = String(row['CONTROLE'] || '').replace(/"/g, '').trim();
       if (!controleVisa) continue;

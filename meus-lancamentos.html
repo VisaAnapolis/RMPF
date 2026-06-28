@@ -46,27 +46,12 @@
       <select class="form-control" id="sel-mes" style="max-width:140px"></select>
       <select class="form-control" id="sel-ano" style="max-width:90px"></select>
       <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
-      <button class="btn btn-outline btn-sm" id="btn-import-visa" type="button" disabled
-              title="Selecione a competência">
-        📥 Importar Inspeções do CVS
-      </button>
       <button class="btn btn-outline btn-sm" id="btn-import-sim" type="button" disabled
               title="Selecione a competência">
         📥 Importar Auditorias do SIM
       </button>
       <span class="toolbar-spacer"></span>
       <button class="btn btn-primary btn-sm" id="btn-nova-atividade">+ Nova Atividade</button>
-    </div>
-
-    <div id="import-visa-log" style="margin-bottom:8px"></div>
-    <div id="import-progress-wrap" class="progress-wrap" style="display:none">
-      <div class="progress-header">
-        <span class="progress-label" id="import-progress-label">Processando…</span>
-        <span class="progress-pct" id="import-progress-pct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="import-progress-fill"></div>
-      </div>
     </div>
 
     <div id="import-sim-log" style="margin-bottom:8px"></div>
@@ -817,72 +802,6 @@
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
     loadManuais();
-
-    // ── Importação VISA ──────────────────────────────────
-    async function atualizarBtnImportVisa() {
-      const mes = Number(document.getElementById('sel-mes').value);
-      const ano = Number(document.getElementById('sel-ano').value);
-      const btn = document.getElementById('btn-import-visa');
-      if (!visaMesAberto(mes, ano)) {
-        btn.disabled = true;
-        btn.title = 'Mês anterior a Abril/2026 — impossível importar';
-        return;
-      }
-      const fechamento = await db_getFechamento(_user.email, mes, ano);
-      if (fechamento) {
-        btn.disabled = true;
-        btn.title = 'Competência já fechada — importação bloqueada';
-      } else {
-        btn.disabled = false;
-        btn.title = 'Importar inspeções do CVS para este mês';
-      }
-    }
-    document.getElementById('sel-mes').addEventListener('change', atualizarBtnImportVisa);
-    document.getElementById('sel-ano').addEventListener('change', atualizarBtnImportVisa);
-    atualizarBtnImportVisa();
-
-    const progressWrap  = document.getElementById('import-progress-wrap');
-    const progressLabel = document.getElementById('import-progress-label');
-    const progressPct   = document.getElementById('import-progress-pct');
-    const progressFill  = document.getElementById('import-progress-fill');
-
-    function mostrarProgresso(atual, total) {
-      if (!total) return;
-      progressWrap.style.display = '';
-      const pct = Math.round((atual / total) * 100);
-      progressFill.style.width  = pct + '%';
-      progressPct.textContent   = pct + '%';
-      progressLabel.textContent = `Processando inspeção ${atual} de ${total}…`;
-    }
-    function ocultarProgresso() {
-      progressWrap.style.display = 'none';
-      progressFill.style.width   = '0%';
-    }
-
-    document.getElementById('btn-import-visa').addEventListener('click', async () => {
-      const mes    = Number(document.getElementById('sel-mes').value);
-      const ano    = Number(document.getElementById('sel-ano').value);
-      const logEl  = document.getElementById('import-visa-log');
-      const btn    = document.getElementById('btn-import-visa');
-      btn.disabled = true;
-      logEl.innerHTML = '';
-      ocultarProgresso();
-      const msgs = [];
-      const onProgress = (msg, type) => {
-        msgs.push(alerta(type, msg));
-        logEl.innerHTML = msgs.slice(-6).join('');
-      };
-      try {
-        const allFiscais = await db_getTodosFiscais();
-        await importarInspecoesVISA({ fiscalEmail: _user.email, fiscalNome: _user.nome || _user.email, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
-        loadManuais();
-      } catch(e) {
-        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
-      } finally {
-        await atualizarBtnImportVisa();
-        ocultarProgresso();
-      }
-    });
 
     // ── Importação SIM ───────────────────────────────────
     async function atualizarBtnImportSim() {

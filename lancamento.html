@@ -42,31 +42,6 @@
     <div id="alert-area"></div>
     <div id="comp-fechado-alert" style="display:none"></div>
 
-    <!-- ── Importar Inspeções do VISA ── -->
-    <div class="card" id="card-import-visa" style="max-width:680px">
-      <div class="card-title">📥 Importar Inspeções do CVS</div>
-      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
-        Busca automaticamente suas inspeções do mês selecionado no sistema VISA e cria os lançamentos
-        correspondentes. Registros já homologados não serão alterados.
-      </p>
-      <div class="btn-group">
-        <button class="btn btn-outline" id="btn-import-visa" type="button" disabled
-                title="Selecione a competência acima">
-          📥 Importar Inspeções do CVS
-        </button>
-      </div>
-      <div id="import-visa-log" style="margin-top:10px"></div>
-      <div id="import-progress-wrap" class="progress-wrap" style="display:none">
-        <div class="progress-header">
-          <span class="progress-label" id="import-progress-label">Processando…</span>
-          <span class="progress-pct" id="import-progress-pct">0%</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="import-progress-fill"></div>
-        </div>
-      </div>
-    </div>
-
     <!-- ── Importar Auditorias do SIM ── -->
     <div class="card" id="card-import-sim" style="max-width:680px">
       <div class="card-title">📥 Importar Auditorias do SIM</div>
@@ -527,9 +502,8 @@
       const ano = Number(document.getElementById('f-ano').value);
       const btnRascunho = document.getElementById('btn-rascunho');
       const btnEnviar   = document.getElementById('btn-enviar');
-      const btnVisa     = document.getElementById('btn-import-visa');
       const btnSim      = document.getElementById('btn-import-sim');
-      [btnRascunho, btnEnviar, btnVisa, btnSim].forEach(b => { b.disabled = true; });
+      [btnRascunho, btnEnviar, btnSim].forEach(b => { b.disabled = true; });
       try {
         const fechado = await db_isMesFechado(user.email, mes, ano);
         if (fechado) {
@@ -542,10 +516,6 @@
           document.getElementById('grupo-anexo-pdf').style.display = '';
           btnRascunho.disabled = false;
           btnEnviar.disabled   = false;
-          btnVisa.disabled = !visaMesAberto(mes, ano);
-          btnVisa.title = visaMesAberto(mes, ano)
-            ? 'Importar inspeções do VISA para este mês'
-            : 'Mês anterior a Abril/2026 — impossível importar';
           btnSim.disabled = !simMesAberto(mes, ano);
           btnSim.title = simMesAberto(mes, ano)
             ? 'Importar auditorias do SIM para este mês'
@@ -555,10 +525,6 @@
         console.error('[Lancamento] Erro ao verificar fechamento:', e);
         btnRascunho.disabled = false;
         btnEnviar.disabled   = false;
-        btnVisa.disabled = !visaMesAberto(mes, ano);
-        btnVisa.title = visaMesAberto(mes, ano)
-          ? 'Importar inspeções do VISA para este mês'
-          : 'Mês anterior a Abril/2026 — impossível importar';
         btnSim.disabled = !simMesAberto(mes, ano);
         btnSim.title = simMesAberto(mes, ano)
           ? 'Importar auditorias do SIM para este mês'
@@ -599,48 +565,6 @@
     }
 
     document.getElementById('f-data').addEventListener('change', verificarDataOcorrencia);
-
-    const progressWrap  = document.getElementById('import-progress-wrap');
-    const progressLabel = document.getElementById('import-progress-label');
-    const progressPct   = document.getElementById('import-progress-pct');
-    const progressFill  = document.getElementById('import-progress-fill');
-
-    function mostrarProgresso(atual, total) {
-      if (!total) return;
-      progressWrap.style.display = '';
-      const pct = Math.round((atual / total) * 100);
-      progressFill.style.width  = pct + '%';
-      progressPct.textContent   = pct + '%';
-      progressLabel.textContent = `Processando inspeção ${atual} de ${total}…`;
-    }
-    function ocultarProgresso() {
-      progressWrap.style.display = 'none';
-      progressFill.style.width   = '0%';
-    }
-
-    document.getElementById('btn-import-visa').addEventListener('click', async () => {
-      const mes    = Number(document.getElementById('f-mes').value);
-      const ano    = Number(document.getElementById('f-ano').value);
-      const logEl  = document.getElementById('import-visa-log');
-      const btn    = document.getElementById('btn-import-visa');
-      btn.disabled = true;
-      logEl.innerHTML = '';
-      ocultarProgresso();
-      const msgs = [];
-      const onProgress = (msg, type) => {
-        msgs.push(alerta(type, msg));
-        logEl.innerHTML = msgs.slice(-6).join('');
-      };
-      try {
-        const allFiscais = await db_getTodosFiscais();
-        await importarInspecoesVISA({ fiscalEmail: user.email, fiscalNome: user.nome || user.email, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
-      } catch(e) {
-        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
-      } finally {
-        await verificarFechamento();
-        ocultarProgresso();
-      }
-    });
 
     const simProgressWrap  = document.getElementById('import-sim-progress-wrap');
     const simProgressLabel = document.getElementById('import-sim-progress-label');
