@@ -487,7 +487,11 @@
         ? 'Lançamento <strong>autorizado</strong> e enviado para conferência.'
         : `Lançamento <strong>${statusFinal}</strong>.`;
       document.getElementById('alert-area').innerHTML = alerta('ok', msg);
-      loadConferencia();
+      const _scrollEl = document.querySelector('.app-main');
+      const _scrollY  = _scrollEl ? _scrollEl.scrollTop : window.scrollY;
+      await loadConferencia();
+      if (_scrollEl) _scrollEl.scrollTop = _scrollY;
+      else window.scrollTo(0, _scrollY);
 
       // ── Notificações push (fire-and-forget) ──────────────────
       if (manual && typeof window.dispararNotificacaoFiscal === 'function') {
