@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.10.1</span>
+            <span class="badge-date">28/06/2026</span>
+          </div>
+          <div class="changelog-title">Redução de pontos em fiscalização por dupla/trio fiscal (decreto E.2)</div>
+          <ul class="changelog-changes">
+            <li><strong>Redução por dupla/trio fiscal</strong> — em <strong>Vistorias</strong> realizadas por <strong>2 ou mais fiscais</strong>, a pontuação dos CNAEs de baixa e média complexidade é reduzida para cada fiscal: <strong>média 12 → 9</strong> (−25%) e <strong>baixa 6 → 3</strong> (−50%), conforme o item E.2 do decreto. CNAEs de <strong>alta complexidade</strong> (inclusive a alta-alimentação já ajustada por área) <strong>não são reduzidos</strong>. Vistorias com um único fiscal e demais tipos de inspeção permanecem inalterados.</li>
+            <li><strong>Valor reduzido no teto de 48</strong> — a redução é aplicada <strong>antes</strong> da seleção do teto de 48 pontos por inspeção, então a soma acumulada usa os valores já reduzidos (9/3), permitindo que mais CNAEs caibam no teto.</li>
+            <li><strong>Coluna "Fiscais"</strong> — nova coluna após "Área" em <code>conferencia.html</code> e <code>meus-lancamentos.html</code> exibindo a quantidade de fiscais da inspeção, preenchida <strong>apenas</strong> nos lançamentos em que a regra reduziu a pontuação (demais exibem "—"). O campo <code>qtd_fiscais</code> é gravado em cada lançamento importado.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.10.0</span>
             <span class="badge-date">28/06/2026</span>
           </div>
