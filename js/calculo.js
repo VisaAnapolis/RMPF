@@ -5,7 +5,7 @@ const LIMITE_PONTOS_OCORRENCIA_DIA = 24;
 const PARAMS = {
   teto_pv:      1000,
   base_formula: 250,
-  fator_formula: 4/15,
+  fator_formula: 0.2666,
   teto_final:   200,
 };
 
