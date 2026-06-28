@@ -385,6 +385,9 @@
       pontos:       Number(pontos),
       obs:          document.getElementById('f-obs').value.trim() || null,
       status,
+      dispositivo_legal: window.dispositivoLegal
+        ? window.dispositivoLegal(itemNum, Number(pontos), false)
+        : null,
     };
 
     const btns = document.querySelectorAll('#btn-rascunho, #btn-enviar');

@@ -208,6 +208,9 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             origem: 'sim_csv',
             sim_os: osNum,
             os_doc_id: os._docId || null,
+            dispositivo_legal: window.dispositivoLegal
+              ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, SIM_PONTOS, false)
+              : 'Item 1 do Anexo VII do Decreto 49.723/2023',
           };
           if (existing.status === 'recusado') {
             updateData.status = 'enviado';
@@ -242,6 +245,9 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             origem: 'sim_csv',
             sim_os: osNum,
             os_doc_id: os._docId || null,
+            dispositivo_legal: window.dispositivoLegal
+              ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, SIM_PONTOS, false)
+              : 'Item 1 do Anexo VII do Decreto 49.723/2023',
           }, null, true);
           const estado = estadoPontos || await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
           _aplicarManualNoMapaPontosSim(estado.byDia, {
