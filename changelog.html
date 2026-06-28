@@ -57,6 +57,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.11.1</span>
+            <span class="badge-date">28/06/2026</span>
+          </div>
+          <div class="changelog-title">CNAE com fonte única (cnae.csv): fim da leitura redundante no Firestore</div>
+          <ul class="changelog-changes">
+            <li><strong>Complexidade lida só do <code>cnae.csv</code></strong> — a importação de inspeções (<code>js/visa-import.js</code>) já carregava a tabela inteira do <code>data/cnae.csv</code> em memória (<code>cnaeMap</code>) e, ao mesmo tempo, consultava a coleção <code>cnae_complexidade</code> no Firestore para o CNAE informado. Essa segunda leitura era redundante: agora o CNAE informado também é resolvido pelo <code>cnaeMap</code>, unificando-o ao caminho já usado para os CNAEs do regulado (CAE). Resultado idêntico em pontos/complexidade, zero leituras de CNAE no Firestore.</li>
+            <li><strong>Corrige inconsistência de dado desatualizado</strong> — antes, se o <code>cnae.csv</code> fosse alterado sem reexecutar o seed, a mesma importação misturava complexidade <em>antiga</em> (Firestore) com <code>equipe</code> <em>nova</em> (CSV). Com a fonte única, isso não ocorre mais; e o CNAE informado passa a registrar corretamente <code>complexidade_origem</code> quando reclassificado pelo decreto.</li>
+            <li><strong>Seed e coleção <code>cnae_complexidade</code> aposentados</strong> — removidos o botão "🔄 Sincronizar CNAE com Firestore" (<code>parametrizacao.html</code>) e as funções <code>db_seedCNAEComplexidade</code>/<code>db_getCNAEComplexidade</code> (<code>js/firestore.js</code>), que não têm mais leitores. Documentos remanescentes da coleção ficam inertes (não são lidos nem apagados). As páginas do VISA seguem lendo o <code>cnae.csv</code> diretamente, como antes.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.11.0</span>
             <span class="badge-date">28/06/2026</span>
           </div>

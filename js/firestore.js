@@ -186,56 +186,6 @@ async function deleteUsuario(email) {
   await window.db.collection('usuarios').doc(email).delete();
 }
 
-// ── CNAE Complexidade ─────────────────────────────────────
-
-// Sanitiza o código CNAE para uso como ID de documento no Firestore.
-// A barra '/' é interpretada como separador de caminho — substituímos por '_'.
-function _cnaeDocId(subclasse) {
-  return String(subclasse).replace(/\//g, '_');
-}
-
-async function getCNAEComplexidade(subclasse) {
-  const snap = await window.db.collection('cnae_complexidade').doc(_cnaeDocId(subclasse)).get();
-  return snap.exists ? snap.data() : null;
-}
-
-async function seedCNAEComplexidade(rows) {
-  const BATCH_SIZE = 499;
-  let batch = window.db.batch();
-  let count = 0;
-  for (const row of rows) {
-    const sub = String(
-      row['Subclasse'] || row['subclasse'] || row['SUBCLASSE'] || ''
-    ).replace(/"/g, '').trim();
-    if (!sub) continue;
-    const complexidadeCsv = String(
-      row['Complexidade'] || row['complexidade'] || row['COMPLEXIDADE'] || ''
-    ).replace(/"/g, '').trim();
-    // Exceções do Decreto 49.723/2023 (item C) sobrepõem a classificação do cnae.csv.
-    const ovrDecreto = (typeof complexidadeDecreto === 'function') ? complexidadeDecreto(sub) : null;
-    const complexidade = ovrDecreto || complexidadeCsv;
-    const descricao = String(
-      row['Descrição'] || row['Descricao'] || row['descricao'] ||
-      row['Denominação'] || row['Denominacao'] || row['denominacao'] ||
-      row['Atividade'] || row['atividade'] || ''
-    ).replace(/"/g, '').trim();
-    const ref = window.db.collection('cnae_complexidade').doc(_cnaeDocId(sub));
-    batch.set(ref, {
-      subclasse: sub,
-      complexidade,
-      descricao,
-      updated_at: firebase.firestore.FieldValue.serverTimestamp(),
-    });
-    count++;
-    if (count % BATCH_SIZE === 0) {
-      await batch.commit();
-      batch = window.db.batch();
-    }
-  }
-  if (count % BATCH_SIZE !== 0 && count > 0) await batch.commit();
-  return count;
-}
-
 // ── Delete all manuais for a month (Administrador) ───────
 
 async function deleteManuaisTodosMes(mes, ano) {
@@ -1030,8 +980,6 @@ window.db_getTodosFiscais     = getTodosFiscais;
 window.db_getTodosUsuarios    = getTodosUsuarios;
 window.db_updateUsuario       = updateUsuario;
 window.db_deleteUsuario        = deleteUsuario;
-window.db_getCNAEComplexidade  = getCNAEComplexidade;
-window.db_seedCNAEComplexidade = seedCNAEComplexidade;
 window.db_getVISAManual        = getVISAManual;
 window.db_upsertVISAManual     = upsertVISAManual;
 window.db_acquireVisaImportLock = acquireVisaImportLock;

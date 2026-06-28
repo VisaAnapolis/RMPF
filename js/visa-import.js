@@ -509,7 +509,6 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     onProgress(`📋 ${rowsFiltradas.length} inspeção(ões) encontrada(s) para ${mesStr}/${anoStr}.`, 'info');
 
     let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
-    const cnaeCache = new Map();
     const processedKeys = new Set(); // "fiscalEmail::controleVisa::cnae"
     const pontosEstadoCache = new Map();
 
@@ -521,28 +520,16 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       if (!controleVisa) continue;
 
       const subclasse = String(row['Atividade'] || '').replace(/"/g, '').trim();
-      let cnaeInfo = { complexidade: 'Média', descricao: '' };
-      if (subclasse) {
-        if (!cnaeCache.has(subclasse)) {
-          try {
-            const info = await window.db_getCNAEComplexidade(subclasse);
-            cnaeCache.set(subclasse, info || { complexidade: 'Média', descricao: subclasse });
-          } catch(_) {
-            cnaeCache.set(subclasse, { complexidade: 'Média', descricao: subclasse });
-          }
-        }
-        cnaeInfo = cnaeCache.get(subclasse) || { complexidade: 'Média', descricao: subclasse };
-      }
-
-      // Exceção do Decreto 49.723/2023 (item C) para o CNAE informado na inspeção.
-      let complexidadeOrigemInformado = null;
-      {
-        const ovrInf = subclasse && window.complexidadeDecreto ? window.complexidadeDecreto(subclasse) : null;
-        if (ovrInf && formatComplexidade(ovrInf) !== formatComplexidade(cnaeInfo.complexidade)) {
-          complexidadeOrigemInformado = cnaeInfo.complexidade;
-          cnaeInfo = { ...cnaeInfo, complexidade: ovrInf };
-        }
-      }
+      // Complexidade/descrição do CNAE informado vêm do cnaeMap (data/cnae.csv),
+      // já carregado em memória — fonte única de CNAE. O cnaeMap já aplica o
+      // override do Decreto 49.723/2023 (item C) e expõe a complexidade original
+      // em complexidade_origem (mesma fonte usada para os CNAEs do CAE abaixo).
+      // Default Média quando o CNAE não consta no cnae.csv.
+      const subInfo = subclasse ? cnaeMap.get(subclasse) : null;
+      const cnaeInfo = subInfo
+        ? { complexidade: subInfo.complexidade, descricao: subInfo.descricao }
+        : { complexidade: 'média', descricao: subclasse };
+      const complexidadeOrigemInformado = subInfo ? (subInfo.complexidade_origem || null) : null;
 
       const tipoRaw = String(row['tipo'] || row['TIPO'] || row['Tipo'] || '').replace(/"/g, '').trim();
       const tipoInfo = resolverTipoVisa(tipoRaw, cnaeInfo.complexidade);
@@ -589,15 +576,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       if (tipoInfo.tipo_codigo === 'VIS' && !entregaFalse) {
         const candidatos = [];
         // CNAE informado na inspeção (pontos pela complexidade; default média = 12).
-        // A equipe (alimentação IA/AG) vem do cnae.csv — o db_getCNAEComplexidade
-        // (Firestore) não a possui.
+        // complexidade/descrição/equipe (alimentação IA/AG) vêm todas do cnae.csv
+        // (cnaeMap/subInfo) — fonte única.
         if (subclasse) {
           candidatos.push({
             cnae: subclasse,
             complexidade: cnaeInfo.complexidade,
             complexidade_origem: complexidadeOrigemInformado,
             descricao: cnaeInfo.descricao,
-            equipe: (cnaeMap.get(subclasse) || {}).equipe || '',
+            equipe: (subInfo || {}).equipe || '',
             pontos: complexToItem(cnaeInfo.complexidade).pontos,
             informado: true,
           });
