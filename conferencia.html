@@ -97,6 +97,7 @@
             <col style="width:5%"><!-- OS -->
             <col style="width:5%"><!-- Documento -->
             <col style="width:5%"><!-- Origem CNAE -->
+            <col style="width:6%"><!-- Complexidade -->
             <col style="width:5%"><!-- Área -->
             <col style="width:5%"><!-- Fiscais -->
             <col style="width:13%"><!-- Descrição -->
@@ -115,6 +116,7 @@
               <th>OS</th>
               <th>Documento</th>
               <th class="td-center">Origem CNAE</th>
+              <th class="td-center">Complexidade</th>
               <th class="td-center">Área</th>
               <th class="td-center">Fiscais</th>
               <th>Descrição</th>
@@ -126,7 +128,7 @@
             </tr>
           </thead>
           <tbody id="tbody-conferencia">
-            <tr class="empty-row"><td colspan="15">Selecione um fiscal e competência</td></tr>
+            <tr class="empty-row"><td colspan="16">Selecione um fiscal e competência</td></tr>
           </tbody>
         </table>
       </div>
@@ -291,7 +293,7 @@
     }
     document.getElementById('alert-area').innerHTML = '';
     const tbody = document.getElementById('tbody-conferencia');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="15"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="16"><div class="spinner"></div></td></tr>';
 
     try {
       const _timeout = new Promise((_, rej) =>
@@ -309,7 +311,7 @@
       document.getElementById('metrics-wrap').style.display = '';
       renderTabela();
     } catch(e) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="15">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="16">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
     }
   }
 
@@ -318,7 +320,7 @@
     const isAdmin = _perfil === 'Administrador';
 
     if (!_manuais.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="15">Nenhum lançamento nesta competência</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="16">Nenhum lançamento nesta competência</td></tr>';
       return;
     }
 
@@ -367,6 +369,7 @@
         <td data-label="OS" class="td-nowrap">${escHtml(m.os_numero || '—')}</td>
         <td data-label="Documento">${escHtml(m.documento || '—')}</td>
         <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
+        <td data-label="Complexidade" class="td-center">${complexidadeHtml(m)}</td>
         <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>
         <td data-label="Fiscais" class="td-center td-nowrap">${m.qtd_fiscais != null ? escHtml(String(m.qtd_fiscais)) : '—'}</td>
         <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao||'—')}</a>` : escHtml(m.descricao||'—')}</td>

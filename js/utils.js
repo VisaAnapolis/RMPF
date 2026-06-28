@@ -19,6 +19,27 @@ const TABELA_PONTUACAO = [
   { item: 16, complexidade: "—",     pontos: 2,  descricao: "Certidão" },
 ];
 
+// ── Exceções de complexidade do Decreto 49.723/2023 (ANEXO VII, item C) ──
+// A complexidade segue a LC 377/2018 (refletida no cnae.csv do VISA), SALVO
+// estes CNAEs, reclassificados expressamente pelo decreto:
+//   C.1 → média complexidade | C.2 → baixa complexidade
+// A chave é o CNAE só com dígitos (ex.: "4639-7/02" → "4639702").
+const EXCECOES_COMPLEXIDADE_DECRETO = {
+  '4639702': 'Média',  // C.1
+  '3831901': 'Média',  // C.1
+  '3831999': 'Média',  // C.1
+  '3832700': 'Média',  // C.1
+  '3839499': 'Média',  // C.1
+  '8630503': 'Baixa',  // C.2
+};
+
+// Retorna a complexidade imposta pelo decreto para o CNAE, ou null quando não há
+// exceção (mantém-se então a classificação da fonte — cnae.csv/Firestore).
+function complexidadeDecreto(cnae) {
+  const norm = String(cnae || '').replace(/\D/g, '');
+  return EXCECOES_COMPLEXIDADE_DECRETO[norm] || null;
+}
+
 const TIPOS_ATIVIDADE = [
   { id: 1,  codigo: "VIS", nome: "Vistoria ou atendimento a denúncia",               itensPontuacao: [1, 2, 3],    somenteCsv: true  },
   { id: 2,  codigo: "ARQ", nome: "Análise de projeto arquitetônico",                  itensPontuacao: [4, 5],       somenteCsv: true  },
@@ -97,6 +118,31 @@ function escHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// Normaliza a complexidade armazenada (que pode vir como "alta"/"ALTA"/"Média"/…)
+// para exibição padronizada. Retorna '—' quando não se aplica.
+function formatComplexidade(c) {
+  const n = String(c || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (n === 'alta')  return 'Alta';
+  if (n === 'media') return 'Média';
+  if (n === 'baixa') return 'Baixa';
+  return '—';
+}
+
+// Célula HTML da coluna "Complexidade". Quando o lançamento foi reclassificado
+// pelo Decreto 49.723/2023 (campo complexidade_decreto), acrescenta o ícone ⚖️
+// com tooltip mostrando "origem → atual".
+function complexidadeHtml(m) {
+  const c = formatComplexidade(m && m.complexidade);
+  if (c === '—') return '—';
+  if (m && m.complexidade_decreto && m.complexidade_origem) {
+    const orig = formatComplexidade(m.complexidade_origem);
+    return `${c} <span class="cx-decreto" style="cursor:help" ` +
+      `title="Complexidade reclassificada pelo Decreto 49.723/2023 (item C): ${orig} → ${c}">⚖️</span>`;
+  }
+  return c;
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -107,3 +153,6 @@ window.badge            = badge;
 window.alerta           = alerta;
 window.mesAnoLabel      = mesAnoLabel;
 window.escHtml          = escHtml;
+window.complexidadeDecreto = complexidadeDecreto;
+window.formatComplexidade  = formatComplexidade;
+window.complexidadeHtml    = complexidadeHtml;

@@ -91,6 +91,7 @@
             <col style="width:5%">   <!-- OS -->
             <col style="width:5%">   <!-- Documento -->
             <col style="width:5%">   <!-- Origem CNAE -->
+            <col style="width:6%">   <!-- Complexidade -->
             <col style="width:5%">   <!-- Área -->
             <col style="width:5%">   <!-- Fiscais -->
             <col style="width:13%">  <!-- Descrição -->
@@ -109,6 +110,7 @@
               <th>OS</th>
               <th>Documento</th>
               <th class="td-center">Origem CNAE</th>
+              <th class="td-center">Complexidade</th>
               <th class="td-center">Área</th>
               <th class="td-center">Fiscais</th>
               <th>Descrição</th>
@@ -120,7 +122,7 @@
             </tr>
           </thead>
           <tbody id="tbody-lista">
-            <tr class="empty-row"><td colspan="15">Selecione uma competência e clique em Carregar</td></tr>
+            <tr class="empty-row"><td colspan="16">Selecione uma competência e clique em Carregar</td></tr>
           </tbody>
         </table>
       </div>
@@ -322,7 +324,7 @@
     const mes  = Number(document.getElementById('sel-mes').value);
     const ano  = Number(document.getElementById('sel-ano').value);
     const tbody = document.getElementById('tbody-lista');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="15"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="16"><div class="spinner"></div></td></tr>';
     document.getElementById('alert-area').innerHTML = '';
 
     try {
@@ -334,14 +336,14 @@
       ]);
       renderTabela();
     } catch(e) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="15">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="16">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
     }
   }
 
   function renderTabela() {
     const tbody = document.getElementById('tbody-lista');
     if (!_manuais.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="15">Nenhum lançamento nesta competência</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="16">Nenhum lançamento nesta competência</td></tr>';
       return;
     }
     tbody.innerHTML = [..._manuais].sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(m => {
@@ -414,6 +416,7 @@
         <td data-label="OS" class="td-nowrap">${escHtml(m.os_numero || '—')}</td>
         <td data-label="Documento">${escHtml(m.documento || '—')}</td>
         <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
+        <td data-label="Complexidade" class="td-center">${complexidadeHtml(m)}</td>
         <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>
         <td data-label="Fiscais" class="td-center td-nowrap">${m.qtd_fiscais != null ? escHtml(String(m.qtd_fiscais)) : '—'}</td>
         <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao || '—')}</a>` : escHtml(m.descricao || '—')}</td>
@@ -520,6 +523,15 @@
     return vistorias.length ? vistorias.length : null;
   }
 
+  // Bloqueia mover/editar uma Operação Fiscal (OPF) para data com vistoria(s)
+  // importada(s) (VISA/SIM). Decreto item 18: OPF não é cumulativa com vistoria.
+  async function bloqueioOpfComVistoria(idManual, dataISO) {
+    const m = _manuais.find(x => x.id === idManual);
+    if (!m || m.tipo_codigo !== 'OPF') return null;
+    const vistorias = await window.vistoriasNoDia(_user.email, dataISO, idManual);
+    return vistorias.length ? vistorias.length : null;
+  }
+
   document.getElementById('btn-save-edit').addEventListener('click', async () => {
     const id     = document.getElementById('edit-id').value;
     const data   = document.getElementById('edit-data').value;
@@ -546,6 +558,13 @@
         document.getElementById('edit-alert').innerHTML = alerta('danger',
           `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA. ` +
           `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisEdit}</strong> vistoria(s) importada(s).`);
+        return;
+      }
+      const qtdVisOpfEdit = await bloqueioOpfComVistoria(id, data);
+      if (qtdVisOpfEdit) {
+        document.getElementById('edit-alert').innerHTML = alerta('danger',
+          `🚫 Impossível mover operação fiscal para data com vistoria(s) importada(s). ` +
+          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisOpfEdit}</strong> vistoria(s) (VISA/SIM).`);
         return;
       }
       const validacao = await validarLimitePontosOcorrenciaEdicao(id, data, pontosNum);
@@ -632,6 +651,13 @@
         document.getElementById('corrigir-alert').innerHTML = alerta('danger',
           `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA. ` +
           `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisCorr}</strong> vistoria(s) importada(s).`);
+        return;
+      }
+      const qtdVisOpfCorr = await bloqueioOpfComVistoria(id, data);
+      if (qtdVisOpfCorr) {
+        document.getElementById('corrigir-alert').innerHTML = alerta('danger',
+          `🚫 Impossível mover operação fiscal para data com vistoria(s) importada(s). ` +
+          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisOpfCorr}</strong> vistoria(s) (VISA/SIM).`);
         return;
       }
       const validacao = await validarLimitePontosOcorrenciaEdicao(id, data, pontosNum);

@@ -49,6 +49,7 @@ async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano) {
       docsById: new Map(docs.map(d => [d.id, d])),
       byDia,
       plantaoDatas: datasComPlantaoManual(docs),
+      opfDatas: datasComOpfManual(docs),
     });
   }
   return cache.get(key);
@@ -86,6 +87,40 @@ async function vistoriasImportadasNoDia(fiscalEmail, dataISO, excluirId = null) 
   if (!ano || !mes) return [];
   const manuais = await window.db_getManuais(fiscalEmail, mes, ano);
   return manuais.filter(m => m.id !== excluirId && m.data === dataISO && ehVistoriaImportada(m));
+}
+
+// ── Regra Operação Fiscal (OPF) × Vistoria importada ─────
+// Decreto item 18: a operação fiscal (OPF, lançada manualmente) não é cumulativa
+// com a vistoria (VIS) no mesmo dia. Uma OPF manual zera os pontos das vistorias
+// importadas (VISA/SIM) lançadas na mesma data.
+function ehOpfManual(m) {
+  return !!m && m.tipo_codigo === 'OPF' &&
+         m.origem !== 'visa_csv' && m.origem !== 'sim_csv' && m.status !== 'recusado';
+}
+
+function datasComOpfManual(manuais) {
+  const s = new Set();
+  for (const m of (manuais || [])) {
+    if (ehOpfManual(m) && m.data) s.add(m.data);
+  }
+  return s;
+}
+
+// Vistoria importada (VISA ou SIM) — usada para bloquear o lançamento de OPF
+// manual em data que já possui vistoria.
+function ehVistoriaQualquer(m) {
+  return !!m && m.tipo_codigo === 'VIS' && (m.origem === 'visa_csv' || m.origem === 'sim_csv');
+}
+
+async function vistoriasNoDia(fiscalEmail, dataISO, excluirId = null) {
+  if (!fiscalEmail || !dataISO) return [];
+  const parts = String(dataISO).split('-');
+  if (parts.length !== 3) return [];
+  const ano = Number(parts[0]);
+  const mes = Number(parts[1]);
+  if (!ano || !mes) return [];
+  const manuais = await window.db_getManuais(fiscalEmail, mes, ano);
+  return manuais.filter(m => m.id !== excluirId && m.data === dataISO && ehVistoriaQualquer(m));
 }
 
 function visaMesAberto(mes, ano) {
@@ -351,11 +386,18 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         for (const r of cnaeParsed.data) {
           const sub = String(r['Subclasse'] || '').replace(/"/g, '').trim();
           if (!sub) continue;
-          const compNorm = normNomeVisa(r['Complexidade'] || '').toLowerCase();
+          let compNorm = normNomeVisa(r['Complexidade'] || '').toLowerCase();
           if (compNorm !== 'alta' && compNorm !== 'media' && compNorm !== 'baixa') continue;
+          // Exceção do Decreto 49.723/2023 (item C) sobrepõe a classificação da LC 377.
+          let complexidadeOrigem = null;
+          const ovr = complexidadeDecreto(sub);
+          if (ovr) {
+            const ovrNorm = normNomeVisa(ovr).toLowerCase();
+            if (ovrNorm !== compNorm) { complexidadeOrigem = compNorm; compNorm = ovrNorm; }
+          }
           const desc = String(r['Atividade'] || '').replace(/"/g, '').trim();
           const equipe = String(r['equipe'] || r['Equipe'] || r['EQUIPE'] || '').replace(/"/g, '').trim();
-          cnaeMap.set(sub, { complexidade: compNorm, descricao: desc, equipe });
+          cnaeMap.set(sub, { complexidade: compNorm, complexidade_origem: complexidadeOrigem, descricao: desc, equipe });
         }
         onProgress(`🧬 ${cnaeMap.size} CNAE(s) de competência carregado(s).`, 'info');
       }
@@ -492,6 +534,16 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         cnaeInfo = cnaeCache.get(subclasse) || { complexidade: 'Média', descricao: subclasse };
       }
 
+      // Exceção do Decreto 49.723/2023 (item C) para o CNAE informado na inspeção.
+      let complexidadeOrigemInformado = null;
+      {
+        const ovrInf = subclasse ? complexidadeDecreto(subclasse) : null;
+        if (ovrInf && formatComplexidade(ovrInf) !== formatComplexidade(cnaeInfo.complexidade)) {
+          complexidadeOrigemInformado = cnaeInfo.complexidade;
+          cnaeInfo = { ...cnaeInfo, complexidade: ovrInf };
+        }
+      }
+
       const tipoRaw = String(row['tipo'] || row['TIPO'] || row['Tipo'] || '').replace(/"/g, '').trim();
       const tipoInfo = resolverTipoVisa(tipoRaw, cnaeInfo.complexidade);
 
@@ -543,6 +595,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           candidatos.push({
             cnae: subclasse,
             complexidade: cnaeInfo.complexidade,
+            complexidade_origem: complexidadeOrigemInformado,
             descricao: cnaeInfo.descricao,
             equipe: (cnaeMap.get(subclasse) || {}).equipe || '',
             pontos: complexToItem(cnaeInfo.complexidade).pontos,
@@ -557,6 +610,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           candidatos.push({
             cnae: item.cnae,
             complexidade: info.complexidade,
+            complexidade_origem: info.complexidade_origem || null,
             descricao: info.descricao,
             equipe: info.equipe || '',
             pontos: complexToItem(info.complexidade).pontos,
@@ -605,13 +659,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           alvos.push({ cnae: c.cnae, complexidade: c.complexidade, descricao: c.descricao,
                        cnae_origem: c.informado ? 'INS' : 'CAE',
                        pontos: c.pontos, visa_area: c.visa_area ?? null,
-                       qtd_fiscais: c.qtd_fiscais ?? null });
+                       qtd_fiscais: c.qtd_fiscais ?? null,
+                       complexidade_origem: c.complexidade_origem || null });
         }
       } else {
         // Tipos não-VIS: o CNAE é sempre o informado na inspeção (inspecoes.csv).
         // A redução por dupla/trio não se aplica (abrangência = só Vistorias).
         alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao,
-                     cnae_origem: subclasse ? 'INS' : '', pontos: null, visa_area: null, qtd_fiscais: null });
+                     cnae_origem: subclasse ? 'INS' : '', pontos: null, visa_area: null, qtd_fiscais: null,
+                     complexidade_origem: complexidadeOrigemInformado || null });
       }
 
       if (alvos.length === 0) {
@@ -669,6 +725,13 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   `plantão fiscal manual em ${fmtData(dataISO)}.`,
                   'warn'
                 );
+              } else if (estadoPontos.opfDatas.has(dataISO)) {
+                pontosFiscal = 0;
+                onProgress(
+                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
+                  `operação fiscal (OPF) manual em ${fmtData(dataISO)}.`,
+                  'warn'
+                );
               }
             }
 
@@ -712,6 +775,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 tipo_nome: tipoInfoA.tipo_nome,
                 item_pontuacao: tipoInfoA.item_pontuacao,
                 complexidade: alvo.complexidade,
+                complexidade_decreto: !!alvo.complexidade_origem,
+                complexidade_origem: alvo.complexidade_origem || null,
                 pontos: pontosFiscal, descricao: descricaoA,
                 motivo_os: motivoOS,
                 os_numero: osNumero,
@@ -775,6 +840,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 tipo_nome: tipoInfoA.tipo_nome,
                 item_pontuacao: tipoInfoA.item_pontuacao,
                 complexidade: alvo.complexidade,
+                complexidade_decreto: !!alvo.complexidade_origem,
+                complexidade_origem: alvo.complexidade_origem || null,
                 pontos: pontosFiscal, descricao: descricaoA,
                 motivo_os: motivoOS,
                 os_numero: osNumero,
@@ -845,3 +912,5 @@ window.ehPlantaoManual          = ehPlantaoManual;
 window.ehVistoriaImportada      = ehVistoriaImportada;
 window.datasComPlantaoManual    = datasComPlantaoManual;
 window.vistoriasImportadasNoDia = vistoriasImportadasNoDia;
+window.datasComOpfManual        = datasComOpfManual;
+window.vistoriasNoDia           = vistoriasNoDia;

@@ -50,7 +50,11 @@ async function _getEstadoPontosSim(cache, emailFiscal, mes, ano) {
     const docs = await window.db_getManuais(emailFiscal, mes, ano);
     const byDia = new Map();
     for (const d of docs) _aplicarManualNoMapaPontosSim(byDia, d, 1);
-    cache.set(key, { docsById: new Map(docs.map(d => [d.id, d])), byDia });
+    cache.set(key, {
+      docsById: new Map(docs.map(d => [d.id, d])),
+      byDia,
+      opfDatas: window.datasComOpfManual ? window.datasComOpfManual(docs) : new Set(),
+    });
   }
   return cache.get(key);
 }
@@ -145,6 +149,21 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
         const existing = await window.db_getSIMManual(osNum, emailFiscal);
         let estadoPontos = null;
 
+        // ── Vistoria SIM não cumulativa com operação fiscal (OPF) manual ──
+        // Decreto item 18: uma OPF manual na mesma data zera a vistoria importada.
+        let pontosOs = pontos;
+        if (dataISO) {
+          const estadoOpf = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
+          if (estadoOpf.opfDatas && estadoOpf.opfDatas.has(dataISO)) {
+            pontosOs = 0;
+            onProgress(
+              `⚠️ OS ${osNum} — ${nomeFiscalOs}: vistoria zerada — ` +
+              `operação fiscal (OPF) manual em ${fmtData(dataISO)}.`,
+              'warn'
+            );
+          }
+        }
+
         // ── Verificar limite de 24 pts em dia com ocorrência aceita ─
         if (dataISO) {
           const dtParts = dataISO.split('-');
@@ -159,7 +178,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
                 ? (Number(existing.pontos) || 0)
                 : 0;
             const baseDia = somaDia - pontosExistenteMesmoDoc;
-            const totalDia = baseDia + (Number(pontos) || 0);
+            const totalDia = baseDia + (Number(pontosOs) || 0);
             if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
               ignorados++;
               onProgress(
@@ -185,7 +204,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             tipo_nome: 'Vistoria ou atendimento a denúncia',
             item_pontuacao: item,
             complexidade: SIM_COMPLEXIDADE,
-            pontos, descricao,
+            pontos: pontosOs, descricao,
             origem: 'sim_csv',
             sim_os: osNum,
             os_doc_id: os._docId || null,
@@ -218,7 +237,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             tipo_nome: 'Vistoria ou atendimento a denúncia',
             item_pontuacao: item,
             complexidade: SIM_COMPLEXIDADE,
-            pontos, descricao,
+            pontos: pontosOs, descricao,
             status: 'enviado',
             origem: 'sim_csv',
             sim_os: osNum,
@@ -226,7 +245,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
           }, null, true);
           const estado = estadoPontos || await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
           _aplicarManualNoMapaPontosSim(estado.byDia, {
-            data: dataISO, pontos, origem: 'sim_csv', status: 'enviado',
+            data: dataISO, pontos: pontosOs, origem: 'sim_csv', status: 'enviado',
           }, 1);
           criados++;
         }
