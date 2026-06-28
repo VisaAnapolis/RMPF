@@ -340,6 +340,7 @@ table.rmpf-table {
 .rmpf-table tbody tr:last-child td { border-bottom: none; }
 .rmpf-table .td-num { text-align: right; font-variant-numeric: tabular-nums; }
 .rmpf-table .td-center { text-align: center; }
+.rmpf-table .td-nowrap { white-space: nowrap; }
 .rmpf-table .empty-row td {
   text-align: center;
   color: var(--cinzaT);

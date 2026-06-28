@@ -434,10 +434,13 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         for (const c of candidatos) {
           if (somaPontos + c.pontos > TETO_PONTOS_CNAE_VISA) continue; // não cabe → não lança
           somaPontos += c.pontos;
-          alvos.push({ cnae: c.cnae, complexidade: c.complexidade, descricao: c.descricao });
+          alvos.push({ cnae: c.cnae, complexidade: c.complexidade, descricao: c.descricao,
+                       cnae_origem: c.informado ? 'INS' : 'CAE' });
         }
       } else {
-        alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao });
+        // Tipos não-VIS: o CNAE é sempre o informado na inspeção (inspecoes.csv).
+        alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao,
+                     cnae_origem: subclasse ? 'INS' : '' });
       }
 
       if (alvos.length === 0) {
@@ -542,6 +545,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 origem: 'visa_csv',
                 visa_controle: controleVisa,
                 visa_cnae: alvo.cnae,
+                cnae_origem: alvo.cnae_origem,
               };
               if (existing.status === 'recusado') {
                 updateData.status = 'enviado';
@@ -601,6 +605,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 origem: 'visa_csv',
                 visa_controle: controleVisa,
                 visa_cnae: alvo.cnae,
+                cnae_origem: alvo.cnae_origem,
               }, null, true, alvo.cnae);
               const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
               _aplicarManualNoMapaPontosVisa(estado.byDia, {
