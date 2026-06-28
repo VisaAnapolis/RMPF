@@ -182,22 +182,6 @@
       <div id="workflow-notify-log" style="margin-top:12px"></div>
     </div>
 
-    <!-- ── CNAE Complexidade — Seed ── -->
-    <div class="card" id="card-seed-cnae">
-      <div class="card-title">🧬 Tabela CNAE / Complexidade</div>
-      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
-        Copia a tabela de complexidade CNAE do VISA para o Firestore. Execute este procedimento
-        uma vez antes de usar a importação de inspeções, e repita sempre que a tabela
-        <code>cnae.csv</code> do VISA for atualizada. A operação é segura e pode ser repetida.
-      </p>
-      <div class="btn-group">
-        <button class="btn btn-outline" id="btn-seed-cnae" type="button">
-          🔄 Sincronizar CNAE com Firestore
-        </button>
-      </div>
-      <div id="seed-cnae-log" style="margin-top:12px"></div>
-    </div>
-
     <!-- ── Importação VISA e SIM ── -->
     <div class="card" id="card-import-visa-sim">
       <div class="card-title">📥 Importação VISA e SIM</div>
@@ -928,30 +912,6 @@
           'Os índices ficam ativos em alguns minutos após a conclusão.'
         );
       } catch (e) {
-        logEl.innerHTML = alerta('danger', '🚨 Erro: ' + escHtml(e.message));
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
-    // ── Seed CNAE ────────────────────────────────────────
-    document.getElementById('btn-seed-cnae').addEventListener('click', async () => {
-      const btn   = document.getElementById('btn-seed-cnae');
-      const logEl = document.getElementById('seed-cnae-log');
-      btn.disabled = true;
-      logEl.innerHTML = alerta('info', '🔄 Buscando <code>cnae.csv</code> do VISA...');
-      try {
-        const text = await window.fetchGitHubCSV('data/cnae.csv');
-        const parsed = Papa.parse(text, {
-          header: true,
-          delimiter: ';',
-          skipEmptyLines: true,
-          transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
-        });
-        logEl.innerHTML = alerta('info', `⚙️ Gravando ${parsed.data.length} registros no Firestore…`);
-        const count = await db_seedCNAEComplexidade(parsed.data);
-        logEl.innerHTML = alerta('ok', `✅ ${count} registros CNAE sincronizados com sucesso.`);
-      } catch(e) {
         logEl.innerHTML = alerta('danger', '🚨 Erro: ' + escHtml(e.message));
       } finally {
         btn.disabled = false;
