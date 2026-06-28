@@ -421,6 +421,20 @@
       }
     }
 
+    // ── Operação fiscal (OPF) não cumulativa com vistoria (Decreto item 18) ──
+    // Não permite lançar OPF em data que já possui vistoria importada (VISA/SIM).
+    if (tipo.codigo === 'OPF') {
+      const vistorias = await window.vistoriasNoDia(user.email, data);
+      if (vistorias.length) {
+        showAlert('danger',
+          `🚫 Impossível lançar operação fiscal em data com vistoria(s) importada(s). ` +
+          `O dia <strong>${fmtData(data)}</strong> já possui <strong>${vistorias.length}</strong> ` +
+          `vistoria(s) (VISA/SIM) — operação fiscal não é cumulativa com vistoria no mesmo dia.`);
+        btns.forEach(b => { b.disabled = false; });
+        return;
+      }
+    }
+
     const pontosNum = Number(pontos);
     if (Number.isNaN(pontosNum)) {
       showAlert('warn', 'Informe os pontos corretamente.');

@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.11.0</span>
+            <span class="badge-date">28/06/2026</span>
+          </div>
+          <div class="changelog-title">Conformidade com o Decreto 49.723/2023: exceções de complexidade (C.1/C.2) e operação fiscal não cumulativa (item 18)</div>
+          <ul class="changelog-changes">
+            <li><strong>Exceções de complexidade do decreto (item C)</strong> — alguns CNAEs passam a ser classificados conforme o decreto, sobrepondo a LC 377/2018 (cnae.csv): como <strong>média complexidade</strong> os CNAEs <code>4639-7/02</code>, <code>3831-9/01</code>, <code>3831-9/99</code>, <code>3832-7/00</code> e <code>3839-4/99</code> (item C.1); como <strong>baixa complexidade</strong> o CNAE <code>8630-5/03</code> (item C.2). A regra vale para o CNAE informado e para os CNAEs do regulado, é aplicada <strong>antes</strong> da pontuação por área e do teto de 48, e também corrige o seed do Firestore.</li>
+            <li><strong>Coluna "Complexidade" e marcação de reclassificação</strong> — nova coluna "Complexidade" após "Origem CNAE" em <code>conferencia.html</code> e <code>meus-lancamentos.html</code>, exibindo a complexidade de cada lançamento. Quando o valor foi reclassificado pelo decreto, aparece o ícone ⚖️ com tooltip "origem → atual". Novos campos <code>complexidade_decreto</code> e <code>complexidade_origem</code> gravados em cada lançamento importado.</li>
+            <li><strong>Operação fiscal (OPF) não cumulativa com vistoria</strong> — conforme o item 18 do decreto, a OPF não soma pontos com a vistoria (VIS) no mesmo dia. Não é permitido lançar/mover uma OPF para data que já possui vistoria importada (VISA/SIM) em <code>lancamento.html</code> e na edição de <code>meus-lancamentos.html</code>; e, ao importar uma vistoria (VISA ou SIM) numa data com OPF manual, a vistoria entra com <strong>0 pontos</strong> (mesmo tratamento já adotado para Plantão Fiscal × Vistoria).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.10.1</span>
             <span class="badge-date">28/06/2026</span>
           </div>

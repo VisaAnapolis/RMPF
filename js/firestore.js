@@ -208,9 +208,12 @@ async function seedCNAEComplexidade(rows) {
       row['Subclasse'] || row['subclasse'] || row['SUBCLASSE'] || ''
     ).replace(/"/g, '').trim();
     if (!sub) continue;
-    const complexidade = String(
+    const complexidadeCsv = String(
       row['Complexidade'] || row['complexidade'] || row['COMPLEXIDADE'] || ''
     ).replace(/"/g, '').trim();
+    // Exceções do Decreto 49.723/2023 (item C) sobrepõem a classificação do cnae.csv.
+    const ovrDecreto = (typeof complexidadeDecreto === 'function') ? complexidadeDecreto(sub) : null;
+    const complexidade = ovrDecreto || complexidadeCsv;
     const descricao = String(
       row['Descrição'] || row['Descricao'] || row['descricao'] ||
       row['Denominação'] || row['Denominacao'] || row['denominacao'] ||
