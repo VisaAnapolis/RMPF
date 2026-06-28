@@ -172,6 +172,19 @@ function dispositivoLegal(itemPontuacao, pontos, duplaReducao) {
   return texto;
 }
 
+const _TIPO_OCR_TO_DISPOSITIVO = {
+  ferias:           'Art. 11, inciso I, da Lei Complementar nº 548/2023',
+  licenca_medica:   'Art. 11, inciso V, da Lei Complementar nº 548/2023',
+  licenca_gestante: 'Art. 11, inciso VII, da Lei Complementar nº 548/2023',
+  cargo_comissao:   'Art. 11, inciso X, da Lei Complementar nº 548/2023',
+  afastamento_legal:'Art. 11 da Lei Complementar nº 548/2023',
+  outros:           'Art. 11 da Lei Complementar nº 548/2023',
+};
+
+function dispositivoLegalOcorrencia(tipo) {
+  return _TIPO_OCR_TO_DISPOSITIVO[tipo] || 'Art. 11 da Lei Complementar nº 548/2023';
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -185,4 +198,5 @@ window.escHtml          = escHtml;
 window.complexidadeDecreto = complexidadeDecreto;
 window.formatComplexidade  = formatComplexidade;
 window.complexidadeHtml    = complexidadeHtml;
-window.dispositivoLegal    = dispositivoLegal;
+window.dispositivoLegal         = dispositivoLegal;
+window.dispositivoLegalOcorrencia = dispositivoLegalOcorrencia;

@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.12.1</span>
+            <span class="badge-date">28/06/2026</span>
+          </div>
+          <div class="changelog-title">Dispositivo legal nas ocorrências + novo tipo "Cargo em Comissão"</div>
+          <ul class="changelog-changes">
+            <li><strong>Campo <code>dispositivo_legal</code> nas ocorrências</strong> — ao registrar uma ocorrência, o campo é gravado automaticamente com o artigo e inciso exatos do <strong>Art. 11 da Lei Complementar nº 548/2023</strong>. Exemplos: <em>"Art. 11, inciso I..."</em> para férias; <em>"Art. 11, inciso VII..."</em> para licença gestante. Os lançamentos de 50 pts/dia gerados ao aceitar a ocorrência também recebem o campo, tornando-os visíveis com o ícone ⚖️ em <code>meus-lancamentos.html</code> e <code>conferencia.html</code>.</li>
+            <li><strong>Modal ⚖️ em <code>ocorrencias.html</code></strong> — todas as ocorrências com <code>dispositivo_legal</code> preenchido exibem o ícone ao lado do badge de status. Ao clicar, abre modal com o texto do embasamento legal.</li>
+            <li><strong>Novo tipo de ocorrência: Cargo em Comissão</strong> — adicionada a opção <em>"Cargo em Comissão"</em> (Art. 11, inciso X — exercício de cargo em comissão ou função comissionada no âmbito do Poder Executivo Municipal) ao formulário e a todas as tabelas/labels do sistema.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.12.0</span>
             <span class="badge-date">28/06/2026</span>
           </div>
