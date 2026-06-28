@@ -44,36 +44,6 @@
       <select class="form-control" id="sel-mes" style="max-width:140px"></select>
       <select class="form-control" id="sel-ano" style="max-width:90px"></select>
       <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
-      <button class="btn btn-outline btn-sm" id="btn-import-visa" type="button"
-              style="display:none" disabled title="">
-        📥 Importar Inspeções do CVS
-      </button>
-      <button class="btn btn-outline btn-sm" id="btn-import-sim" type="button"
-              style="display:none" disabled title="">
-        📥 Importar Auditorias SIM
-      </button>
-    </div>
-
-    <div id="import-visa-log" style="margin-bottom:8px"></div>
-    <div id="import-progress-wrap" class="progress-wrap" style="display:none">
-      <div class="progress-header">
-        <span class="progress-label" id="import-progress-label">Processando…</span>
-        <span class="progress-pct" id="import-progress-pct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="import-progress-fill"></div>
-      </div>
-    </div>
-
-    <div id="import-sim-log" style="margin-bottom:8px"></div>
-    <div id="import-sim-progress-wrap" class="progress-wrap" style="display:none">
-      <div class="progress-header">
-        <span class="progress-label" id="import-sim-progress-label">Processando…</span>
-        <span class="progress-pct" id="import-sim-progress-pct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="import-sim-progress-fill"></div>
-      </div>
     </div>
 
     <!-- Metric summary -->
@@ -239,6 +209,7 @@
 <script src="js/guard.js"></script>
 <script src="js/visa-import.js"></script>
 <script src="js/sim-import.js"></script>
+<script src="js/visa-auto-import.js"></script>
 <script src="js/notifications.js"></script>
 <script>
   let _user        = null;
@@ -595,133 +566,13 @@
     const params = new URLSearchParams(location.search);
     if (params.get('fiscal')) document.getElementById('sel-fiscal').value = params.get('fiscal');
 
-    // ── Importação VISA e SIM (Administrador) ───────────
-    const btnImportVisa = document.getElementById('btn-import-visa');
-    const btnImportSim  = document.getElementById('btn-import-sim');
-    if (_perfil === 'Administrador') {
-      btnImportVisa.style.display = '';
-      btnImportSim.style.display  = '';
+    // ── Importação automática do VISA (Administrador) ───
+    // O botão manual de importação foi removido desta tela; as inspeções do
+    // VISA são importadas automaticamente para todos os fiscais quando o CSV
+    // muda (ao carregar e por polling), reusando a lógica de visa-import.js.
+    if (typeof window.iniciarAutoImportVISA === 'function') {
+      window.iniciarAutoImportVISA(user);
     }
-
-    function atualizarBtnImportConf() {
-      const mes = Number(document.getElementById('sel-mes').value);
-      const ano = Number(document.getElementById('sel-ano').value);
-      if (!visaMesAberto(mes, ano)) {
-        btnImportVisa.disabled = true;
-        btnImportVisa.title    = 'Mês anterior a Abril/2026 — impossível importar';
-      } else {
-        btnImportVisa.disabled = false;
-        btnImportVisa.title    = 'Importar inspeções do VISA para o fiscal selecionado';
-      }
-      if (!simMesAberto(mes, ano)) {
-        btnImportSim.disabled = true;
-        btnImportSim.title    = 'Mês anterior a Abril/2026 — impossível importar';
-      } else {
-        btnImportSim.disabled = false;
-        btnImportSim.title    = 'Importar auditorias do SIM para o fiscal selecionado';
-      }
-    }
-    document.getElementById('sel-mes').addEventListener('change', atualizarBtnImportConf);
-    document.getElementById('sel-ano').addEventListener('change', atualizarBtnImportConf);
-
-    const progressWrap  = document.getElementById('import-progress-wrap');
-    const progressLabel = document.getElementById('import-progress-label');
-    const progressPct   = document.getElementById('import-progress-pct');
-    const progressFill  = document.getElementById('import-progress-fill');
-
-    function mostrarProgresso(atual, total) {
-      if (!total) return;
-      progressWrap.style.display = '';
-      const pct = Math.round((atual / total) * 100);
-      progressFill.style.width  = pct + '%';
-      progressPct.textContent   = pct + '%';
-      progressLabel.textContent = `Processando inspeção ${atual} de ${total}…`;
-    }
-    function ocultarProgresso() {
-      progressWrap.style.display = 'none';
-      progressFill.style.width   = '0%';
-    }
-
-    btnImportVisa.addEventListener('click', async () => {
-      const fiscalEmail = document.getElementById('sel-fiscal').value;
-      const mes  = Number(document.getElementById('sel-mes').value);
-      const ano  = Number(document.getElementById('sel-ano').value);
-      if (!fiscalEmail) {
-        document.getElementById('alert-area').innerHTML = alerta('warn', 'Selecione um fiscal antes de importar.');
-        return;
-      }
-      const logEl  = document.getElementById('import-visa-log');
-      const btn    = btnImportVisa;
-      btn.disabled = true;
-      logEl.innerHTML = '';
-      ocultarProgresso();
-      const msgs = [];
-      const onProgress = (msg, type) => {
-        msgs.push(alerta(type, msg));
-        logEl.innerHTML = msgs.slice(-6).join('');
-      };
-      try {
-        const allFiscais = await db_getTodosFiscais();
-        await importarInspecoesVISA({ fiscalEmail, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
-        loadConferencia();
-      } catch(e) {
-        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
-      } finally {
-        btn.disabled = !visaMesAberto(mes, ano);
-        ocultarProgresso();
-      }
-    });
-
-
-    // ── Importação SIM (admin/administrativo) ────────────
-    const simProgressWrap  = document.getElementById('import-sim-progress-wrap');
-    const simProgressLabel = document.getElementById('import-sim-progress-label');
-    const simProgressPct   = document.getElementById('import-sim-progress-pct');
-    const simProgressFill  = document.getElementById('import-sim-progress-fill');
-
-    function mostrarProgressoSim(atual, total) {
-      if (!total) return;
-      simProgressWrap.style.display = '';
-      const pct = Math.round((atual / total) * 100);
-      simProgressFill.style.width  = pct + '%';
-      simProgressPct.textContent   = pct + '%';
-      simProgressLabel.textContent = `Processando auditoria ${atual} de ${total}…`;
-    }
-    function ocultarProgressoSim() {
-      simProgressWrap.style.display = 'none';
-      simProgressFill.style.width   = '0%';
-    }
-
-    btnImportSim.addEventListener('click', async () => {
-      const fiscalEmail = document.getElementById('sel-fiscal').value;
-      const mes  = Number(document.getElementById('sel-mes').value);
-      const ano  = Number(document.getElementById('sel-ano').value);
-      if (!fiscalEmail) {
-        document.getElementById('alert-area').innerHTML = alerta('warn', 'Selecione um fiscal antes de importar.');
-        return;
-      }
-      const logEl  = document.getElementById('import-sim-log');
-      const btn    = btnImportSim;
-      btn.disabled = true;
-      logEl.innerHTML = '';
-      ocultarProgressoSim();
-      const msgs = [];
-      const onProgress = (msg, type) => {
-        msgs.push(alerta(type, msg));
-        logEl.innerHTML = msgs.slice(-6).join('');
-      };
-      try {
-        const allFiscais = await db_getTodosFiscais();
-        await importarAuditoriasSIM({ fiscalEmail, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgressoSim });
-        loadConferencia();
-      } catch(e) {
-        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
-      } finally {
-        btn.disabled = !simMesAberto(mes, ano);
-        ocultarProgressoSim();
-      }
-    });
-
 
     buildMesSelect('sel-mes');
     buildAnoSelect('sel-ano');
@@ -743,7 +594,6 @@
     } catch (e) { console.warn('[Conferencia] Falha ao obter próxima competência:', e); }
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
-    atualizarBtnImportConf();
 
     // Apply mes/ano from URL params (override competencia defaults if present)
     if (params.get('mes'))    document.getElementById('sel-mes').value    = params.get('mes');

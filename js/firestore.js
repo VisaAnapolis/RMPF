@@ -333,6 +333,16 @@ async function releaseVisaImportLock(mes, ano) {
   await window.db.collection('visa_import_locks').doc(docId).delete();
 }
 
+// Renova o timestamp do lock para evitar que uma importação longa (todos os
+// fiscais) seja considerada "stale" (> 3 min) por outra sessão e gere
+// importação duplicada. Chamada como heartbeat durante o loop de importação.
+async function refreshVisaImportLock(mes, ano) {
+  const docId = _visaLockDocId(mes, ano);
+  await window.db.collection('visa_import_locks').doc(docId).set({
+    locked_at: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
 // ── SIM Manuais (importados da coleção ordens_servico) ───
 
 function _simDocId(osNum, fiscalEmail) {
@@ -785,6 +795,63 @@ async function fetchGitHubCSV(filePath) {
   return resp.text();
 }
 
+/**
+ * Retorna o SHA do último commit que tocou um arquivo no repositório VISA.
+ * Usado como "token de mudança" barato para detectar quando o CSV foi
+ * atualizado, sem baixar o arquivo inteiro.
+ * @param {string} filePath  Caminho dentro do repo, ex.: 'data/inspecoes.csv'
+ * @returns {Promise<string|null>} SHA do commit mais recente, ou null se não houver.
+ */
+async function fetchGitHubFileCommitSha(filePath) {
+  const token = await db_getGitHubToken();
+  if (!token) throw new Error('Token do GitHub não configurado. Acesse Admin → 🔑 Token do GitHub para configurar.');
+  const url = `https://api.github.com/repos/garrado/VISA/commits?path=${encodeURIComponent(filePath)}&per_page=1`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 s
+  let resp;
+  try {
+    resp = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Tempo limite excedido ao consultar o GitHub (20 s).');
+    }
+    throw new Error('Falha de rede ao consultar o GitHub.');
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (resp.status === 401) throw new Error('Token do GitHub inválido ou expirado.');
+  if (resp.status === 403) throw new Error('Acesso negado ao repositório VISA. Verifique as permissões do token.');
+  if (!resp.ok) throw new Error('Não foi possível consultar commits do repositório VISA: HTTP ' + resp.status);
+  const arr = await resp.json();
+  return Array.isArray(arr) && arr.length ? (arr[0].sha || null) : null;
+}
+
+// ── App Config / Estado de Importação (detecção de mudança) ──
+// Guarda o "token de mudança" da última importação automática por fonte,
+// ex.: { visa: { commit_sha, mes, ano, imported_at } }. Evita reimportar
+// quando o CSV não mudou desde a última execução.
+
+async function getImportState() {
+  const doc = await window.db.collection('app_config').doc('import_state').get();
+  return doc.exists ? (doc.data() || {}) : {};
+}
+
+async function setImportState(patch) {
+  await window.db.collection('app_config').doc('import_state').set({
+    ...patch,
+    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
 // ── Anexos de Manuais (Upload / Remoção) ─────────────────
 
 const ANEXO_TIPOS_ACEITOS = {
@@ -984,6 +1051,7 @@ window.db_getVISAManual        = getVISAManual;
 window.db_upsertVISAManual     = upsertVISAManual;
 window.db_acquireVisaImportLock = acquireVisaImportLock;
 window.db_releaseVisaImportLock = releaseVisaImportLock;
+window.db_refreshVisaImportLock = refreshVisaImportLock;
 window.db_getSIMManual          = getSIMManual;
 window.db_upsertSIMManual       = upsertSIMManual;
 window.db_acquireSimImportLock  = acquireSimImportLock;
@@ -992,6 +1060,9 @@ window.db_getOrdensServicoConcluidas = getOrdensServicoConcluidas;
 window.db_getGitHubToken        = db_getGitHubToken;
 window.db_setGitHubToken        = db_setGitHubToken;
 window.fetchGitHubCSV           = fetchGitHubCSV;
+window.fetchGitHubFileCommitSha = fetchGitHubFileCommitSha;
+window.db_getImportState        = getImportState;
+window.db_setImportState        = setImportState;
 window.db_getAnexosPorMes       = getAnexosPorMes;
 window.db_getFechamentosTodos   = getFechamentosTodos;
 window.db_uploadAnexoManual     = uploadAnexoManual;
