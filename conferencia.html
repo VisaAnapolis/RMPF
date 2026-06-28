@@ -92,12 +92,13 @@
           <colgroup>
             <col style="width:8%"><!-- Controle -->
             <col style="width:7%"><!-- Data -->
-            <col style="width:10%"><!-- Tipo -->
-            <col style="width:7%"><!-- Origem da Demanda -->
+            <col style="width:9%"><!-- Tipo -->
+            <col style="width:6%"><!-- Origem da Demanda -->
             <col style="width:7%"><!-- OS -->
-            <col style="width:8%"><!-- Documento -->
+            <col style="width:7%"><!-- Documento -->
             <col style="width:6%"><!-- Origem CNAE -->
-            <col style="width:20%"><!-- Descrição -->
+            <col style="width:5%"><!-- Área -->
+            <col style="width:18%"><!-- Descrição -->
             <col style="width:3%"><!-- Pts Req. -->
             <col style="width:3%"><!-- Pts Hom. -->
             <col style="width:7%"><!-- Status -->
@@ -113,6 +114,7 @@
               <th>OS</th>
               <th>Documento</th>
               <th class="td-center">Origem CNAE</th>
+              <th class="td-center">Área</th>
               <th>Descrição</th>
               <th class="td-num">Pts Req.</th>
               <th class="td-num">Pts Hom.</th>
@@ -122,7 +124,7 @@
             </tr>
           </thead>
           <tbody id="tbody-conferencia">
-            <tr class="empty-row"><td colspan="12">Selecione um fiscal e competência</td></tr>
+            <tr class="empty-row"><td colspan="14">Selecione um fiscal e competência</td></tr>
           </tbody>
         </table>
       </div>
@@ -169,6 +171,29 @@
           <button class="btn btn-default" id="modal-close2">Cancelar</button>
           <button class="btn btn-danger" id="btn-recusar">✗ Recusar</button>
           <button class="btn btn-primary" id="btn-aceitar">✓ Aceitar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: Dados do Regulado (abre ao clicar na Descrição) -->
+    <div id="modal-regulado" class="modal-backdrop" style="display:none">
+      <div class="modal">
+        <div class="modal-header">
+          <span>Dados do Regulado</span>
+          <button class="modal-close" id="reg-close">✕</button>
+        </div>
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label">Código</label>
+            <input class="form-control" id="reg-codigo" disabled>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Razão Social</label>
+            <input class="form-control" id="reg-razao" disabled>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-default" id="reg-close2">Fechar</button>
         </div>
       </div>
     </div>
@@ -264,7 +289,7 @@
     }
     document.getElementById('alert-area').innerHTML = '';
     const tbody = document.getElementById('tbody-conferencia');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="10"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="14"><div class="spinner"></div></td></tr>';
 
     try {
       const _timeout = new Promise((_, rej) =>
@@ -282,7 +307,7 @@
       document.getElementById('metrics-wrap').style.display = '';
       renderTabela();
     } catch(e) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="10">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="14">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
     }
   }
 
@@ -291,7 +316,7 @@
     const isAdmin = _perfil === 'Administrador';
 
     if (!_manuais.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Nenhum lançamento nesta competência</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="14">Nenhum lançamento nesta competência</td></tr>';
       return;
     }
 
@@ -340,7 +365,8 @@
         <td data-label="OS" class="td-nowrap">${escHtml(m.os_numero || '—')}</td>
         <td data-label="Documento">${escHtml(m.documento || '—')}</td>
         <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
-        <td data-label="Descrição">${escHtml(m.descricao||'—')}</td>
+        <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>
+        <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao||'—')}</a>` : escHtml(m.descricao||'—')}</td>
         <td data-label="Pts Req." class="td-num">${m.pontos??'—'}</td>
         <td data-label="Pts Hom." class="td-num">${m.pontos_homologado!=null?m.pontos_homologado:'—'}</td>
         <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : badge(m.status)}</td>
@@ -463,6 +489,16 @@
 
   window.abrirHom = abrirHom;
 
+  // ── Modal "Dados do Regulado" (abre ao clicar na Descrição) ──
+  function abrirRegulado(id) {
+    const m = _manuais.find(x => x.id === id);
+    if (!m) return;
+    document.getElementById('reg-codigo').value = m.codigo || '—';
+    document.getElementById('reg-razao').value  = m.razao  || '—';
+    document.getElementById('modal-regulado').style.display = 'flex';
+  }
+  window.abrirRegulado = abrirRegulado;
+
   document.getElementById('tbody-conferencia').addEventListener('click', (ev) => {
     const btn = ev.target.closest('.js-remover-anexo-admin');
     if (!btn) return;
@@ -474,6 +510,11 @@
   ['modal-close','modal-close2'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
       document.getElementById('modal-hom').style.display = 'none';
+    });
+  });
+  ['reg-close','reg-close2'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      document.getElementById('modal-regulado').style.display = 'none';
     });
   });
 
