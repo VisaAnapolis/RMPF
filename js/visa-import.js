@@ -3,6 +3,8 @@
 
 const VISA_IMPORT_INICIO_MES = 4;
 const VISA_IMPORT_INICIO_ANO = 2026;
+// Teto de pontos somados dos CNAEs (informado + cae.csv) por inspeção VISA.
+const TETO_PONTOS_CNAE_VISA = 48;
 
 // ── Cache de ocorrências aceitas por fiscal/mês ──────────
 const _visaOcorrCache = new Map();
@@ -387,11 +389,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         .filter(f => f.nome);
 
       // ── CNAEs-alvo da inspeção ───────────────────────────
-      // Vistoria (VIS): expande em 1 lançamento por CNAE de competência do
-      // regulado (cae.csv ∩ cnae.csv, exceto "Não Exerce"). O CNAE informado
-      // na inspeção só entra se não constar no cae.csv do regulado e este não
-      // tiver nenhum CNAE de alta complexidade. Demais tipos seguem com 1
-      // lançamento pelo CNAE da própria inspeção.
+      // Vistoria (VIS): expande em 1 lançamento por CNAE de competência —
+      // o CNAE informado na inspeção e os CNAEs do regulado (cae.csv ∩ cnae.csv,
+      // exceto "Não Exerce"). A soma dos pontos desses CNAEs não pode exceder
+      // TETO_PONTOS_CNAE_VISA (48): seleciona por maior pontuação primeiro
+      // (informado primeiro em empate) e NÃO lança os CNAEs que não couberem
+      // no teto. Demais tipos seguem com 1 lançamento pelo CNAE da inspeção.
       const codigoRegulado = String(row['CODIGO'] || '').replace(/"/g, '').trim();
       const entregaRaw = String(row['entrega'] || row['Entrega'] || row['ENTREGA'] || '').replace(/"/g, '').trim().toLowerCase();
       const entregaFalse = entregaRaw === 'false' || entregaRaw === '0' || entregaRaw === 'nao' || entregaRaw === 'não';
@@ -399,15 +402,39 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const caeList = caeListMap ? [...caeListMap.values()] : [];
       const alvos = [];
       if (tipoInfo.tipo_codigo === 'VIS' && !entregaFalse) {
-        for (const item of caeList) {
-          const info = cnaeMap.get(item.cnae);
-          if (!info) continue; // CNAE sem pontuação → fora da competência da vigilância
-          alvos.push({ cnae: item.cnae, complexidade: info.complexidade, descricao: info.descricao });
+        const candidatos = [];
+        // CNAE informado na inspeção (pontos pela complexidade; default média = 12)
+        if (subclasse) {
+          candidatos.push({
+            cnae: subclasse,
+            complexidade: cnaeInfo.complexidade,
+            descricao: cnaeInfo.descricao,
+            pontos: complexToItem(cnaeInfo.complexidade).pontos,
+            informado: true,
+          });
         }
-        const informadoConsta = !!subclasse && caeList.some(i => i.cnae === subclasse);
-        const temAlta = caeList.some(i => (cnaeMap.get(i.cnae) || {}).complexidade === 'alta');
-        if (subclasse && !informadoConsta && !temAlta) {
-          alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao });
+        // CNAEs de competência do regulado (cae.csv ∩ cnae.csv), exceto o já informado
+        for (const item of caeList) {
+          if (item.cnae === subclasse) continue; // não duplica o informado
+          const info = cnaeMap.get(item.cnae);
+          if (!info) continue; // CNAE sem competência da vigilância → fora
+          candidatos.push({
+            cnae: item.cnae,
+            complexidade: info.complexidade,
+            descricao: info.descricao,
+            pontos: complexToItem(info.complexidade).pontos,
+            informado: false,
+          });
+        }
+        // Ordena por pontos desc; em empate, informado primeiro (sort estável
+        // mantém a ordem do cae.csv no restante).
+        candidatos.sort((a, b) => (b.pontos - a.pontos) || (Number(b.informado) - Number(a.informado)));
+        // Seleção gulosa respeitando o teto de pontos da inspeção
+        let somaPontos = 0;
+        for (const c of candidatos) {
+          if (somaPontos + c.pontos > TETO_PONTOS_CNAE_VISA) continue; // não cabe → não lança
+          somaPontos += c.pontos;
+          alvos.push({ cnae: c.cnae, complexidade: c.complexidade, descricao: c.descricao });
         }
       } else {
         alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao });

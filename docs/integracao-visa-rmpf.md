@@ -113,6 +113,27 @@ Para cada linha do CSV filtrada pelo mês/ano:
 | Baixa | 3 | 6 |
 | Não encontrado (default) | 2 | 12 |
 
+### Teto de 48 pontos por inspeção (Vistoria)
+
+Em uma Vistoria (VIS), os CNAEs-alvo são o **CNAE informado** na inspeção
+(`inspecoes.csv`) somado aos **CNAEs de competência do regulado**
+(`cae.csv` ∩ `cnae.csv`). A **soma dos pontos** desses CNAEs **não pode
+exceder 48 pontos**. A seleção é feita por **maior pontuação primeiro**
+(em empate, o CNAE informado primeiro), acumulando enquanto a soma ≤ 48;
+os CNAEs que não couberem **não são lançados**.
+
+Exemplos:
+
+| Informado | cae.csv | Lançado | Soma |
+|---|---|---|---|
+| 48 (alta) | qualquer | só o informado (48) | 48 |
+| 12 (média) | 4× de 12 | informado + 3 primeiros do cae | 48 |
+| 12 (média) | 1× de 48 | só o do cae (48) | 48 |
+
+O teto usa os pontos nominais de complexidade; os zeramentos por plantão
+fiscal e o limite de 24 pts/dia em dia com ocorrência são aplicados depois,
+por fiscal.
+
 ---
 
 ## 8. Descrição Gerada Automaticamente
