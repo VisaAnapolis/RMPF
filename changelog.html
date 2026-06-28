@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.9.9</span>
+            <span class="badge-date">28/06/2026</span>
+          </div>
+          <div class="changelog-title">Coluna "Origem CNAE", teto de 48 pontos por inspeção e ajuste das tabelas</div>
+          <ul class="changelog-changes">
+            <li><strong>Coluna "Origem CNAE" (INS/CAE)</strong> — a importação do VISA (<code>js/visa-import.js</code>) passa a gravar o campo <code>cnae_origem</code> em cada lançamento: <code>INS</code> quando o CNAE vem do informado na inspeção (<code>inspecoes.csv</code>) e <code>CAE</code> quando vem do regulado (<code>cae.csv</code>). A nova coluna é exibida em <code>conferencia.html</code> e <code>meus-lancamentos.html</code>; lançamentos do SIM, manuais e registros antigos exibem "—" até serem reimportados.</li>
+            <li><strong>Teto de 48 pontos por inspeção</strong> — na expansão multi-CNAE de vistorias, a soma dos pontos dos CNAEs (informado + regulado) deixa de ser ilimitada e passa a respeitar o teto de 48 pontos, selecionando por maior pontuação primeiro (o informado tem prioridade em empate) e não lançando os CNAEs que não couberem.</li>
+            <li><strong>Tabelas padronizadas</strong> — as larguras das colunas de <code>conferencia.html</code> e <code>meus-lancamentos.html</code> foram unificadas (mesmo <code>colgroup</code> em %), com a Descrição mais larga e as demais justas; Data e OS deixaram de quebrar (classe <code>.td-nowrap</code>).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.8</span>
             <span class="badge-date">27/06/2026</span>
           </div>

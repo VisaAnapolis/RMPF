@@ -90,18 +90,19 @@
       <div class="table-wrap">
         <table class="rmpf-table">
           <colgroup>
-            <col style="width:160px"><!-- Controle -->
-            <col><!-- Data -->
-            <col><!-- Tipo -->
-            <col style="width:130px"><!-- Origem da Demanda -->
-            <col><!-- OS -->
-            <col><!-- Documento -->
-            <col><!-- Descrição -->
-            <col><!-- Pts Req. -->
-            <col><!-- Pts Hom. -->
-            <col><!-- Status -->
-            <col style="width:70px"><!-- Anexo -->
-            <col><!-- Ações -->
+            <col style="width:8%"><!-- Controle -->
+            <col style="width:7%"><!-- Data -->
+            <col style="width:10%"><!-- Tipo -->
+            <col style="width:7%"><!-- Origem da Demanda -->
+            <col style="width:7%"><!-- OS -->
+            <col style="width:8%"><!-- Documento -->
+            <col style="width:6%"><!-- Origem CNAE -->
+            <col style="width:20%"><!-- Descrição -->
+            <col style="width:3%"><!-- Pts Req. -->
+            <col style="width:3%"><!-- Pts Hom. -->
+            <col style="width:7%"><!-- Status -->
+            <col style="width:5%"><!-- Anexo -->
+            <col style="width:9%"><!-- Ações -->
           </colgroup>
           <thead>
             <tr>
@@ -111,6 +112,7 @@
               <th>Origem da Demanda</th>
               <th>OS</th>
               <th>Documento</th>
+              <th class="td-center">Origem CNAE</th>
               <th>Descrição</th>
               <th class="td-num">Pts Req.</th>
               <th class="td-num">Pts Hom.</th>
@@ -289,7 +291,7 @@
     const isAdmin = _perfil === 'Administrador';
 
     if (!_manuais.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="10">Nenhum lançamento nesta competência</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Nenhum lançamento nesta competência</td></tr>';
       return;
     }
 
@@ -332,11 +334,12 @@
 
       return `<tr>
         <td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle||'—')}</span></td>
-        <td data-label="Data">${fmtData(m.data)}</td>
+        <td data-label="Data" class="td-nowrap">${fmtData(m.data)}</td>
         <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo||'—')}</td>
         <td data-label="Origem da Demanda">${isVigilanciaAtiva ? `<span class="text-vigilancia-ativa">${escHtml(m.motivo_os)}</span>` : escHtml(m.motivo_os || '—')}</td>
-        <td data-label="OS">${escHtml(m.os_numero || '—')}</td>
+        <td data-label="OS" class="td-nowrap">${escHtml(m.os_numero || '—')}</td>
         <td data-label="Documento">${escHtml(m.documento || '—')}</td>
+        <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
         <td data-label="Descrição">${escHtml(m.descricao||'—')}</td>
         <td data-label="Pts Req." class="td-num">${m.pontos??'—'}</td>
         <td data-label="Pts Hom." class="td-num">${m.pontos_homologado!=null?m.pontos_homologado:'—'}</td>
