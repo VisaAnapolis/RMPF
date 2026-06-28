@@ -318,29 +318,43 @@ table.rmpf-table {
 }
 .rmpf-table thead tr { background: var(--cinzaB); }
 .rmpf-table thead th {
-  padding: 9px 12px;
-  font-size: .75rem;
+  padding: 8px 6px;
+  font-size: .62rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .4px;
+  letter-spacing: .2px;
   color: var(--cinzaT);
   border-bottom: 2px solid var(--cinzaL);
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
+  /* Títulos quebram em várias linhas (entre palavras) para ganhar espaço
+     horizontal, mas nunca no meio de uma palavra. */
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  hyphens: none;
+  vertical-align: bottom;
+  line-height: 1.2;
 }
 .rmpf-table td {
-  padding: 9px 12px;
+  padding: 8px 7px;
   border-bottom: 1px solid var(--cinzaL);
   vertical-align: middle;
-  overflow-wrap: break-word;
-  word-break: break-word;
+  font-size: .78rem;
+  /* Não quebrar palavras no meio (ex.: "REQUERIMENTO"); a fonte reduzida do
+     corpo acomoda. Texto com espaços ainda quebra normalmente entre palavras. */
+  word-break: keep-all;
+  overflow-wrap: normal;
 }
 .rmpf-table tbody tr:hover { background: var(--cinzaB); }
 .rmpf-table tbody tr:last-child td { border-bottom: none; }
 .rmpf-table .td-num { text-align: right; font-variant-numeric: tabular-nums; }
 .rmpf-table .td-center { text-align: center; }
 .rmpf-table .td-nowrap { white-space: nowrap; }
+/* Controle: largura padrão suficiente para "VISA-129629"; valores maiores são
+   truncados com reticências (texto completo no title/hover). */
+.rmpf-table .td-controle { white-space: nowrap; }
+.rmpf-table .link-regulado { color: var(--azul, #1565c0); cursor: pointer; text-decoration: underline dotted; }
+.rmpf-table .link-regulado:hover { text-decoration: underline; }
 .rmpf-table .empty-row td {
   text-align: center;
   color: var(--cinzaT);
@@ -546,12 +560,18 @@ table.rmpf-table {
 /* control # */
 .ctrl-num {
   font-family: monospace;
-  font-size: .75rem;
+  font-size: .68rem;
   background: var(--cinzaB);
   padding: 2px 6px;
   border-radius: 4px;
   color: var(--cinzaT);
   white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
 /* ── Progress bar ── */

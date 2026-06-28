@@ -109,6 +109,67 @@ function complexToItem(complexidade) {
   return { item: 2, pontos: 12 };
 }
 
+// \u2500\u2500 Pontua\u00e7\u00e3o por \u00e1rea (m\u00b2) para CNAEs de alta complexidade de alimenta\u00e7\u00e3o \u2500\u2500
+// Equipes "IA" ou "AG" no cnae.csv marcam a \u00e1rea de alimenta\u00e7\u00e3o. Quando o CNAE
+// \u00e9 de alta complexidade dessas equipes, a pontua\u00e7\u00e3o deixa de ser 48 fixo e passa
+// a depender da \u00e1rea f\u00edsica do estabelecimento (taxa.csv, via regulados.csv):
+//   \u2264 100 m\u00b2 \u2192 8 | > 100 e < 400 m\u00b2 \u2192 16 | \u2265 400 m\u00b2 \u2192 48 | sem \u00e1rea \u2192 48 (m\u00e1xima)
+const EQUIPES_ALIMENTACAO_VISA = ['IA', 'AG'];
+
+function ehAlimentacaoAlta(complexidade, equipe) {
+  if (complexToItem(complexidade).pontos !== 48) return false; // s\u00f3 alta
+  const eq = String(equipe || '').toUpperCase().trim();
+  return EQUIPES_ALIMENTACAO_VISA.includes(eq);
+}
+
+function pontosPorAreaVisa(area) {
+  if (area == null) return 48;          // sem \u00e1rea no arquivo \u2192 pontua\u00e7\u00e3o m\u00e1xima
+  if (area <= 100)  return 8;
+  if (area < 400)   return 16;
+  return 48;                            // \u2265 400 m\u00b2 (inclusive)
+}
+
+// Normaliza inscri\u00e7\u00e3o municipal p/ casar regulados.csv (ex.: "29.601") com
+// taxa.csv (ex.: "29601"): mant\u00e9m s\u00f3 d\u00edgitos e remove zeros \u00e0 esquerda.
+function normMunicipalVisa(v) {
+  return String(v || '').replace(/\D/g, '').replace(/^0+/, '');
+}
+
+// Extrai a \u00e1rea (m\u00b2) do taxa.csv. O arquivo \u00e9 ISO-8859-1 e cada registro ocupa
+// 2 linhas f\u00edsicas (quebra dentro do campo "Observa\u00e7\u00e3o", sem aspas), o que
+// inviabiliza Papa.parse direto. Retorna Map<inscricaoMunicipalNormalizada, m\u00b2>.
+// S\u00f3 extra\u00edmos d\u00edgitos/pontos (ASCII), ent\u00e3o o mojibake do decode UTF-8 sobre
+// bytes latin1 (acentos/\u00b2) \u00e9 irrelevante.
+function parseTaxaArea(text) {
+  const map = new Map();
+  if (!text) return map;
+  const linhasFisicas = String(text).split(/\r?\n/);
+  const registros = [];
+  for (const ln of linhasFisicas) {
+    // Linha de continua\u00e7\u00e3o da Observa\u00e7\u00e3o (ex.: "* \u00c1rea: 150m\u00b2") \u2192 anexa \u00e0 anterior.
+    if (/^\s*\*/.test(ln) && registros.length) {
+      registros[registros.length - 1] += ' ' + ln;
+    } else {
+      registros.push(ln);
+    }
+  }
+  for (let i = 0; i < registros.length; i++) {
+    if (i === 0) continue; // cabe\u00e7alho
+    const reg = registros[i];
+    if (!reg.trim()) continue;
+    const campos = reg.split(';');
+    if (campos.length < 5) continue;
+    const im = normMunicipalVisa(campos[4]);
+    if (!im) continue;
+    const mArea = reg.match(/rea:\s*([\d.,]+)\s*m/i);
+    if (!mArea) continue;
+    const area = parseFloat(mArea[1].replace(',', '.'));
+    if (!isFinite(area)) continue;
+    if (!map.has(im)) map.set(im, area); // primeira metragem v\u00e1lida por inscri\u00e7\u00e3o
+  }
+  return map;
+}
+
 function resolverTipoVisa(tipoRaw, complexidade) {
   const norm = String(tipoRaw || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -281,7 +342,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           const compNorm = normNomeVisa(r['Complexidade'] || '').toLowerCase();
           if (compNorm !== 'alta' && compNorm !== 'media' && compNorm !== 'baixa') continue;
           const desc = String(r['Atividade'] || '').replace(/"/g, '').trim();
-          cnaeMap.set(sub, { complexidade: compNorm, descricao: desc });
+          const equipe = String(r['equipe'] || r['Equipe'] || r['EQUIPE'] || '').replace(/"/g, '').trim();
+          cnaeMap.set(sub, { complexidade: compNorm, descricao: desc, equipe });
         }
         onProgress(`🧬 ${cnaeMap.size} CNAE(s) de competência carregado(s).`, 'info');
       }
@@ -317,6 +379,64 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     } catch (err) {
       onProgress('⚠️ Não foi possível carregar cae.csv — usando apenas o CNAE da inspeção.', 'warn');
       console.error('Failed to load cae.csv:', err);
+    }
+
+    // ── Regulados (data/regulados.csv) ───────────────────────
+    // Mapa CODIGO(regulado) → { municipal (inscrição normalizada), razao }.
+    // Fornece a razão social e a inscrição municipal (ponte para o taxa.csv).
+    // ⚠️ A coluna AREA do regulados.csv NÃO é a metragem (são códigos cadastrais).
+    const reguladoMap = new Map();
+    try {
+      const regText = await window.fetchGitHubCSV('data/regulados.csv');
+      if (regText !== null) {
+        const regParsed = Papa.parse(regText, {
+          header: true,
+          delimiter: ';',
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
+        });
+        for (const r of regParsed.data) {
+          const cod = String(r['CODIGO'] || r['Codigo'] || '').replace(/"/g, '').trim();
+          if (!cod) continue;
+          const municipal = normMunicipalVisa(r['MUNICIPAL'] || r['Municipal'] || '');
+          const razao = String(r['RAZAO'] || r['Razao'] || '').replace(/"/g, '').trim();
+          if (!reguladoMap.has(cod)) reguladoMap.set(cod, { municipal, razao });
+        }
+        onProgress(`🏢 ${reguladoMap.size} regulado(s) carregado(s) (código/razão/inscrição).`, 'info');
+      }
+    } catch (err) {
+      onProgress('⚠️ Não foi possível carregar regulados.csv — código/razão/área indisponíveis.', 'warn');
+      console.error('Failed to load regulados.csv:', err);
+    }
+
+    // ── Áreas por inscrição municipal (data/taxa.csv) ────────
+    // Carregado de forma preguiçosa (arquivo grande, ~6 MB): só na primeira vez
+    // que surgir um candidato de alta complexidade de alimentação. Cacheado em
+    // taxaAreaState para reuso. Map<inscricaoMunicipalNormalizada, áreaM²>.
+    let taxaAreaMap = null; // null = ainda não carregado
+    async function getTaxaAreaMap() {
+      if (taxaAreaMap !== null) return taxaAreaMap;
+      taxaAreaMap = new Map();
+      try {
+        const taxaText = await window.fetchGitHubCSV('data/taxa.csv');
+        if (taxaText !== null) {
+          taxaAreaMap = parseTaxaArea(taxaText);
+          onProgress(`📐 ${taxaAreaMap.size} área(s) de estabelecimento carregada(s).`, 'info');
+        }
+      } catch (err) {
+        onProgress('⚠️ Não foi possível carregar taxa.csv — alta de alimentação usa pontuação máxima (48).', 'warn');
+        console.error('Failed to load taxa.csv:', err);
+      }
+      return taxaAreaMap;
+    }
+    // Resolve a área (m²) do regulado: CODIGO → inscrição municipal → taxa.csv.
+    // Retorna null quando indisponível (cai no fallback de 48 pontos).
+    async function resolverAreaRegulado(codigoRegulado) {
+      const reg = reguladoMap.get(codigoRegulado);
+      if (!reg || !reg.municipal) return null;
+      const mapa = await getTaxaAreaMap();
+      const area = mapa.get(reg.municipal);
+      return (area == null) ? null : area;
     }
 
     const fiscalMap = new Map();
@@ -396,6 +516,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       // (informado primeiro em empate) e NÃO lança os CNAEs que não couberem
       // no teto. Demais tipos seguem com 1 lançamento pelo CNAE da inspeção.
       const codigoRegulado = String(row['CODIGO'] || '').replace(/"/g, '').trim();
+      const regInfo = reguladoMap.get(codigoRegulado) || { municipal: '', razao: '' };
       const entregaRaw = String(row['entrega'] || row['Entrega'] || row['ENTREGA'] || '').replace(/"/g, '').trim().toLowerCase();
       const entregaFalse = entregaRaw === 'false' || entregaRaw === '0' || entregaRaw === 'nao' || entregaRaw === 'não';
       const caeListMap = caeMap.get(codigoRegulado);
@@ -403,12 +524,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const alvos = [];
       if (tipoInfo.tipo_codigo === 'VIS' && !entregaFalse) {
         const candidatos = [];
-        // CNAE informado na inspeção (pontos pela complexidade; default média = 12)
+        // CNAE informado na inspeção (pontos pela complexidade; default média = 12).
+        // A equipe (alimentação IA/AG) vem do cnae.csv — o db_getCNAEComplexidade
+        // (Firestore) não a possui.
         if (subclasse) {
           candidatos.push({
             cnae: subclasse,
             complexidade: cnaeInfo.complexidade,
             descricao: cnaeInfo.descricao,
+            equipe: (cnaeMap.get(subclasse) || {}).equipe || '',
             pontos: complexToItem(cnaeInfo.complexidade).pontos,
             informado: true,
           });
@@ -422,25 +546,41 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             cnae: item.cnae,
             complexidade: info.complexidade,
             descricao: info.descricao,
+            equipe: info.equipe || '',
             pontos: complexToItem(info.complexidade).pontos,
             informado: false,
           });
         }
+        // ── Pontuação por área (alta de alimentação IA/AG) ──
+        // Para esses CNAEs, a pontuação depende da área física do regulado
+        // (taxa.csv). Resolve a área uma única vez (carrega o taxa.csv só agora,
+        // de forma preguiçosa) e ajusta os pontos antes da seleção do teto.
+        if (candidatos.some(c => ehAlimentacaoAlta(c.complexidade, c.equipe))) {
+          const areaRegulado = await resolverAreaRegulado(codigoRegulado);
+          for (const c of candidatos) {
+            if (ehAlimentacaoAlta(c.complexidade, c.equipe)) {
+              c.pontos = pontosPorAreaVisa(areaRegulado);
+              c.visa_area = areaRegulado; // pode ser null (sem área) → exibe '—', pontos 48
+            }
+          }
+        }
         // Ordena por pontos desc; em empate, informado primeiro (sort estável
         // mantém a ordem do cae.csv no restante).
         candidatos.sort((a, b) => (b.pontos - a.pontos) || (Number(b.informado) - Number(a.informado)));
-        // Seleção gulosa respeitando o teto de pontos da inspeção
+        // Seleção gulosa respeitando o teto de pontos da inspeção (usa os pontos
+        // já ajustados pela área).
         let somaPontos = 0;
         for (const c of candidatos) {
           if (somaPontos + c.pontos > TETO_PONTOS_CNAE_VISA) continue; // não cabe → não lança
           somaPontos += c.pontos;
           alvos.push({ cnae: c.cnae, complexidade: c.complexidade, descricao: c.descricao,
-                       cnae_origem: c.informado ? 'INS' : 'CAE' });
+                       cnae_origem: c.informado ? 'INS' : 'CAE',
+                       pontos: c.pontos, visa_area: c.visa_area ?? null });
         }
       } else {
         // Tipos não-VIS: o CNAE é sempre o informado na inspeção (inspecoes.csv).
         alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao,
-                     cnae_origem: subclasse ? 'INS' : '' });
+                     cnae_origem: subclasse ? 'INS' : '', pontos: null, visa_area: null });
       }
 
       if (alvos.length === 0) {
@@ -469,7 +609,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
         for (const alvo of alvos) {
           const tipoInfoA    = resolverTipoVisa(tipoRaw, alvo.complexidade);
-          const pontosFinalA = motivoOSNorm === 'PLANTAO FISCAL' ? 0 : tipoInfoA.pontos;
+          // Usa os pontos já ajustados pela área (alta de alimentação) quando
+          // presentes; senão, os pontos padrão do tipo/complexidade.
+          const pontosBaseA  = (alvo.pontos != null) ? alvo.pontos : tipoInfoA.pontos;
+          const pontosFinalA = motivoOSNorm === 'PLANTAO FISCAL' ? 0 : pontosBaseA;
           const descPartsA   = [];
           if (alvo.cnae) descPartsA.push('CNAE ' + alvo.cnae);
           if (alvo.descricao && alvo.descricao !== alvo.cnae) descPartsA.push(alvo.descricao);
@@ -546,6 +689,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 visa_controle: controleVisa,
                 visa_cnae: alvo.cnae,
                 cnae_origem: alvo.cnae_origem,
+                codigo: codigoRegulado,
+                razao: regInfo.razao || '',
+                municipal: regInfo.municipal || '',
+                visa_area: alvo.visa_area ?? null,
               };
               if (existing.status === 'recusado') {
                 updateData.status = 'enviado';
@@ -606,6 +753,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 visa_controle: controleVisa,
                 visa_cnae: alvo.cnae,
                 cnae_origem: alvo.cnae_origem,
+                codigo: codigoRegulado,
+                razao: regInfo.razao || '',
+                municipal: regInfo.municipal || '',
+                visa_area: alvo.visa_area ?? null,
               }, null, true, alvo.cnae);
               const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
               _aplicarManualNoMapaPontosVisa(estado.byDia, {

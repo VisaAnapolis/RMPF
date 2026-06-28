@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.10.0</span>
+            <span class="badge-date">28/06/2026</span>
+          </div>
+          <div class="changelog-title">Pontuação por área (m²) para alta complexidade de alimentação + dados do regulado</div>
+          <ul class="changelog-changes">
+            <li><strong>Pontuação por área (m²)</strong> — para CNAEs de <strong>alta complexidade de alimentação</strong> (equipe <code>IA</code> ou <code>AG</code> no <code>cnae.csv</code>), a pontuação deixa de ser 48 fixo e passa a depender da área física do estabelecimento: <strong>≤ 100 m² → 8</strong>, <strong>&gt; 100 e &lt; 400 m² → 16</strong>, <strong>≥ 400 m² → 48</strong> e <strong>sem área cadastrada → 48</strong> (máxima). Vale para CNAEs informados (INS) e do regulado (CAE), e o valor ajustado entra na seleção do teto de 48 pontos.</li>
+            <li><strong>Origem da área</strong> — a área é obtida encadeando os arquivos do VISA: <code>inspecoes.csv</code> (<code>CODIGO</code>) → <code>regulados.csv</code> (inscrição municipal) → <code>taxa.csv</code> (metragem). Nova coluna <strong>"Área"</strong> entre "Origem CNAE" e "Descrição" em <code>conferencia.html</code> e <code>meus-lancamentos.html</code> (registros sem área de alimentação exibem "—").</li>
+            <li><strong>Dados do regulado gravados</strong> — a importação passa a salvar <code>codigo</code>, <code>razao</code> (razão social) e <code>municipal</code> em cada lançamento. Clicar na <strong>Descrição</strong> abre um modal com o código e a razão social do regulado.</li>
+            <li><strong>Tabela de lançamentos mais legível</strong> — nas duas páginas, os títulos das colunas passam a quebrar em várias linhas (sem cortar palavras) e foram desabreviados ("Pontos Requeridos"/"Pontos Homologados"); o corpo usa fonte um pouco menor para não quebrar palavras como "REQUERIMENTO"; e o número de Controle é truncado com reticências quando excede a largura padrão (texto completo no hover).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.9.9</span>
             <span class="badge-date">28/06/2026</span>
           </div>

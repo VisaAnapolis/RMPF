@@ -134,6 +134,41 @@ O teto usa os pontos nominais de complexidade; os zeramentos por plantão
 fiscal e o limite de 24 pts/dia em dia com ocorrência são aplicados depois,
 por fiscal.
 
+### Pontuação por área (m²) — alta complexidade de alimentação
+
+Para CNAEs de **alta complexidade** da **área de alimentação** (equipe `IA` ou
+`AG` na coluna `equipe` do `cnae.csv`), a pontuação **não** é 48 fixo: depende da
+**área física do estabelecimento** (m²). Vale tanto para o CNAE informado (INS)
+quanto para os do regulado (CAE).
+
+| Área (m²) | Pontos |
+|---|---|
+| ≤ 100 | 8 |
+| > 100 e < 400 | 16 |
+| ≥ 400 (inclusive) | 48 |
+| Sem área cadastrada | 48 (máxima) |
+
+O valor ajustado **entra na seleção gulosa do teto de 48** (é o ponto real do
+CNAE em todo o fluxo). CNAEs que não sejam alta de alimentação mantêm a
+pontuação por complexidade (alta=48, média=12, baixa=6).
+
+#### Cadeia de junção da área
+
+A área não está no `inspecoes.csv`; é obtida encadeando 3 arquivos do VISA:
+
+1. `inspecoes.csv` → campo **`CODIGO`** (código do regulado).
+2. **`regulados.csv`** → casa por `CODIGO` e fornece **`MUNICIPAL`** (inscrição
+   municipal) e **`RAZAO`** (razão social). ⚠️ A coluna `AREA` do `regulados.csv`
+   **não** é a metragem (são códigos cadastrais) e é ignorada.
+3. **`taxa.csv`** (ISO-8859-1; cada registro ocupa 2 linhas físicas) → casa pela
+   inscrição municipal e traz a metragem no campo "Observação" (`* Área: 150m²`).
+
+A inscrição municipal é normalizada (só dígitos, sem zeros à esquerda) antes do
+casamento — ex.: `regulados.MUNICIPAL="29.601"` ↔ `taxa="29601"`. O `taxa.csv` é
+carregado de forma preguiçosa (apenas quando há candidato de alta de
+alimentação). A importação grava em cada lançamento: `codigo`, `razao`,
+`municipal` e `visa_area` (m², só para alta de alimentação; demais ficam nulos).
+
 ---
 
 ## 8. Descrição Gerada Automaticamente
