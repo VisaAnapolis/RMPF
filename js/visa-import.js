@@ -129,6 +129,18 @@ function pontosPorAreaVisa(area) {
   return 48;                            // \u2265 400 m\u00b2 (inclusive)
 }
 
+// \u2500\u2500 Redu\u00e7\u00e3o por dupla/trio fiscal (decreto E.2) \u2500\u2500
+// Em Vistorias realizadas por 2+ fiscais, a pontua\u00e7\u00e3o dos CNAEs de baixa e
+// m\u00e9dia complexidade \u00e9 reduzida para cada fiscal individualmente:
+//   m\u00e9dia (12) \u2192 9 (\u221225%) | baixa (6) \u2192 3 (\u221250%).
+// Alta (inclusive a alta-alimenta\u00e7\u00e3o j\u00e1 ajustada por \u00e1rea) N\u00c3O \u00e9 reduzida.
+function pontosReduzidosDuplaVisa(complexidade, pontos) {
+  const item = complexToItem(complexidade).item;
+  if (item === 2) return 9;   // m\u00e9dia 12 \u2192 9 (\u221225%)
+  if (item === 3) return 3;   // baixa   6 \u2192 3 (\u221250%)
+  return pontos;              // alta inalterada
+}
+
 // Normaliza inscri\u00e7\u00e3o municipal p/ casar regulados.csv (ex.: "29.601") com
 // taxa.csv (ex.: "29601"): mant\u00e9m s\u00f3 d\u00edgitos e remove zeros \u00e0 esquerda.
 function normMunicipalVisa(v) {
@@ -564,6 +576,23 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             }
           }
         }
+        // ── Redução por dupla/trio fiscal (baixa e média) ──
+        // Decreto E.2: em fiscalização com 2+ fiscais, os CNAEs de baixa/média
+        // complexidade têm a pontuação reduzida para cada fiscal (média 12→9,
+        // baixa 6→3). Entra na seleção do teto de 48 já com o valor reduzido.
+        // fiscaisCsv.length = participantes físicos no CSV (inclui Fiscal3 mesmo
+        // não autorizado); como dupla e trio reduzem igual, isso só muda o nº
+        // exibido, não os pontos.
+        const qtdFiscais = fiscaisCsv.length;
+        if (qtdFiscais >= 2) {
+          for (const c of candidatos) {
+            const item = complexToItem(c.complexidade).item;
+            if (item === 2 || item === 3) {          // só média/baixa (alta intacta)
+              c.pontos = pontosReduzidosDuplaVisa(c.complexidade, c.pontos);
+              c.qtd_fiscais = qtdFiscais;            // marca aplicação da regra
+            }
+          }
+        }
         // Ordena por pontos desc; em empate, informado primeiro (sort estável
         // mantém a ordem do cae.csv no restante).
         candidatos.sort((a, b) => (b.pontos - a.pontos) || (Number(b.informado) - Number(a.informado)));
@@ -575,12 +604,14 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           somaPontos += c.pontos;
           alvos.push({ cnae: c.cnae, complexidade: c.complexidade, descricao: c.descricao,
                        cnae_origem: c.informado ? 'INS' : 'CAE',
-                       pontos: c.pontos, visa_area: c.visa_area ?? null });
+                       pontos: c.pontos, visa_area: c.visa_area ?? null,
+                       qtd_fiscais: c.qtd_fiscais ?? null });
         }
       } else {
         // Tipos não-VIS: o CNAE é sempre o informado na inspeção (inspecoes.csv).
+        // A redução por dupla/trio não se aplica (abrangência = só Vistorias).
         alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao,
-                     cnae_origem: subclasse ? 'INS' : '', pontos: null, visa_area: null });
+                     cnae_origem: subclasse ? 'INS' : '', pontos: null, visa_area: null, qtd_fiscais: null });
       }
 
       if (alvos.length === 0) {
@@ -693,6 +724,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 razao: regInfo.razao || '',
                 municipal: regInfo.municipal || '',
                 visa_area: alvo.visa_area ?? null,
+                qtd_fiscais: alvo.qtd_fiscais ?? null,
               };
               if (existing.status === 'recusado') {
                 updateData.status = 'enviado';
@@ -757,6 +789,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 razao: regInfo.razao || '',
                 municipal: regInfo.municipal || '',
                 visa_area: alvo.visa_area ?? null,
+                qtd_fiscais: alvo.qtd_fiscais ?? null,
               }, null, true, alvo.cnae);
               const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
               _aplicarManualNoMapaPontosVisa(estado.byDia, {

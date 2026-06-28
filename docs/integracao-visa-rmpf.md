@@ -169,6 +169,31 @@ carregado de forma preguiçosa (apenas quando há candidato de alta de
 alimentação). A importação grava em cada lançamento: `codigo`, `razao`,
 `municipal` e `visa_area` (m², só para alta de alimentação; demais ficam nulos).
 
+### Redução por dupla/trio fiscal (decreto E.2)
+
+Em **Vistorias** realizadas por **2 ou mais fiscais** (`fiscaisCsv.length ≥ 2`,
+contando os participantes presentes em `Fiscal1`/`Fiscal2`/`Fiscal3`), a
+pontuação dos CNAEs de **baixa e média complexidade** é reduzida **para cada
+fiscal individualmente**:
+
+| Complexidade (CNAE) | Pontos (1 fiscal) | Pontos (2+ fiscais) | Redução |
+|---|---|---|---|
+| Média | 12 | **9** | −25% |
+| Baixa | 6 | **3** | −50% |
+| Alta | 48 (ou 8/16/48 por área) | inalterada | — |
+
+- **Dupla e trio** recebem a **mesma** redução (regra binária: 1 fiscal = cheio;
+  2+ = reduzido). A quantidade exata (2 ou 3) só muda o número exibido.
+- **Alta complexidade não é reduzida** — inclusive a alta de alimentação já
+  ajustada por área (8/16/48), pois continua sendo de complexidade alta.
+- **Abrangência: só Vistorias (VIS).** Os demais tipos de inspeção não sofrem
+  esta redução.
+- A redução é aplicada **antes** da seleção gulosa, então o valor reduzido (9/3)
+  é o que **entra no teto de 48**, permitindo que mais CNAEs caibam.
+- A importação grava `qtd_fiscais` em cada lançamento **apenas quando a regra
+  reduz** aquele CNAE (baixa/média em inspeção com 2+ fiscais); nos demais o
+  campo fica nulo. Esse valor é exibido na coluna **"Fiscais"** das tabelas.
+
 ---
 
 ## 8. Descrição Gerada Automaticamente
