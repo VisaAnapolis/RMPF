@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.12.0</span>
+            <span class="badge-date">28/06/2026</span>
+          </div>
+          <div class="changelog-title">Dispositivo legal por lançamento + correções de cache</div>
+          <ul class="changelog-changes">
+            <li><strong>Campo <code>dispositivo_legal</code></strong> — todos os lançamentos (importados VISA/SIM e manuais) passam a gravar o texto do dispositivo legal que embasa a pontuação, com referência ao item exato do <strong>Anexo VII do Decreto 49.723/2023</strong>. Exemplos: <em>"Item 1 do Anexo VII do Decreto 49.723/2023"</em> para vistoria Alta; <em>"Item 18 do Anexo VII do Decreto 49.723/2023"</em> para OPF; <em>"Item 2 ... combinado com Item E.2 ..."</em> quando a redução por dupla fiscal foi aplicada.</li>
+            <li><strong>Modal de dispositivo legal</strong> — lançamentos com status <strong>Aceito</strong> ou <strong>Homologado</strong> exibem o ícone ⚖️ ao lado do badge de status. Ao clicar, abre um modal com o texto completo do embasamento legal. Disponível em <code>meus-lancamentos.html</code> e <code>conferencia.html</code>.</li>
+            <li><strong>Correção de robustez</strong> — chamadas a <code>complexidadeDecreto()</code> em <code>visa-import.js</code> e <code>complexidadeHtml()</code> em <code>conferencia.html</code> passam a usar acesso defensivo via <code>window.*</code>, eliminando erros intermitentes causados por timing de cache do service worker.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.11.1</span>
             <span class="badge-date">28/06/2026</span>
           </div>

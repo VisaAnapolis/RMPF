@@ -143,6 +143,35 @@ function complexidadeHtml(m) {
   return c;
 }
 
+// ── Dispositivo legal que embasa cada item de pontuação ──
+// Chave: item_pontuacao interno; valor: número do item no ANEXO VII do Decreto 49.723/2023.
+const _ITEM_PONTUACAO_TO_DECRETO = {
+  1: 1,  2: 2,  3: 3,        // VIS por complexidade
+  4: 7,  5: 8,               // ARQ por complexidade
+  6: 9,                      // PLT
+  7: 10,                     // COL
+  8: 11,                     // MAN
+  9: 12,                     // CUR
+  10: 13, 11: 14, 12: 15,    // REL por complexidade
+  13: 16,                    // RLH
+  14: 17,                    // SRV
+  15: 18,                    // OPF
+  16: 19,                    // CER
+};
+
+// Retorna o texto do dispositivo legal que embasa a pontuação do lançamento.
+// pontos: necessário para detectar os itens 5/6 (alimentação por área: 16 e 8 pts).
+// duplaReducao: true quando o item E.2 foi aplicado (média/baixa em dupla fiscal).
+function dispositivoLegal(itemPontuacao, pontos, duplaReducao) {
+  if (itemPontuacao === 1 && pontos === 8)  return 'Item 6 do Anexo VII do Decreto 49.723/2023';
+  if (itemPontuacao === 1 && pontos === 16) return 'Item 5 do Anexo VII do Decreto 49.723/2023';
+  const decretoItem = _ITEM_PONTUACAO_TO_DECRETO[itemPontuacao];
+  if (!decretoItem) return null;
+  let texto = `Item ${decretoItem} do Anexo VII do Decreto 49.723/2023`;
+  if (duplaReducao) texto += ' combinado com Item E.2 do Anexo VII do Decreto 49.723/2023';
+  return texto;
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -156,3 +185,4 @@ window.escHtml          = escHtml;
 window.complexidadeDecreto = complexidadeDecreto;
 window.formatComplexidade  = formatComplexidade;
 window.complexidadeHtml    = complexidadeHtml;
+window.dispositivoLegal    = dispositivoLegal;

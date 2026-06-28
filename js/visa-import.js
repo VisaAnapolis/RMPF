@@ -390,7 +390,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           if (compNorm !== 'alta' && compNorm !== 'media' && compNorm !== 'baixa') continue;
           // Exceção do Decreto 49.723/2023 (item C) sobrepõe a classificação da LC 377.
           let complexidadeOrigem = null;
-          const ovr = complexidadeDecreto(sub);
+          const ovr = window.complexidadeDecreto ? window.complexidadeDecreto(sub) : null;
           if (ovr) {
             const ovrNorm = normNomeVisa(ovr).toLowerCase();
             if (ovrNorm !== compNorm) { complexidadeOrigem = compNorm; compNorm = ovrNorm; }
@@ -755,6 +755,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado, ignorado.`, 'warn');
                 continue;
               }
+              const _duplaReducaoVis = alvo.qtd_fiscais != null;
               const updateData = {
                 fiscal_nome: nomeFiscalCsv,
                 mes, ano, data: dataISO,
@@ -777,6 +778,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 municipal: regInfo.municipal || '',
                 visa_area: alvo.visa_area ?? null,
                 qtd_fiscais: alvo.qtd_fiscais ?? null,
+                dispositivo_legal: window.dispositivoLegal
+                  ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFinalA, _duplaReducaoVis)
+                  : null,
               };
               if (existing.status === 'recusado') {
                 updateData.status = 'enviado';
@@ -818,6 +822,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 motivoPendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
                 onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
               }
+              const _duplaReducaoVisCreate = alvo.qtd_fiscais != null;
               await window.db_upsertVISAManual(controleVisa, emailFiscal, {
                 controle: 'VISA-' + controleVisa,
                 fiscal_email: emailFiscal,
@@ -844,6 +849,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 municipal: regInfo.municipal || '',
                 visa_area: alvo.visa_area ?? null,
                 qtd_fiscais: alvo.qtd_fiscais ?? null,
+                dispositivo_legal: window.dispositivoLegal
+                  ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFinalA, _duplaReducaoVisCreate)
+                  : null,
               }, null, true, alvo.cnae);
               const estado = estadoPontos || await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
               _aplicarManualNoMapaPontosVisa(estado.byDia, {
