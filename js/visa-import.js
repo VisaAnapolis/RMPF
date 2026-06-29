@@ -77,6 +77,9 @@ function datasComPlantaoManual(manuais) {
 }
 
 // Vistorias importadas (origem visa_csv, tipo VIS) lançadas em uma data para um fiscal.
+// Considera apenas as que GERAM pontos (pontos > 0): a não cumulatividade com o plantão
+// fiscal só faz sentido quando há pontuação a não cumular. Vistorias zeradas — ex.: origem
+// da demanda "PLANTÃO FISCAL", que entra com pontos = 0 na importação — não são impeditivas.
 // `excluirId` ignora um documento específico (útil ao editar o próprio registro).
 async function vistoriasImportadasNoDia(fiscalEmail, dataISO, excluirId = null) {
   if (!fiscalEmail || !dataISO) return [];
@@ -86,7 +89,12 @@ async function vistoriasImportadasNoDia(fiscalEmail, dataISO, excluirId = null) 
   const mes = Number(parts[1]);
   if (!ano || !mes) return [];
   const manuais = await window.db_getManuais(fiscalEmail, mes, ano);
-  return manuais.filter(m => m.id !== excluirId && m.data === dataISO && ehVistoriaImportada(m));
+  return manuais.filter(m =>
+    m.id !== excluirId &&
+    m.data === dataISO &&
+    ehVistoriaImportada(m) &&
+    (Number(m.pontos) || 0) > 0          // só vistorias que geram pontos são impeditivas
+  );
 }
 
 // ── Regra Operação Fiscal (OPF) × Vistoria importada ─────

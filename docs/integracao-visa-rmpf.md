@@ -367,7 +367,7 @@ Regra: **Plantão fiscal não é cumulativo com a pontuação das vistorias real
 | Situação | Comportamento |
 |---|---|
 | Plantão manual (PLT) lançado **antes** da importação | Ao importar, as vistorias (`VIS`) do VISA naquela data entram com **pontos = 0** automaticamente. Log: *"vistoria zerada — plantão fiscal manual em DD/MM"*. |
-| Vistorias importadas **antes** + tentativa de lançar plantão manual | **Bloqueado** em `lancamento.html` (e ao editar/corrigir em `meus-lancamentos.html`) com a mensagem *"Impossível lançar plantão em data com vistoria(s) importada(s) do VISA"*. |
+| Vistorias importadas **antes** + tentativa de lançar plantão manual | **Bloqueado** em `lancamento.html` (e ao editar/corrigir em `meus-lancamentos.html`) com a mensagem *"Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação"* — **apenas** quando há vistorias importadas que **geram pontos** (`pontos > 0`) na data. Vistorias zeradas (ex.: origem da demanda "PLANTÃO FISCAL", que já entra com `pontos = 0`) **não bloqueiam**, pois não há pontuação a não cumular. |
 | Vistoria já homologada (`aceito`/`fechado`) | **Não é zerada** automaticamente — só reportada. O admin decide via conferência. |
 
 **Identificação:**
@@ -395,7 +395,7 @@ Página de utilidade (admin) que varre os lançamentos de **Junho/2026**, identi
 | Fonte CNAE | `data/cnae.csv` do VISA, carregado em memória a cada importação |
 | Descrição | `Vistoria VISA — OS X — CNAE Y — [descrição]` |
 | Controle RMPF | `VISA-{CONTROLE do CSV}` |
-| Plantão × Vistoria | Por fiscal: plantão manual zera vistorias importadas na data; bloqueia plantão posterior se já houver vistorias importadas |
+| Plantão × Vistoria | Por fiscal: plantão manual zera vistorias importadas na data; bloqueia plantão posterior **só** se já houver vistorias importadas que geram pontos (`pontos > 0`) |
 
 ---
 

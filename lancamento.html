@@ -360,15 +360,16 @@
     }
 
     // ── Plantão fiscal não pode ser lançado em data que já possui ──
-    // vistorias importadas do VISA (a não cumulatividade só pode ser
-    // garantida quando o plantão é lançado antes da importação).
+    // vistorias importadas do VISA que geram pontos (a não cumulatividade só
+    // pode ser garantida quando o plantão é lançado antes da importação).
+    // Vistorias zeradas (ex.: origem da demanda "PLANTÃO FISCAL") não impedem.
     if (tipo.codigo === 'PLT') {
       const vistorias = await window.vistoriasImportadasNoDia(user.email, data);
       if (vistorias.length) {
         showAlert('danger',
-          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA. ` +
+          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação. ` +
           `O dia <strong>${fmtData(data)}</strong> já possui <strong>${vistorias.length}</strong> ` +
-          `vistoria(s) importada(s).`);
+          `vistoria(s) importada(s) que geram pontos.`);
         btns.forEach(b => { b.disabled = false; });
         return;
       }
