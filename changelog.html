@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.13.0</span>
+            <span class="badge-date">29/06/2026</span>
+          </div>
+          <div class="changelog-title">Importação automática de inspeções VISA e auditorias SIM + correção de scroll na Conferência</div>
+          <ul class="changelog-changes">
+            <li><strong>Auto-import das inspeções do VISA</strong> — a importação de <code>data/inspecoes.csv</code> deixa de depender de cliques manuais e passa a rodar automaticamente em sessão de <strong>Administrador</strong>, ao carregar a página e por <em>polling</em> (~10 min). O disparo é controlado pelo SHA do último commit que toca o CSV (comparado com <code>app_config/import_state</code>), de modo que a releitura só acontece quando o arquivo realmente muda — eliminando o desperdício de reimportações a cada acesso (em especial na tela de Conferência). A titularidade dos lançamentos por fiscal é preservada. Novo módulo <code>js/visa-auto-import.js</code> (admin-only, SHA-gated, protegido por lock com <em>heartbeat</em> ~60s e UI discreta via toast); novos helpers em <code>js/firestore.js</code> (<code>fetchGitHubFileCommitSha</code>, <code>db_getImportState</code>/<code>db_setImportState</code>, <code>refreshVisaImportLock</code>).</li>
+            <li><strong>Auto-import das auditorias do SIM</strong> — espelha o auto-import do VISA: roda em sessão de Administrador (<code>parametrizacao.html</code>), ao carregar e a cada ~10 min, importando as auditorias concluídas (<code>ordens_servico</code>) de todos os fiscais na competência aberta. Como a fonte é o Firestore (sem SHA de commit), a detecção de mudança usa um <strong>watermark de 1 leitura</strong>: lê apenas a OS de maior <code>updatedAt</code> da coleção (<code>orderBy updatedAt desc limit 1</code>, via índice de campo único) e só reimporta o mês quando esse marcador avança — reduzindo a detecção de N leituras/ciclo para 1. Usa <code>updatedAt</code> (não <code>dataCumprimento</code>) porque a conclusão da OS grava <code>updatedAt</code> sem alterar a data de cumprimento. Estado salvo em <code>app_config/import_state.sim</code> (<code>{ watermark, mes, ano, imported_at }</code>), com migração automática e idempotente do formato anterior. Novo módulo <code>js/sim-auto-import.js</code> e helper <code>db_getMaxUpdatedOrdemServico</code>.</li>
+            <li><strong>Remoção dos botões manuais de importação</strong> — com o auto-import ativo, foram removidos o botão "📥 Importar Inspeções do CSV" de <code>lancamento.html</code> e <code>meus-lancamentos.html</code>, o botão "Importar Auditorias do SIM" das mesmas páginas, e os botões de importar VISA/SIM (com seus <em>handlers</em>) de <code>conferencia.html</code>. Os botões de importação em lote ("todos os fiscais") permanecem em <code>parametrizacao.html</code> como <em>fallback</em> manual.</li>
+            <li><strong>Correção: posição de scroll perdida ao homologar na Conferência</strong> — ao aceitar ou recusar um lançamento, <code>loadConferencia()</code> recriava o <code>tbody</code> via <code>innerHTML</code> e a página voltava ao topo. Como o layout usa <code>min-height:100vh</code> (quem rola é o <code>window</code>, não o <code>.app-main</code>), a posição passa a ser salva via <code>window.scrollY</code> e restaurada com <code>requestAnimationFrame</code> após o navegador recalcular o layout com a tabela recarregada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.12.1</span>
             <span class="badge-date">28/06/2026</span>
           </div>
