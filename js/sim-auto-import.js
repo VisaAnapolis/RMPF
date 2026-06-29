@@ -17,7 +17,16 @@ let _simAutoRodando = false;
 let _simAutoTimer   = null;
 
 // ── Toast discreto (canto inferior direito) ──────────────
-function _simAutoToast(msg, type) {
+// Painel com DUAS regiões independentes: uma barra de PROGRESSO persistente
+// (atualizada de forma barata, sem reconstruir o DOM) e uma PILHA de MENSAGENS
+// que acumula os últimos avisos. Antes ambas dividiam um único slot
+// (wrap.innerHTML): isso (a) reconstruía todo o overlay a cada registro — caro,
+// reflow síncrono — e (b) fazia o progresso e os avisos se sobrescreverem.
+// Espelha o padrão do botão manual de parametrização (mostrarProgresso + log).
+let _simAutoMsgs    = [];   // HTML das últimas mensagens (via alerta())
+let _simAutoLastPct = -1;   // evita tocar o DOM quando o % arredondado não muda
+
+function _simAutoEls() {
   let wrap = document.getElementById('sim-auto-toast');
   if (!wrap) {
     wrap = document.createElement('div');
@@ -25,18 +34,72 @@ function _simAutoToast(msg, type) {
     wrap.style.cssText =
       'position:fixed;right:16px;bottom:16px;z-index:9999;max-width:360px;' +
       'display:flex;flex-direction:column;gap:6px';
+    wrap.innerHTML =
+      '<div id="sim-auto-progress" class="progress-wrap" style="display:none;margin-bottom:0">' +
+        '<div class="progress-header">' +
+          '<span class="progress-label" id="sim-auto-progress-label">Processando…</span>' +
+          '<span class="progress-pct" id="sim-auto-progress-pct">0%</span>' +
+        '</div>' +
+        '<div class="progress-track"><div class="progress-fill" id="sim-auto-progress-fill"></div></div>' +
+      '</div>' +
+      '<div id="sim-auto-msgs" class="sim-auto-msgs"></div>';
     document.body.appendChild(wrap);
   }
+  return {
+    wrap,
+    prog:  document.getElementById('sim-auto-progress'),
+    label: document.getElementById('sim-auto-progress-label'),
+    pct:   document.getElementById('sim-auto-progress-pct'),
+    fill:  document.getElementById('sim-auto-progress-fill'),
+    msgs:  document.getElementById('sim-auto-msgs'),
+  };
+}
+
+// Barra de progresso (azul) — só mexe no DOM quando o % arredondado muda.
+function _simAutoProgress(atual, total) {
+  if (!total) return;
+  const els = _simAutoEls();
+  els.wrap.style.display = '';
+  const pct = Math.round((atual / total) * 100);
+  if (pct === _simAutoLastPct) return;
+  _simAutoLastPct = pct;
+  els.prog.style.display = '';
+  els.fill.style.width   = pct + '%';
+  els.pct.textContent    = pct + '%';
+  els.label.textContent  = `Importando auditorias do SIM ${atual} de ${total}…`;
+}
+
+// Oculta apenas a barra de progresso (mantém as mensagens visíveis).
+function _simAutoProgressHide() {
+  _simAutoLastPct = -1;
+  const p = document.getElementById('sim-auto-progress');
+  if (p) p.style.display = 'none';
+}
+
+// Pilha de mensagens (avisos/infos) — acrescenta mantendo as últimas 6.
+function _simAutoMsg(msg, type) {
+  const els = _simAutoEls();
+  els.wrap.style.display = '';
   const html = (typeof alerta === 'function')
     ? alerta(type || 'info', msg)
     : `<div class="alert">${msg}</div>`;
-  wrap.innerHTML = html;
-  wrap.style.display = '';
+  _simAutoMsgs.push(html);
+  if (_simAutoMsgs.length > 6) _simAutoMsgs = _simAutoMsgs.slice(-6);
+  els.msgs.innerHTML = _simAutoMsgs.join('');
+  els.msgs.scrollTop = els.msgs.scrollHeight;
 }
+
+// Oculta o painel inteiro e zera o estado das duas regiões.
 function _simAutoToastHide(delayMs) {
   const wrap = document.getElementById('sim-auto-toast');
   if (!wrap) return;
-  setTimeout(() => { wrap.style.display = 'none'; wrap.innerHTML = ''; }, delayMs || 6000);
+  setTimeout(() => {
+    wrap.style.display = 'none';
+    _simAutoMsgs = [];
+    _simAutoLastPct = -1;
+    const m = document.getElementById('sim-auto-msgs');     if (m) m.innerHTML = '';
+    const p = document.getElementById('sim-auto-progress'); if (p) p.style.display = 'none';
+  }, delayMs || 6000);
 }
 
 // Verifica se há auditorias novas/alteradas desde a última importação automática
@@ -78,14 +141,10 @@ async function verificarEImportarSIM(user) {
     }
 
     // 4. Importar todos os fiscais
-    _simAutoToast('🔄 Atualizando auditorias do SIM (todos os fiscais)…', 'info');
+    _simAutoMsg('🔄 Atualizando auditorias do SIM (todos os fiscais)…', 'info');
     const allFiscais = await window.db_getTodosFiscais();
-    const onProgress = (m, t) => _simAutoToast(m, t);
-    const onProgressBar = (atual, total) => {
-      if (!total) return;
-      const pct = Math.round((atual / total) * 100);
-      _simAutoToast(`🔄 Importando auditorias do SIM… ${pct}%`, 'info');
-    };
+    const onProgress = (m, t) => _simAutoMsg(m, t);
+    const onProgressBar = (atual, total) => _simAutoProgress(atual, total);
 
     try {
       const r = await window.importarAuditoriasSIM({
@@ -99,7 +158,8 @@ async function verificarEImportarSIM(user) {
         },
       });
       const total = r ? ((r.criados || 0) + (r.atualizados || 0)) : 0;
-      _simAutoToast(`✅ Auditorias do SIM atualizadas (${total} lançamento(s) afetado(s)).`, 'ok');
+      _simAutoProgressHide();
+      _simAutoMsg(`✅ Auditorias do SIM atualizadas (${total} lançamento(s) afetado(s)).`, 'ok');
       _simAutoToastHide(6000);
     } catch (e) {
       // Outro admin já está importando (lock) — sai em silêncio.
@@ -109,7 +169,8 @@ async function verificarEImportarSIM(user) {
         return;
       }
       console.warn('[SIM auto-import] Falha na importação automática:', msg);
-      _simAutoToast('⚠️ Falha ao atualizar auditorias do SIM automaticamente.', 'warn');
+      _simAutoProgressHide();
+      _simAutoMsg('⚠️ Falha ao atualizar auditorias do SIM automaticamente.', 'warn');
       _simAutoToastHide(8000);
     }
   } finally {
