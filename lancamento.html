@@ -42,31 +42,6 @@
     <div id="alert-area"></div>
     <div id="comp-fechado-alert" style="display:none"></div>
 
-    <!-- ── Importar Auditorias do SIM ── -->
-    <div class="card" id="card-import-sim" style="max-width:680px">
-      <div class="card-title">📥 Importar Auditorias do SIM</div>
-      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
-        Busca automaticamente suas auditorias concluídas do mês selecionado no sistema SIM e cria os
-        lançamentos correspondentes. Registros já homologados não serão alterados.
-      </p>
-      <div class="btn-group">
-        <button class="btn btn-outline" id="btn-import-sim" type="button" disabled
-                title="Selecione a competência acima">
-          📥 Importar Auditorias do SIM
-        </button>
-      </div>
-      <div id="import-sim-log" style="margin-top:10px"></div>
-      <div id="import-sim-progress-wrap" class="progress-wrap" style="display:none">
-        <div class="progress-header">
-          <span class="progress-label" id="import-sim-progress-label">Processando…</span>
-          <span class="progress-pct" id="import-sim-progress-pct">0%</span>
-        </div>
-        <div class="progress-track">
-          <div class="progress-fill" id="import-sim-progress-fill"></div>
-        </div>
-      </div>
-    </div>
-
     <div class="card" style="max-width:680px">
       <div class="card-title">📄 Dados da Atividade</div>
 
@@ -171,7 +146,6 @@
   <script src="js/db-monitor.js"></script>
 <script src="js/guard.js"></script>
 <script src="js/visa-import.js"></script>
-<script src="js/sim-import.js"></script>
 <script>
   function showAlert(type, msg) {
     document.getElementById('alert-area').innerHTML = alerta(type, msg);
@@ -502,8 +476,7 @@
       const ano = Number(document.getElementById('f-ano').value);
       const btnRascunho = document.getElementById('btn-rascunho');
       const btnEnviar   = document.getElementById('btn-enviar');
-      const btnSim      = document.getElementById('btn-import-sim');
-      [btnRascunho, btnEnviar, btnSim].forEach(b => { b.disabled = true; });
+      [btnRascunho, btnEnviar].forEach(b => { b.disabled = true; });
       try {
         const fechado = await db_isMesFechado(user.email, mes, ano);
         if (fechado) {
@@ -516,19 +489,11 @@
           document.getElementById('grupo-anexo-pdf').style.display = '';
           btnRascunho.disabled = false;
           btnEnviar.disabled   = false;
-          btnSim.disabled = !simMesAberto(mes, ano);
-          btnSim.title = simMesAberto(mes, ano)
-            ? 'Importar auditorias do SIM para este mês'
-            : 'Mês anterior a Abril/2026 — impossível importar';
         }
       } catch (e) {
         console.error('[Lancamento] Erro ao verificar fechamento:', e);
         btnRascunho.disabled = false;
         btnEnviar.disabled   = false;
-        btnSim.disabled = !simMesAberto(mes, ano);
-        btnSim.title = simMesAberto(mes, ano)
-          ? 'Importar auditorias do SIM para este mês'
-          : 'Mês anterior a Abril/2026 — impossível importar';
       }
     }
     document.getElementById('f-mes').addEventListener('change', verificarFechamento);
@@ -565,48 +530,6 @@
     }
 
     document.getElementById('f-data').addEventListener('change', verificarDataOcorrencia);
-
-    const simProgressWrap  = document.getElementById('import-sim-progress-wrap');
-    const simProgressLabel = document.getElementById('import-sim-progress-label');
-    const simProgressPct   = document.getElementById('import-sim-progress-pct');
-    const simProgressFill  = document.getElementById('import-sim-progress-fill');
-
-    function mostrarProgressoSim(atual, total) {
-      if (!total) return;
-      simProgressWrap.style.display = '';
-      const pct = Math.round((atual / total) * 100);
-      simProgressFill.style.width  = pct + '%';
-      simProgressPct.textContent   = pct + '%';
-      simProgressLabel.textContent = `Processando auditoria ${atual} de ${total}…`;
-    }
-    function ocultarProgressoSim() {
-      simProgressWrap.style.display = 'none';
-      simProgressFill.style.width   = '0%';
-    }
-
-    document.getElementById('btn-import-sim').addEventListener('click', async () => {
-      const mes    = Number(document.getElementById('f-mes').value);
-      const ano    = Number(document.getElementById('f-ano').value);
-      const logEl  = document.getElementById('import-sim-log');
-      const btn    = document.getElementById('btn-import-sim');
-      btn.disabled = true;
-      logEl.innerHTML = '';
-      ocultarProgressoSim();
-      const msgs = [];
-      const onProgress = (msg, type) => {
-        msgs.push(alerta(type, msg));
-        logEl.innerHTML = msgs.slice(-6).join('');
-      };
-      try {
-        const allFiscais = await db_getTodosFiscais();
-        await importarAuditoriasSIM({ fiscalEmail: user.email, fiscalNome: user.nome || user.email, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgressoSim });
-      } catch(e) {
-        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
-      } finally {
-        await verificarFechamento();
-        ocultarProgressoSim();
-      }
-    });
 
     // Default today
     document.getElementById('f-data').value = new Date().toISOString().split('T')[0];

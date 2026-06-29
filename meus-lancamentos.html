@@ -46,23 +46,8 @@
       <select class="form-control" id="sel-mes" style="max-width:140px"></select>
       <select class="form-control" id="sel-ano" style="max-width:90px"></select>
       <button class="btn btn-outline btn-sm" id="btn-carregar">Carregar</button>
-      <button class="btn btn-outline btn-sm" id="btn-import-sim" type="button" disabled
-              title="Selecione a competência">
-        📥 Importar Auditorias do SIM
-      </button>
       <span class="toolbar-spacer"></span>
       <button class="btn btn-primary btn-sm" id="btn-nova-atividade">+ Nova Atividade</button>
-    </div>
-
-    <div id="import-sim-log" style="margin-bottom:8px"></div>
-    <div id="import-sim-progress-wrap" class="progress-wrap" style="display:none">
-      <div class="progress-header">
-        <span class="progress-label" id="import-sim-progress-label">Processando…</span>
-        <span class="progress-pct" id="import-sim-progress-pct">0%</span>
-      </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="import-sim-progress-fill"></div>
-      </div>
     </div>
 
     <div class="card">
@@ -286,7 +271,6 @@
   <script src="js/db-monitor.js"></script>
 <script src="js/guard.js"></script>
 <script src="js/visa-import.js"></script>
-<script src="js/sim-import.js"></script>
 <script>
   let _user = null;
   let _manuais = [];
@@ -802,72 +786,6 @@
     document.getElementById('sel-mes').value = _um;
     document.getElementById('sel-ano').value = _ua;
     loadManuais();
-
-    // ── Importação SIM ───────────────────────────────────
-    async function atualizarBtnImportSim() {
-      const mes = Number(document.getElementById('sel-mes').value);
-      const ano = Number(document.getElementById('sel-ano').value);
-      const btn = document.getElementById('btn-import-sim');
-      if (!simMesAberto(mes, ano)) {
-        btn.disabled = true;
-        btn.title = 'Mês anterior a Abril/2026 — impossível importar';
-        return;
-      }
-      const fechamento = await db_getFechamento(_user.email, mes, ano);
-      if (fechamento) {
-        btn.disabled = true;
-        btn.title = 'Competência já fechada — importação bloqueada';
-      } else {
-        btn.disabled = false;
-        btn.title = 'Importar auditorias do SIM para este mês';
-      }
-    }
-    document.getElementById('sel-mes').addEventListener('change', atualizarBtnImportSim);
-    document.getElementById('sel-ano').addEventListener('change', atualizarBtnImportSim);
-    atualizarBtnImportSim();
-
-    const simProgressWrap  = document.getElementById('import-sim-progress-wrap');
-    const simProgressLabel = document.getElementById('import-sim-progress-label');
-    const simProgressPct   = document.getElementById('import-sim-progress-pct');
-    const simProgressFill  = document.getElementById('import-sim-progress-fill');
-
-    function mostrarProgressoSim(atual, total) {
-      if (!total) return;
-      simProgressWrap.style.display = '';
-      const pct = Math.round((atual / total) * 100);
-      simProgressFill.style.width  = pct + '%';
-      simProgressPct.textContent   = pct + '%';
-      simProgressLabel.textContent = `Processando auditoria ${atual} de ${total}…`;
-    }
-    function ocultarProgressoSim() {
-      simProgressWrap.style.display = 'none';
-      simProgressFill.style.width   = '0%';
-    }
-
-    document.getElementById('btn-import-sim').addEventListener('click', async () => {
-      const mes    = Number(document.getElementById('sel-mes').value);
-      const ano    = Number(document.getElementById('sel-ano').value);
-      const logEl  = document.getElementById('import-sim-log');
-      const btn    = document.getElementById('btn-import-sim');
-      btn.disabled = true;
-      logEl.innerHTML = '';
-      ocultarProgressoSim();
-      const msgs = [];
-      const onProgress = (msg, type) => {
-        msgs.push(alerta(type, msg));
-        logEl.innerHTML = msgs.slice(-6).join('');
-      };
-      try {
-        const allFiscais = await db_getTodosFiscais();
-        await importarAuditoriasSIM({ fiscalEmail: _user.email, fiscalNome: _user.nome || _user.email, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgressoSim });
-        loadManuais();
-      } catch(e) {
-        logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
-      } finally {
-        await atualizarBtnImportSim();
-        ocultarProgressoSim();
-      }
-    });
 
     document.getElementById('btn-nova-atividade').addEventListener('click', async () => {
       const mes = Number(document.getElementById('sel-mes').value);
