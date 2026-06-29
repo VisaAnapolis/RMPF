@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.14.0</span>
+            <span class="badge-date">29/06/2026</span>
+          </div>
+          <div class="changelog-title">Ocorrências: bloqueio de datas duplicadas, ordenação por coluna e exclusão pelo fiscal</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: ocorrências sobrepostas na mesma data</strong> — o sistema permitia registrar duas (ou mais) ocorrências cobrindo o mesmo dia para o mesmo fiscal. Ao registrar, <code>ocorrencias.html</code> agora verifica todas as ocorrências não recusadas do fiscal nos meses abrangidos pelo período e bloqueia o cadastro quando há sobreposição de datas (<code>periodosSeSobrepoem</code>/<code>ocorrenciaConflitante</code>), exibindo o conflito encontrado. Também valida que a data fim não seja anterior à data início.</li>
+            <li><strong>Ordenação por coluna</strong> — os títulos da tabela de ocorrências (Fiscal, Tipo, Período, Descrição e Status) passam a ser clicáveis para ordenar de forma crescente/decrescente, com indicador ▲/▼ na coluna ativa. Ordenação padrão por período.</li>
+            <li><strong>Exclusão pelo fiscal</strong> — o fiscal pode excluir as próprias ocorrências enquanto estão <em>pendentes</em> ou após serem <em>recusadas</em>, por um botão 🗑️ na coluna Ações. Ocorrências já <em>aceitas</em> (que geram lançamentos) permanecem protegidas. Novo helper <code>db_deleteOcorrencia</code> em <code>js/firestore.js</code>.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.13.1</span>
             <span class="badge-date">29/06/2026</span>
           </div>

@@ -345,6 +345,9 @@ table.rmpf-table {
   word-break: keep-all;
   overflow-wrap: normal;
 }
+.rmpf-table thead th.sortable { cursor: pointer; user-select: none; }
+.rmpf-table thead th.sortable:hover { color: var(--azul, #1565c0); }
+.rmpf-table thead th.sortable .sort-ind { font-size: .7em; color: var(--azul, #1565c0); }
 .rmpf-table tbody tr:hover { background: var(--cinzaB); }
 .rmpf-table tbody tr:last-child td { border-bottom: none; }
 .rmpf-table .td-num { text-align: right; font-variant-numeric: tabular-nums; }
