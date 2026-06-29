@@ -490,6 +490,7 @@
 <script src="js/visa-import.js"></script>
 <script src="js/sim-import.js"></script>
 <script src="js/visa-auto-import.js"></script>
+<script src="js/sim-auto-import.js"></script>
 <script>
   let _currentUserEmail = '';
 
@@ -538,6 +539,11 @@
     // nesta página: ao carregar e por polling, quando o CSV mudar.
     if (typeof window.iniciarAutoImportVISA === 'function') {
       window.iniciarAutoImportVISA(user);
+    }
+    // Importação automática do SIM (auditorias concluídas, todos os fiscais)
+    // enquanto o admin estiver nesta página: ao carregar e por polling.
+    if (typeof window.iniciarAutoImportSIM === 'function') {
+      window.iniciarAutoImportSIM(user);
     }
 
     document.getElementById('btn-logout').addEventListener('click', () => {
