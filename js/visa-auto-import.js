@@ -15,7 +15,17 @@ let _visaAutoRodando = false;
 let _visaAutoTimer   = null;
 
 // ── Toast discreto (canto inferior direito) ──────────────
-function _visaAutoToast(msg, type) {
+// Painel com DUAS regiões independentes: uma barra de PROGRESSO persistente
+// (atualizada de forma barata, sem reconstruir o DOM) e uma PILHA de MENSAGENS
+// que acumula os últimos avisos. Antes ambas dividiam um único slot
+// (wrap.innerHTML): isso (a) reconstruía todo o overlay a cada registro do CSV
+// — caro, reflow síncrono — e (b) fazia o progresso e os avisos se
+// sobrescreverem. Espelha o padrão do botão manual de parametrização
+// (mostrarProgresso + log das últimas mensagens).
+let _visaAutoMsgs    = [];   // HTML das últimas mensagens (via alerta())
+let _visaAutoLastPct = -1;   // evita tocar o DOM quando o % arredondado não muda
+
+function _visaAutoEls() {
   let wrap = document.getElementById('visa-auto-toast');
   if (!wrap) {
     wrap = document.createElement('div');
@@ -23,18 +33,72 @@ function _visaAutoToast(msg, type) {
     wrap.style.cssText =
       'position:fixed;right:16px;bottom:16px;z-index:9999;max-width:360px;' +
       'display:flex;flex-direction:column;gap:6px';
+    wrap.innerHTML =
+      '<div id="visa-auto-progress" class="progress-wrap" style="display:none;margin-bottom:0">' +
+        '<div class="progress-header">' +
+          '<span class="progress-label" id="visa-auto-progress-label">Processando…</span>' +
+          '<span class="progress-pct" id="visa-auto-progress-pct">0%</span>' +
+        '</div>' +
+        '<div class="progress-track"><div class="progress-fill" id="visa-auto-progress-fill"></div></div>' +
+      '</div>' +
+      '<div id="visa-auto-msgs" class="visa-auto-msgs"></div>';
     document.body.appendChild(wrap);
   }
+  return {
+    wrap,
+    prog:  document.getElementById('visa-auto-progress'),
+    label: document.getElementById('visa-auto-progress-label'),
+    pct:   document.getElementById('visa-auto-progress-pct'),
+    fill:  document.getElementById('visa-auto-progress-fill'),
+    msgs:  document.getElementById('visa-auto-msgs'),
+  };
+}
+
+// Barra de progresso (azul) — só mexe no DOM quando o % arredondado muda.
+function _visaAutoProgress(atual, total) {
+  if (!total) return;
+  const els = _visaAutoEls();
+  els.wrap.style.display = '';
+  const pct = Math.round((atual / total) * 100);
+  if (pct === _visaAutoLastPct) return;
+  _visaAutoLastPct = pct;
+  els.prog.style.display = '';
+  els.fill.style.width   = pct + '%';
+  els.pct.textContent    = pct + '%';
+  els.label.textContent  = `Importando inspeções do VISA ${atual} de ${total}…`;
+}
+
+// Oculta apenas a barra de progresso (mantém as mensagens visíveis).
+function _visaAutoProgressHide() {
+  _visaAutoLastPct = -1;
+  const p = document.getElementById('visa-auto-progress');
+  if (p) p.style.display = 'none';
+}
+
+// Pilha de mensagens (avisos/infos) — acrescenta mantendo as últimas 6.
+function _visaAutoMsg(msg, type) {
+  const els = _visaAutoEls();
+  els.wrap.style.display = '';
   const html = (typeof alerta === 'function')
     ? alerta(type || 'info', msg)
     : `<div class="alert">${msg}</div>`;
-  wrap.innerHTML = html;
-  wrap.style.display = '';
+  _visaAutoMsgs.push(html);
+  if (_visaAutoMsgs.length > 6) _visaAutoMsgs = _visaAutoMsgs.slice(-6);
+  els.msgs.innerHTML = _visaAutoMsgs.join('');
+  els.msgs.scrollTop = els.msgs.scrollHeight;
 }
+
+// Oculta o painel inteiro e zera o estado das duas regiões.
 function _visaAutoToastHide(delayMs) {
   const wrap = document.getElementById('visa-auto-toast');
   if (!wrap) return;
-  setTimeout(() => { wrap.style.display = 'none'; wrap.innerHTML = ''; }, delayMs || 6000);
+  setTimeout(() => {
+    wrap.style.display = 'none';
+    _visaAutoMsgs = [];
+    _visaAutoLastPct = -1;
+    const m = document.getElementById('visa-auto-msgs');     if (m) m.innerHTML = '';
+    const p = document.getElementById('visa-auto-progress'); if (p) p.style.display = 'none';
+  }, delayMs || 6000);
 }
 
 // Verifica se o CSV de inspeções mudou desde a última importação automática e,
@@ -77,14 +141,10 @@ async function verificarEImportarVISA(user) {
     }
 
     // 4. Importar todos os fiscais
-    _visaAutoToast('🔄 Atualizando inspeções do VISA (todos os fiscais)…', 'info');
+    _visaAutoMsg('🔄 Atualizando inspeções do VISA (todos os fiscais)…', 'info');
     const allFiscais = await window.db_getTodosFiscais();
-    const onProgress = (m, t) => _visaAutoToast(m, t);
-    const onProgressBar = (atual, total) => {
-      if (!total) return;
-      const pct = Math.round((atual / total) * 100);
-      _visaAutoToast(`🔄 Importando inspeções do VISA… ${pct}%`, 'info');
-    };
+    const onProgress = (m, t) => _visaAutoMsg(m, t);
+    const onProgressBar = (atual, total) => _visaAutoProgress(atual, total);
 
     try {
       const r = await window.importarInspecoesVISA({
@@ -95,7 +155,8 @@ async function verificarEImportarVISA(user) {
         visa: { commit_sha: shaAtual, mes: Number(mes), ano: Number(ano), imported_at: new Date().toISOString() },
       });
       const total = r ? ((r.criados || 0) + (r.atualizados || 0)) : 0;
-      _visaAutoToast(`✅ Inspeções do VISA atualizadas (${total} lançamento(s) afetado(s)).`, 'ok');
+      _visaAutoProgressHide();
+      _visaAutoMsg(`✅ Inspeções do VISA atualizadas (${total} lançamento(s) afetado(s)).`, 'ok');
       _visaAutoToastHide(6000);
     } catch (e) {
       // Outro admin já está importando (lock) — sai em silêncio.
@@ -105,7 +166,8 @@ async function verificarEImportarVISA(user) {
         return;
       }
       console.warn('[VISA auto-import] Falha na importação automática:', msg);
-      _visaAutoToast('⚠️ Falha ao atualizar inspeções do VISA automaticamente.', 'warn');
+      _visaAutoProgressHide();
+      _visaAutoMsg('⚠️ Falha ao atualizar inspeções do VISA automaticamente.', 'warn');
       _visaAutoToastHide(8000);
     }
   } finally {

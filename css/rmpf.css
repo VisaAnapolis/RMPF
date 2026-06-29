@@ -599,6 +599,18 @@ table.rmpf-table {
   transition: width .15s ease;
 }
 
+/* ── Toast auto-import (VISA/SIM): pilha de mensagens rolável e limitada ── */
+.visa-auto-msgs,
+.sim-auto-msgs {
+  max-height: 40vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.visa-auto-msgs .alert,
+.sim-auto-msgs .alert { margin-bottom: 0; }
+
 /* ── Footer ── */
 .app-footer {
   grid-column: 1 / -1;
