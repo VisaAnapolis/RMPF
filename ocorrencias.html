@@ -96,12 +96,12 @@
       <div class="table-wrap">
         <table class="rmpf-table">
           <thead>
-            <tr>
-              <th id="th-fiscal-col" style="display:none">Fiscal</th>
-              <th>Tipo</th>
-              <th>Período</th>
-              <th>Descrição</th>
-              <th>Status</th>
+            <tr id="ocorr-head">
+              <th id="th-fiscal-col" class="sortable" data-sort="fiscal" style="display:none">Fiscal<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="tipo">Tipo<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="periodo">Período<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="descricao">Descrição<span class="sort-ind"></span></th>
+              <th class="sortable" data-sort="status">Status<span class="sort-ind"></span></th>
               <th class="nao-imprimir" id="th-acoes">Ações</th>
             </tr>
           </thead>
@@ -186,6 +186,7 @@
   let _user  = null;
   let _perfil = '';
   let _ocorrs = [];
+  let _sort  = { key: 'periodo', dir: 1 };
 
   const TIPO_LABELS = {
     ferias: 'Férias',
@@ -255,6 +256,36 @@
     return result;
   }
 
+  /**
+   * Verifica se dois períodos [aIni..aFim] e [bIni..bFim] se sobrepõem.
+   * Datas em ISO (YYYY-MM-DD); quando não há fim, considera-se o próprio início.
+   */
+  function periodosSeSobrepoem(aIni, aFim, bIni, bFim) {
+    const a1 = aIni, a2 = aFim || aIni;
+    const b1 = bIni, b2 = bFim || bIni;
+    return a1 <= b2 && b1 <= a2;
+  }
+
+  /**
+   * Retorna a primeira ocorrência (não recusada) do fiscal que se sobrepõe ao
+   * período informado, ou null se não houver conflito. Consulta todos os meses
+   * abrangidos pelo novo período para capturar ocorrências que cruzam meses.
+   */
+  async function ocorrenciaConflitante(email, inicio, fim, ignoreId) {
+    const periodos = diasDaOcorrenciaPorMes(inicio, fim);
+    const existentes = new Map();
+    for (const { mes, ano } of Object.values(periodos)) {
+      const lista = await db_getOcorrencias(email, mes, ano);
+      lista.forEach(o => existentes.set(o.id, o));
+    }
+    for (const o of existentes.values()) {
+      if (ignoreId && o.id === ignoreId) continue;
+      if (o.status === 'recusado') continue;
+      if (periodosSeSobrepoem(inicio, fim, o.data_inicio, o.data_fim)) return o;
+    }
+    return null;
+  }
+
   async function registrarOcorrencia() {
     const tipo  = document.getElementById('o-tipo').value;
     const inicio= document.getElementById('o-inicio').value;
@@ -262,11 +293,32 @@
     const desc  = document.getElementById('o-desc').value.trim();
     const mes   = Number(document.getElementById('o-mes').value);
     const ano   = Number(document.getElementById('o-ano').value);
+    const formAlert = document.getElementById('form-alert');
+    const btn = document.getElementById('btn-registrar');
     if (!tipo||!inicio) {
-      document.getElementById('form-alert').innerHTML = alerta('warn','Preencha tipo e data de início.');
+      formAlert.innerHTML = alerta('warn','Preencha tipo e data de início.');
       return;
     }
+    if (fim && fim < inicio) {
+      formAlert.innerHTML = alerta('warn','A data fim não pode ser anterior à data início.');
+      return;
+    }
+    btn.disabled = true;
     try {
+      // ── Bloqueia ocorrências sobrepostas para a(s) mesma(s) data(s) ──
+      formAlert.innerHTML = alerta('info','🔄 Verificando ocorrências já registradas…');
+      const conflito = await ocorrenciaConflitante(_user.email, inicio, fim, null);
+      if (conflito) {
+        const per = conflito.data_fim
+          ? `${fmtData(conflito.data_inicio)} — ${fmtData(conflito.data_fim)}`
+          : fmtData(conflito.data_inicio);
+        formAlert.innerHTML = alerta('danger',
+          `Já existe uma ocorrência registrada que se sobrepõe a este período ` +
+          `(<strong>${TIPO_LABELS[conflito.tipo]||escHtml(conflito.tipo)}</strong>, ${per} — ` +
+          `${badge(conflito.status)}). Não é permitido registrar duas ocorrências para a(s) mesma(s) data(s).`);
+        return;
+      }
+
       await db_createOcorrencia({
         fiscal_email: _user.email,
         fiscal_nome:  _user.nome || _user.email,
@@ -279,10 +331,12 @@
       });
       document.getElementById('alert-area').innerHTML = alerta('ok','Ocorrência registrada com sucesso.');
       document.getElementById('form-ocorrencia').reset();
-      document.getElementById('form-alert').innerHTML = '';
+      formAlert.innerHTML = '';
       loadOcorrencias();
     } catch(e) {
-      document.getElementById('form-alert').innerHTML = alerta('danger','Erro: '+escHtml(e.message));
+      formAlert.innerHTML = alerta('danger','Erro: '+escHtml(e.message));
+    } finally {
+      btn.disabled = false;
     }
   }
 
@@ -306,20 +360,64 @@
     }
   }
 
+  function sortVal(o, key) {
+    switch (key) {
+      case 'fiscal':    return (o.fiscal_nome || o.fiscal_email || '').toLowerCase();
+      case 'tipo':      return (TIPO_LABELS[o.tipo] || o.tipo || '').toLowerCase();
+      case 'periodo':   return o.data_inicio || '';
+      case 'descricao': return (o.descricao || '').toLowerCase();
+      case 'status':    return o.status || '';
+      default:          return '';
+    }
+  }
+
+  function updateSortIndicators() {
+    document.querySelectorAll('#ocorr-head th.sortable').forEach(th => {
+      const ind = th.querySelector('.sort-ind');
+      if (!ind) return;
+      ind.textContent = th.dataset.sort === _sort.key ? (_sort.dir === 1 ? ' ▲' : ' ▼') : '';
+    });
+  }
+
+  function attachSortHandlers() {
+    document.querySelectorAll('#ocorr-head th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.sort;
+        if (_sort.key === key) _sort.dir *= -1;
+        else { _sort.key = key; _sort.dir = 1; }
+        renderOcorrs();
+      });
+    });
+  }
+
   function renderOcorrs() {
     const tbody = document.getElementById('tbody-ocorrencias');
     const isAdmin = _perfil === 'Administrador';
+    updateSortIndicators();
     if (!_ocorrs.length) {
       tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Nenhuma ocorrência nesta competência</td></tr>';
       return;
     }
-    tbody.innerHTML = _ocorrs.map(o => {
+    const rows = _ocorrs.slice();
+    if (_sort.key) {
+      rows.sort((a, b) => {
+        const va = sortVal(a, _sort.key), vb = sortVal(b, _sort.key);
+        if (va < vb) return -1 * _sort.dir;
+        if (va > vb) return  1 * _sort.dir;
+        return 0;
+      });
+    }
+    tbody.innerHTML = rows.map(o => {
       const periodo = o.data_fim ? `${fmtData(o.data_inicio)} — ${fmtData(o.data_fim)}` : fmtData(o.data_inicio);
       let acoes = '—';
       if (isAdmin && o.status === 'pendente') {
         acoes = `<button class="btn btn-outline btn-sm" onclick="abrirRev('${o.id}')">📝 Revisar</button>`;
       } else if (isAdmin) {
         acoes = `<button class="btn btn-default btn-sm" onclick="abrirRev('${o.id}')">✏️ Rever</button>`;
+      } else if (!isAdmin && (o.status === 'pendente' || o.status === 'recusado')) {
+        // Fiscal pode excluir a própria ocorrência enquanto ela ainda não foi
+        // aceita (pendente) ou após ter sido recusada.
+        acoes = `<button class="btn btn-danger btn-sm" onclick="excluirOcorrencia('${o.id}')">🗑️ Excluir</button>`;
       }
       const fiscalCol = (_perfil !== 'Fiscal') ? `<td data-label="Fiscal">${escHtml(o.fiscal_nome||o.fiscal_email)}</td>` : '';
       return `<tr>
@@ -332,6 +430,31 @@
       </tr>`;
     }).join('');
   }
+
+  async function excluirOcorrencia(id) {
+    const o = _ocorrs.find(x => x.id === id);
+    if (!o) return;
+    // Trava de segurança: ocorrências aceitas geram lançamentos e não podem
+    // ser excluídas pelo fiscal por aqui.
+    if (o.status === 'aceito') {
+      document.getElementById('alert-area').innerHTML =
+        alerta('warn', 'Ocorrências já aceitas não podem ser excluídas. Solicite ao administrador.');
+      return;
+    }
+    const per = o.data_fim
+      ? `${fmtData(o.data_inicio)} — ${fmtData(o.data_fim)}`
+      : fmtData(o.data_inicio);
+    if (!confirm(`Excluir a ocorrência "${TIPO_LABELS[o.tipo] || o.tipo}" (${per})?`)) return;
+    try {
+      await db_deleteOcorrencia(id);
+      _ocorrs = _ocorrs.filter(x => x.id !== id);
+      renderOcorrs();
+      document.getElementById('alert-area').innerHTML = alerta('ok', 'Ocorrência excluída.');
+    } catch(e) {
+      document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao excluir: ' + escHtml(e.message));
+    }
+  }
+  window.excluirOcorrencia = excluirOcorrencia;
 
   function abrirRev(id) {
     const o = _ocorrs.find(x => x.id === id);
@@ -507,6 +630,7 @@
       }
     }
 
+    attachSortHandlers();
     loadOcorrencias();
     document.getElementById('btn-carregar').addEventListener('click', loadOcorrencias);
     document.getElementById('btn-logout').addEventListener('click', () => {

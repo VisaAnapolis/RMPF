@@ -140,6 +140,10 @@ async function updateOcorrencia(id, data) {
   });
 }
 
+async function deleteOcorrencia(id) {
+  await window.db.collection('ocorrencias').doc(id).delete();
+}
+
 // ── CVS Override ─────────────────────────────────────────
 
 async function getCvsOverride(id) {
@@ -1054,6 +1058,7 @@ window.db_getOcorrenciasTodas = getOcorrenciasTodas;
 window.db_getOcorrenciasAceitasTodas = getOcorrenciasAceitasTodas;
 window.db_createOcorrencia    = createOcorrencia;
 window.db_updateOcorrencia    = updateOcorrencia;
+window.db_deleteOcorrencia    = deleteOcorrencia;
 window.db_getCvsOverride      = getCvsOverride;
 window.db_setCvsOverride      = setCvsOverride;
 window.db_getUsuario          = getUsuario;
