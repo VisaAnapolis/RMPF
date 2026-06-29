@@ -5,10 +5,11 @@
 // telas do fiscal): roda em sessão de Administrador, ao carregar a página e a
 // cada ~10 min enquanto o admin estiver logado. Como a fonte é o Firestore
 // (coleção `ordens_servico`) e não há SHA de commit como no VISA, a detecção de
-// mudança usa uma assinatura leve da competência aberta — quantidade de OS
-// concluídas + maior `updatedAt` — comparada com o estado salvo em
-// app_config/import_state. O lock distribuído (sim_import_locks) evita
-// execuções concorrentes entre vários admins.
+// mudança usa um "watermark" de 1 leitura: o maior `updatedAt` da coleção
+// (`db_getMaxUpdatedOrdemServico`), comparado com o valor salvo em
+// app_config/import_state.sim. Só quando esse watermark avança é que a
+// importação do mês é executada — evitando reler todas as OS a cada ciclo. O
+// lock distribuído (sim_import_locks) evita execuções concorrentes entre admins.
 
 const SIM_AUTO_IMPORT_INTERVALO_MS = 10 * 60 * 1000; // 10 min
 
@@ -38,36 +39,6 @@ function _simAutoToastHide(delayMs) {
   setTimeout(() => { wrap.style.display = 'none'; wrap.innerHTML = ''; }, delayMs || 6000);
 }
 
-// Normaliza statusOs (tolerante a caixa/acentuação) — mesmo critério do
-// sim-import.js para identificar "concluida".
-function _simNormStatus(v) {
-  return String(v || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase().trim();
-}
-
-// Converte um valor de data/Timestamp em milissegundos (0 se inválido).
-function _simToMillis(v) {
-  if (!v) return 0;
-  if (typeof v.toMillis === 'function') return v.toMillis();
-  if (typeof v.seconds === 'number') return v.seconds * 1000;
-  const t = new Date(v).getTime();
-  return Number.isFinite(t) ? t : 0;
-}
-
-// Assinatura leve da competência: { qtd, maxUpdatedMs } das OS concluídas.
-async function _simAssinatura(mes, ano) {
-  const ordens = await window.db_getOrdensServicoConcluidas(mes, ano, null);
-  let qtd = 0, maxUpdatedMs = 0;
-  for (const o of (ordens || [])) {
-    if (_simNormStatus(o.statusOs) !== 'concluida') continue;
-    qtd++;
-    const ms = _simToMillis(o.updatedAt);
-    if (ms > maxUpdatedMs) maxUpdatedMs = ms;
-  }
-  return { qtd, maxUpdatedMs };
-}
-
 // Verifica se há auditorias novas/alteradas desde a última importação automática
 // e, em caso afirmativo, importa para todos os fiscais na competência aberta.
 async function verificarEImportarSIM(user) {
@@ -88,21 +59,21 @@ async function verificarEImportarSIM(user) {
     }
     if (!window.simMesAberto(mes, ano)) return;
 
-    // 2. Assinatura atual da competência (read barato; reaproveita a query de import)
-    let sig;
+    // 2. Watermark atual: maior updatedAt em ordens_servico (1 leitura)
+    let watermark;
     try {
-      sig = await _simAssinatura(mes, ano);
+      watermark = await window.db_getMaxUpdatedOrdemServico();
     } catch (e) {
-      console.warn('[SIM auto-import] Não foi possível obter as ordens concluídas:', e.message);
+      console.warn('[SIM auto-import] Não foi possível obter o watermark de ordens_servico:', e.message);
       return;
     }
 
-    // 3. Comparar com o estado salvo
+    // 3. Comparar com o estado salvo — pular se mesma competência e watermark não avançou
     let state = {};
     try { state = await window.db_getImportState(); } catch (_) {}
     const st = state && state.sim;
     if (st && Number(st.mes) === Number(mes) && Number(st.ano) === Number(ano) &&
-        Number(st.qtd) === sig.qtd && Number(st.max_updated) === sig.maxUpdatedMs) {
+        Number(st.watermark) >= watermark) {
       return; // nada mudou desde a última importação — nada a fazer
     }
 
@@ -120,10 +91,10 @@ async function verificarEImportarSIM(user) {
       const r = await window.importarAuditoriasSIM({
         fiscalEmail: null, mes, ano, allFiscais, onProgress, onProgressBar,
       });
-      // 5. Persistir a nova assinatura só após sucesso
+      // 5. Persistir o novo watermark só após sucesso
       await window.db_setImportState({
         sim: {
-          qtd: sig.qtd, max_updated: sig.maxUpdatedMs,
+          watermark,
           mes: Number(mes), ano: Number(ano), imported_at: new Date().toISOString(),
         },
       });

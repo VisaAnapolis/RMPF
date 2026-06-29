@@ -431,6 +431,20 @@ async function getOrdensServicoConcluidas(mes, ano, fiscalEmail) {
   return snap.docs.map(d => ({ _docId: d.id, ...d.data() }));
 }
 
+// Maior updatedAt (ms) em ordens_servico — detector barato de mudança (1 leitura).
+// Retorna 0 se a coleção estiver vazia. Usa o índice de campo único de updatedAt.
+async function getMaxUpdatedOrdemServico() {
+  const snap = await window.db.collection('ordens_servico')
+    .orderBy('updatedAt', 'desc').limit(1).get();
+  if (snap.empty) return 0;
+  const v = snap.docs[0].data().updatedAt;
+  if (!v) return 0;
+  if (typeof v.toMillis === 'function') return v.toMillis();
+  if (typeof v.seconds === 'number') return v.seconds * 1000;
+  const t = new Date(v).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
 // ── Fechamentos ──────────────────────────────────────────
 // Document ID: {ano}-{mes_padded}-{fiscal_email_sanitized}
 
@@ -1057,6 +1071,7 @@ window.db_upsertSIMManual       = upsertSIMManual;
 window.db_acquireSimImportLock  = acquireSimImportLock;
 window.db_releaseSimImportLock  = releaseSimImportLock;
 window.db_getOrdensServicoConcluidas = getOrdensServicoConcluidas;
+window.db_getMaxUpdatedOrdemServico  = getMaxUpdatedOrdemServico;
 window.db_getGitHubToken        = db_getGitHubToken;
 window.db_setGitHubToken        = db_setGitHubToken;
 window.fetchGitHubCSV           = fetchGitHubCSV;
