@@ -177,8 +177,8 @@ const _TIPO_OCR_TO_DISPOSITIVO = {
   licenca_medica:   'Art. 11, inciso V, da Lei Complementar nº 548/2023',
   licenca_gestante: 'Art. 11, inciso VII, da Lei Complementar nº 548/2023',
   cargo_comissao:   'Art. 11, inciso X, da Lei Complementar nº 548/2023',
-  afastamento_legal:'Art. 11 da Lei Complementar nº 548/2023',
-  outros:           'Art. 11 da Lei Complementar nº 548/2023',
+  afastamento_legal:'Art. 11, caput, da Lei Complementar nº 548/2023',
+  outros:           'Art. 11, caput, da Lei Complementar nº 548/2023',
 };
 
 function dispositivoLegalOcorrencia(tipo) {
