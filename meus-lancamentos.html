@@ -503,8 +503,9 @@
     };
   }
 
-  // Bloqueia mover/lançar um Plantão Fiscal (PLT) para uma data que já
-  // possui vistorias importadas do VISA. Retorna a quantidade ou null.
+  // Bloqueia mover/lançar um Plantão Fiscal (PLT) para uma data que já possui
+  // vistorias importadas do VISA que geram pontos. Vistorias zeradas (ex.: origem
+  // da demanda "PLANTÃO FISCAL") não são impeditivas. Retorna a quantidade ou null.
   async function bloqueioPlantaoComVistoria(idManual, dataISO) {
     const m = _manuais.find(x => x.id === idManual);
     if (!m || m.tipo_codigo !== 'PLT') return null;
@@ -545,8 +546,8 @@
       const qtdVisEdit = await bloqueioPlantaoComVistoria(id, data);
       if (qtdVisEdit) {
         document.getElementById('edit-alert').innerHTML = alerta('danger',
-          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA. ` +
-          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisEdit}</strong> vistoria(s) importada(s).`);
+          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação. ` +
+          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisEdit}</strong> vistoria(s) importada(s) que geram pontos.`);
         return;
       }
       const qtdVisOpfEdit = await bloqueioOpfComVistoria(id, data);
@@ -652,8 +653,8 @@
       const qtdVisCorr = await bloqueioPlantaoComVistoria(id, data);
       if (qtdVisCorr) {
         document.getElementById('corrigir-alert').innerHTML = alerta('danger',
-          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA. ` +
-          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisCorr}</strong> vistoria(s) importada(s).`);
+          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação. ` +
+          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisCorr}</strong> vistoria(s) importada(s) que geram pontos.`);
         return;
       }
       const qtdVisOpfCorr = await bloqueioOpfComVistoria(id, data);
