@@ -44,6 +44,18 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.13.1</span>
+            <span class="badge-date">29/06/2026</span>
+          </div>
+          <div class="changelog-title">Compliance de ocorrências: unificação dos afastamentos genéricos</div>
+          <ul class="changelog-changes">
+            <li><strong>Tipos de ocorrência alinhados ao Art. 11 da LC 548/2023</strong> — as opções genéricas <em>"Outros"</em> e <em>"Afastamento Legal"</em> foram unificadas em <strong>"Outros afastamentos funcionais imperativos"</strong>, termo do <em>caput</em> do Art. 11. A opção <em>"Outros"</em> permitia registrar afastamento fora das hipóteses taxativas dos incisos I–X e ainda preservar a produtividade, contrariando o <strong>§ 1º</strong> (<em>"nos demais afastamentos não será devida a produtividade ao servidor"</em>); a unificação fecha essa brecha e elimina a redundância entre as duas opções genéricas.</li>
+            <li><strong>Alterações</strong> — removida a opção do formulário em <code>ocorrencias.html</code> e atualizado o rótulo em todos os mapas de label (<code>lancamento.html</code>, <code>meus-lancamentos.html</code>, <code>fechamento.html</code>, <code>parametrizacao.html</code>). Em <code>js/utils.js</code> o <code>dispositivo_legal</code> dessas ocorrências passa a citar <em>"Art. 11, caput, da Lei Complementar nº 548/2023"</em>. Registros já existentes (<code>tipo: 'outros'</code> ou <code>'afastamento_legal'</code>) seguem exibindo o rótulo unificado, sem migração de dados.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.13.0</span>
             <span class="badge-date">29/06/2026</span>
           </div>
