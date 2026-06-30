@@ -322,13 +322,16 @@
       return { cls: 'badge-aceito',   label: '🟢 Ativo',    title: 'Token registrado — recebendo notificações' };
     }
     if (perm === 'denied') {
-      return { cls: 'badge-recusado', label: '🔴 Negou',    title: 'Usuário negou as notificações no dispositivo' };
+      return { cls: 'badge-recusado', label: '🔴 Negou',    title: 'Usuário negou as notificações no navegador/dispositivo' };
+    }
+    if (diag === 'convite_recusado') {
+      return { cls: 'badge-recusado', label: '🟠 Recusou',  title: 'Recusou o convite no app (pode ser reconvidado — a permissão do navegador ainda não foi negada)' };
     }
     if (perm === 'granted' && !temToken) {
       return { cls: 'badge-pendente', label: '🟡 Sem token', title: 'Permitiu, mas o token não foi gerado — diag: ' + (diag || '—') };
     }
-    if (perm === 'default' || (!perm && !diag)) {
-      return { cls: 'badge-enviado',  label: '🟡 Pendente',  title: 'Ainda não decidiu sobre as notificações' };
+    if (perm === 'default' || diag === 'convite_pendente' || (!perm && !diag)) {
+      return { cls: 'badge-enviado',  label: '🟡 Pendente',  title: 'Convite exibido — ainda não decidiu' };
     }
     return { cls: 'badge-pendente',   label: '❔ —',         title: 'diag: ' + (diag || '—') + (perm ? ' | perm: ' + perm : '') };
   }

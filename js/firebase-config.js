@@ -122,67 +122,110 @@ function _fcmPromo_markShown(campaign) {
 }
 
 /**
- * Exibe um banner convidando o usuário a ativar notificações push.
- * Só exibe quando Notification.permission === 'default' e o throttle permitir.
+ * Exibe um MODAL decisório (estilo VISA) convidando o usuário a ativar as
+ * notificações push. Diferente do antigo banner "soft" (que podia ser ignorado
+ * sem registrar nada), aqui o usuário precisa escolher:
+ *   - "Sim, ativar"   → vai ao diálogo nativo (initFCM _skipPromo=true);
+ *   - "Não, obrigado" → registra a recusa do CONVITE no Firestore
+ *                       (rmpf_notifDiag='convite_recusado'). NÃO é o "denied" do
+ *                       navegador: a permissão segue 'default' e o usuário pode
+ *                       ser reconvidado depois — apenas a cadência muda.
+ * Com isso o painel admin deixa de marcar como "Pendente" quem na verdade já
+ * decidiu, espelhando o comportamento binário do VISA.
  *
- * @param {string} email  E-mail do usuário autenticado (passado ao initFCM ao clicar em Ativar)
+ * Só exibe quando Notification.permission === 'default' e o throttle permitir.
+ * Para quem ainda não decidiu, o intervalo é promo_dias ("Convite"); para quem
+ * já recusou o convite, é denied_reminder_dias ("Lembrete") — mais espaçado,
+ * como o VISA, que reoferece a ativação a quem recusou em cadência maior.
+ *
+ * @param {string}  email      E-mail do usuário autenticado
+ * @param {boolean} jaRecusou  true se o usuário já recusou o convite antes
  */
-async function maybeShowFCMPromoBanner(email) {
+async function maybeShowFCMInviteModal(email, jaRecusou = false) {
   if (!email || typeof email !== 'string') return;
   if (Notification.permission !== 'default') return;
-  const cfg = await _resolvePromoConfig();
-  if (!_fcmPromo_shouldShow(cfg.dias, cfg.campaign)) return;
-  if (document.getElementById('fcm-promo-banner')) return;
+
+  // Cadência: indeciso → promo_dias (+ campanha "re-oferecer agora"); já recusou
+  // → denied_reminder_dias, sem campanha (a campanha não afeta quem recusou).
+  let dias, campaign;
+  if (jaRecusou) {
+    dias = await _resolveReminderDays();
+    campaign = 0;
+  } else {
+    const cfg = await _resolvePromoConfig();
+    dias = cfg.dias; campaign = cfg.campaign;
+  }
+  if (!_fcmPromo_shouldShow(dias, campaign)) return;
+  if (document.getElementById('fcm-invite-modal')) return;
 
   _fcmPromoShownThisSession = true;
-  _fcmPromo_markShown(cfg.campaign);
+  _fcmPromo_markShown(campaign);
 
-  const banner = document.createElement('div');
-  banner.id = 'fcm-promo-banner';
-  banner.style.cssText = [
-    'position:fixed', 'bottom:16px', 'left:50%', 'transform:translateX(-50%)',
-    'z-index:9999', 'max-width:480px', 'width:calc(100% - 32px)',
-    'background:#fff', 'border:1.5px solid #1565c0',
-    'border-radius:10px', 'box-shadow:0 4px 18px rgba(0,0,0,.18)',
-    'padding:14px 16px 12px', 'display:flex', 'align-items:flex-start',
-    'gap:10px', 'font-size:.9rem', 'color:#0d3a7a',
+  const overlay = document.createElement('div');
+  overlay.id = 'fcm-invite-modal';
+  overlay.style.cssText = [
+    'position:fixed', 'inset:0', 'z-index:99999',
+    'background:rgba(0,0,0,.45)', 'display:flex',
+    'align-items:center', 'justify-content:center', 'padding:16px',
   ].join(';');
 
-  banner.innerHTML = `
-    <span style="font-size:1.3rem;flex-shrink:0;margin-top:1px">🔔</span>
-    <div style="flex:1">
-      <strong>Ativar notificações</strong>
-      <p style="margin:4px 0 8px">
-        Ative as notificações para acompanhar sua pontuação e ser avisado sobre
-        homologações e novidades em tempo real.
-      </p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button id="fcm-promo-btn"
-          style="background:#1565c0;color:#fff;border:none;border-radius:6px;
-                 padding:5px 14px;cursor:pointer;font-size:.85rem">
-          Ativar 🔔
-        </button>
-        <button id="fcm-promo-close"
-          style="background:none;border:1px solid #1565c0;color:#1565c0;
-                 border-radius:6px;padding:5px 14px;cursor:pointer;font-size:.85rem">
-          Agora não
-        </button>
-      </div>
-    </div>
-    <button aria-label="Fechar"
-      style="background:none;border:none;cursor:pointer;font-size:1.1rem;
-             color:#0d3a7a;padding:0 2px;flex-shrink:0"
-      id="fcm-promo-x">✕</button>`;
+  const card = document.createElement('div');
+  card.style.cssText = [
+    'background:#fff', 'border-radius:14px', 'max-width:420px', 'width:100%',
+    'box-shadow:0 12px 40px rgba(0,0,0,.3)', 'padding:24px 22px 18px',
+    'font-size:.95rem', 'color:#0d3a7a', 'text-align:center',
+  ].join(';');
+  card.innerHTML = `
+    <div style="font-size:2rem;margin-bottom:6px">🔔</div>
+    <h3 style="margin:0 0 8px;color:#0d3a7a;font-size:1.15rem">Ativar notificações?</h3>
+    <p style="margin:0 0 6px">
+      Receba avisos sobre sua pontuação, homologações e prazos do fechamento
+      diretamente neste dispositivo.
+    </p>
+    <p style="margin:0 0 16px;font-size:.82rem;color:#5a6b85">
+      Funciona no celular e no computador. Você pode desativar quando quiser.
+    </p>
+    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+      <button id="fcm-invite-no"
+        style="background:none;border:1px solid #9aa7bd;color:#3a4a66;
+               border-radius:8px;padding:8px 18px;cursor:pointer;font-size:.9rem">
+        Não, obrigado
+      </button>
+      <button id="fcm-invite-yes"
+        style="background:#1565c0;color:#fff;border:none;border-radius:8px;
+               padding:8px 18px;cursor:pointer;font-size:.9rem;font-weight:600">
+        Sim, ativar
+      </button>
+    </div>`;
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
 
-  document.body.appendChild(banner);
+  const fechar = () => overlay.remove();
 
-  const dismiss = () => banner.remove();
-  document.getElementById('fcm-promo-close')?.addEventListener('click', dismiss);
-  document.getElementById('fcm-promo-x')?.addEventListener('click', dismiss);
-  document.getElementById('fcm-promo-btn')?.addEventListener('click', async () => {
-    dismiss();
-    if (typeof window.initFCM === 'function' && email) {
+  document.getElementById('fcm-invite-yes')?.addEventListener('click', async () => {
+    fechar();
+    if (typeof window.initFCM === 'function') {
       await window.initFCM(email, true); // _skipPromo=true → vai direto ao requestPermission
+    }
+  });
+
+  document.getElementById('fcm-invite-no')?.addEventListener('click', async () => {
+    fechar();
+    // Registra a recusa do CONVITE no diagnóstico (não confundir com 'denied' do
+    // navegador): a permissão segue 'default', então o usuário ainda pode ser
+    // reconvidado e o diálogo nativo continua disponível pelo botão "Ativar 🔔".
+    // Usa rmpf_notifDiag (já liberado nas regras do Firestore para auto-escrita)
+    // em vez de um campo novo, mantendo a gravação permitida para os fiscais.
+    try {
+      await window.db.collection('usuarios').doc(email).set({
+        rmpf_notifPermissao:    'default',
+        rmpf_notifDiag:         'convite_recusado',
+        rmpf_notifAtualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+        rmpf_notifDiagEm:       firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      if (window.currentUser) window.currentUser.rmpf_notifDiag = 'convite_recusado';
+    } catch (e) {
+      console.warn('[FCM] Falha ao registrar recusa do convite:', e);
     }
   });
 }
@@ -435,13 +478,16 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
     // a ativar notificações. O clique em "Ativar" chama initFCM novamente com
     // _skipPromo=true para ir diretamente ao requestPermission nativo.
     if (Notification.permission === 'default' && !_skipPromo) {
+      // Já recusou o convite antes? (lido do doc carregado pelo guard.js)
+      const jaRecusou = !!(window.currentUser && window.currentUser.rmpf_notifDiag === 'convite_recusado');
+
       // Registra o estado "ainda não decidiu" no Firestore. Antes, este ramo
       // apenas exibia o convite e retornava SEM gravar nada — por isso o painel
       // admin marcava como "Pendente" tanto quem nunca foi alcançado quanto quem
       // já viu o convite e ainda não decidiu, sem forma de distinguir os dois.
       // (Era o caso de "não está registrando no Firestore".) Grava uma única vez
-      // por sessão para não multiplicar escritas a cada página com o SDK.
-      if (!_fcmDefaultStateSaved) {
+      // por sessão e NÃO sobrescreve o estado de quem já recusou o convite.
+      if (!jaRecusou && !_fcmDefaultStateSaved) {
         _fcmDefaultStateSaved = true;
         try {
           await userRef.set({
@@ -454,7 +500,8 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
           console.warn('[FCM] Falha ao registrar estado "default":', e);
         }
       }
-      await maybeShowFCMPromoBanner(email);
+      // Modal decisório (estilo VISA): "Sim, ativar" ou "Não, obrigado".
+      await maybeShowFCMInviteModal(email, jaRecusou);
       return;
     }
 
@@ -500,7 +547,9 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
       : [];
     if (!existing.includes(token)) existing.push(token);
 
-    // Persiste tokens sem sobrescrever os demais campos do usuário
+    // Persiste tokens sem sobrescrever os demais campos do usuário. O
+    // salvarDiag('ok') abaixo regrava rmpf_notifDiag, limpando uma eventual
+    // recusa anterior ('convite_recusado') de quem ativou depois pelo cabeçalho.
     await userRef.set({ rmpf_fcmTokens: existing }, { merge: true });
     await salvarDiag('ok');
   } catch (e) {

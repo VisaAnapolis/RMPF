@@ -44,13 +44,15 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
-            <span class="badge-version">v1.14.1</span>
+            <span class="badge-version">v1.14.2</span>
             <span class="badge-date">30/06/2026</span>
           </div>
-          <div class="changelog-title">Notificações push: registro do estado "ainda não decidiu" no painel admin</div>
+          <div class="changelog-title">Notificações push: convite decisório (estilo VISA) e registro do estado no painel</div>
           <ul class="changelog-changes">
-            <li><strong>Correção: usuários presos em "Pendente" no painel</strong> — quando a permissão do navegador estava em <code>default</code> (usuário ainda não decidiu), o <code>initFCM</code> exibia o convite e retornava <em>sem gravar nada</em> no Firestore. Com isso o painel admin marcava como <strong>Pendente</strong> tanto quem nunca foi alcançado quanto quem já viu o convite e não respondeu, sem forma de distinguir os dois. Agora o estado é registrado em <code>usuarios/{email}</code>: <code>rmpf_notifPermissao: 'default'</code> e <code>rmpf_notifDiag: 'convite_pendente'</code> (uma vez por sessão), de modo que o administrador passa a enxergar que o convite chegou ao usuário e que ele segue indeciso — e não que a mensagem nunca apareceu.</li>
-            <li><strong>Sem mudança de UX</strong> — o convite continua sendo um <em>soft-ask</em> (banner "Ativar 🔔"); a frequência do convite (quem não decidiu) e do lembrete (quem negou) seguem configuráveis em <em>Parametrização → Notificações Push</em>. O diálogo nativo de permissão só é aberto após o gesto do usuário (clique em "Ativar"), conforme exigência do iOS.</li>
+            <li><strong>Convite agora é decisório</strong> — o antigo banner "soft" (que podia ser ignorado sem registrar nada) foi substituído por um <strong>modal de escolha</strong>, no mesmo estilo do VISA: <em>"Sim, ativar"</em> (abre o diálogo nativo de permissão) ou <em>"Não, obrigado"</em>. Ao recusar, o app grava <code>rmpf_notifDiag: 'convite_recusado'</code> em <code>usuarios/{email}</code> e o painel passa a exibir <strong>🟠 Recusou</strong> em vez de deixar o usuário preso em "Pendente". Recusar o convite <em>não</em> equivale a bloquear no navegador: a permissão segue <code>default</code>, então o fiscal pode ser reconvidado e ativar quando quiser pelo botão "Ativar 🔔" do cabeçalho.</li>
+            <li><strong>Correção: usuários presos em "Pendente"</strong> — quando a permissão estava em <code>default</code>, o <code>initFCM</code> exibia o convite e retornava <em>sem gravar nada</em>, então o painel marcava como Pendente tanto quem nunca foi alcançado quanto quem já tinha visto o convite. Agora o estado "ainda não decidiu" é registrado (<code>rmpf_notifPermissao: 'default'</code>, <code>rmpf_notifDiag: 'convite_pendente'</code>), permitindo distinguir os dois casos.</li>
+            <li><strong>Cadência espelha o VISA</strong> — quem ainda não decidiu vê o convite conforme <em>Convite (dias)</em>; quem recusou é reconvidado em intervalo maior, conforme <em>Lembrete (dias)</em>. Ambos seguem configuráveis em <em>Parametrização → Notificações Push</em>, incluindo o "Re-oferecer agora" (que afeta apenas indecisos). O diálogo nativo só é aberto após o gesto do usuário, conforme exigência do iOS.</li>
+            <li><strong>Painel admin</strong> — novo status <strong>🟠 Recusou</strong> (convite recusado, ainda reconvidável) ao lado de <strong>🔴 Negou</strong> (permissão bloqueada no navegador), com o detalhe do diagnóstico em <em>Editar usuário</em>.</li>
           </ul>
         </li>
 
