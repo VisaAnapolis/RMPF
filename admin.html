@@ -225,7 +225,6 @@
 <script src="js/version.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/firestore.js"></script>
-<script src="js/db-monitor.js"></script>
 <script src="js/guard.js"></script>
 <script>
   let _currentUserEmail = '';
@@ -489,7 +488,6 @@
 
   // ── Init ──────────────────────────────────────────────────────
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
     if (user.perfil !== 'Administrador') {
       window.location.href = 'dashboard.html';
       return;

@@ -712,7 +712,6 @@
 <script src="js/firebase-config.js"></script>
 <script src="js/version.js"></script>
 <script src="js/utils.js"></script>
-<script src="js/db-monitor.js"></script>
   <script src="js/guard.js"></script>
 <script>
   function buildSidebar(perfil) {
@@ -739,7 +738,6 @@
   }
 
   requireAuth(user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
     if (user.perfil !== 'Fiscal' && user.perfil !== 'Administrador') {
       window.location.href = 'dashboard.html'; return;
     }
