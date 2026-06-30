@@ -74,6 +74,9 @@ const _FCM_PROMO_KEY          = 'fcmPromoLastShown';
 const _FCM_PROMO_CAMPAIGN_KEY = 'fcmPromoCampaign';
 const _FCM_PROMO_DAYS_DEFAULT = 7;
 let   _fcmPromoShownThisSession = false;
+// Garante que o estado "ainda não decidiu" seja gravado no Firestore apenas uma
+// vez por sessão (initFCM roda em toda página com o SDK de messaging carregado).
+let   _fcmDefaultStateSaved     = false;
 
 /**
  * Resolve a configuração do promo a partir de app_config/notif_config.
@@ -432,6 +435,25 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
     // a ativar notificações. O clique em "Ativar" chama initFCM novamente com
     // _skipPromo=true para ir diretamente ao requestPermission nativo.
     if (Notification.permission === 'default' && !_skipPromo) {
+      // Registra o estado "ainda não decidiu" no Firestore. Antes, este ramo
+      // apenas exibia o convite e retornava SEM gravar nada — por isso o painel
+      // admin marcava como "Pendente" tanto quem nunca foi alcançado quanto quem
+      // já viu o convite e ainda não decidiu, sem forma de distinguir os dois.
+      // (Era o caso de "não está registrando no Firestore".) Grava uma única vez
+      // por sessão para não multiplicar escritas a cada página com o SDK.
+      if (!_fcmDefaultStateSaved) {
+        _fcmDefaultStateSaved = true;
+        try {
+          await userRef.set({
+            rmpf_notifPermissao:    'default',
+            rmpf_notifDiag:         'convite_pendente',
+            rmpf_notifAtualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+            rmpf_notifDiagEm:       firebase.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+        } catch (e) {
+          console.warn('[FCM] Falha ao registrar estado "default":', e);
+        }
+      }
       await maybeShowFCMPromoBanner(email);
       return;
     }
