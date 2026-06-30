@@ -330,7 +330,6 @@
 <script src="js/utils.js"></script>
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
-  <script src="js/db-monitor.js"></script>
 <script src="js/guard.js"></script>
 <script>
   // ── Sidebar helper ────────────────────────────────────────
@@ -664,7 +663,6 @@
 
   // ── Init ──────────────────────────────────────────────────
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);

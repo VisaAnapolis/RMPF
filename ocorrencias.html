@@ -179,7 +179,6 @@
 <script src="js/utils.js"></script>
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
-  <script src="js/db-monitor.js"></script>
 <script src="js/guard.js"></script>
 <script src="js/notifications.js"></script>
 <script>
@@ -586,7 +585,6 @@
   });
 
   requireAuth(async user => {
-    if (window.dbMonitor) window.dbMonitor.enable(user.perfil);
     _user  = user;
     _perfil = user.perfil;
     if (user.perfil !== 'Fiscal' && user.perfil !== 'Administrador') {
