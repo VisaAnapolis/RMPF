@@ -44,6 +44,18 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.14.6</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: importação VISA/SIM também usava teto de 24 pontos em dia de ocorrência</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: mesma inconsistência das v1.14.4/v1.14.5, agora na importação automática</strong> — em <code>js/visa-import.js</code> e <code>js/sim-import.js</code>, uma inspeção/auditoria importada em dia coberto por ocorrência aceita só era rejeitada se ultrapassasse 24 pontos no total do dia; abaixo disso, a importação era aceita normalmente, contradizendo a regra já corrigida para lançamento manual e aceite de ocorrência (nenhuma outra atividade em dia coberto por ocorrência). Agora qualquer inspeção VISA ou auditoria SIM cuja data caia dentro de um período de ocorrência aceita é <strong>sempre ignorada</strong> (skip), sem exceção de pontuação.</li>
+            <li><strong>Removida a constante <code>LIMITE_PONTOS_OCORRENCIA_DIA</code></strong> (declarada em <code>js/calculo.js</code>) — sem mais nenhum uso no código após a remoção do teto de 24 pontos nos três pontos de verificação (lançamento manual, aceite de ocorrência e importação VISA/SIM).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.14.5</span>
             <span class="badge-date">01/07/2026</span>
           </div>

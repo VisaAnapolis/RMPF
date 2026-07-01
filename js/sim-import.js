@@ -147,7 +147,6 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
 
       try {
         const existing = await window.db_getSIMManual(osNum, emailFiscal);
-        let estadoPontos = null;
 
         // ── Vistoria SIM não cumulativa com operação fiscal (OPF) manual ──
         // Decreto item 18: uma OPF manual na mesma data zera a vistoria importada.
@@ -164,30 +163,23 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
           }
         }
 
-        // ── Verificar limite de 24 pts em dia com ocorrência aceita ─
+        // ── Dia coberto por ocorrência aceita → importação ignorada ─
+        // Alinhado com a regra de lançamento manual (lancamento.html /
+        // meus-lancamentos.html): dias cobertos por ocorrência aceita não
+        // admitem nenhum outro lançamento, sem exceção de pontuação.
         if (dataISO) {
           const dtParts = dataISO.split('-');
           const dtMes = Number(dtParts[1]);
           const dtAno = Number(dtParts[0]);
           const ocorrAceitas = await _getOcorrenciasAceitasSim(emailFiscal, dtMes, dtAno);
           if (_dataCobertaOcorrSim(dataISO, ocorrAceitas)) {
-            estadoPontos = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, dtMes, dtAno);
-            const somaDia = estadoPontos.byDia.get(dataISO) || 0;
-            const pontosExistenteMesmoDoc =
-              existing && _manualContaNoLimiteOcorrenciaSim(existing) && existing.data === dataISO
-                ? (Number(existing.pontos) || 0)
-                : 0;
-            const baseDia = somaDia - pontosExistenteMesmoDoc;
-            const totalDia = baseDia + (Number(pontosOs) || 0);
-            if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
-              ignorados++;
-              onProgress(
-                `⚠️ OS ${osNum} — ${nomeFiscalOs}: dia ${dataISO} com ocorrência aceita ` +
-                `ultrapassaria ${LIMITE_PONTOS_OCORRENCIA_DIA} pontos (total projetado: ${totalDia}). Importação rejeitada.`,
-                'warn'
-              );
-              continue;
-            }
+            ignorados++;
+            onProgress(
+              `⚠️ OS ${osNum} — ${nomeFiscalOs}: dia ${dataISO} coberto por ocorrência aceita. ` +
+              `Importação ignorada.`,
+              'warn'
+            );
+            continue;
           }
         }
 
@@ -218,7 +210,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             onProgress(`🔄 OS ${osNum}: recusado anteriormente, resubmetido para conferência.`, 'info');
           }
           await window.db_upsertSIMManual(osNum, emailFiscal, updateData, existing.id, false);
-          const estado = estadoPontos || await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
+          const estado = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
           _aplicarManualNoMapaPontosSim(estado.byDia, existing, -1);
           const manualAtualizado = { ...existing, ...updateData, id: existing.id };
           _aplicarManualNoMapaPontosSim(estado.byDia, manualAtualizado, 1);
@@ -249,7 +241,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
               ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, SIM_PONTOS, false)
               : 'Item 1 do Anexo VII do Decreto 49.723/2023',
           }, null, true);
-          const estado = estadoPontos || await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
+          const estado = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
           _aplicarManualNoMapaPontosSim(estado.byDia, {
             data: dataISO, pontos: pontosOs, origem: 'sim_csv', status: 'enviado',
           }, 1);
