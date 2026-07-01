@@ -1,0 +1,52 @@
+name: Backfill — Pontos de Ocorrência (rateio por dia útil)
+
+# Corrige lançamentos de ocorrência (origem=ocorrencia) de uma competência
+# já gerados com a lógica antiga (50 pontos fixos por dia, inclusive fins de
+# semana e feriados), substituindo pelo rateio de 1000 pontos pelos dias
+# úteis do mês. Mesma lógica de js/utils.js e da ferramenta "Converter
+# Ocorrências Aceitas em Pontos" de parametrizacao.html.
+#
+# Execute primeiro com dry_run=true para revisar o log antes de gravar.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mes:
+        description: 'Mês da competência (1-12)'
+        type: string
+        required: true
+      ano:
+        description: 'Ano da competência (ex: 2026)'
+        type: string
+        required: true
+      fiscal_emails:
+        description: 'Opcional: e-mails separados por vírgula para restringir o processamento'
+        type: string
+        default: ''
+      dry_run:
+        description: 'Simular sem gravar (recomendado na primeira execução)'
+        type: boolean
+        default: true
+
+jobs:
+  backfill:
+    name: Backfill pontos de ocorrência
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}   # Não usa GITHUB_TOKEN — apenas FIREBASE_SERVICE_ACCOUNT_JSON
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar dependências Python
+        run: pip install google-auth --quiet
+
+      - name: Executar backfill
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          MES: ${{ inputs.mes }}
+          ANO: ${{ inputs.ano }}
+          FISCAL_EMAILS: ${{ inputs.fiscal_emails }}
+          DRY_RUN: "${{ inputs.dry_run }}"
+        run: python3 .github/scripts/backfill_ocorrencia_pontos.py
