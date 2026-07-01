@@ -283,6 +283,17 @@ function periodosSeSobrepoem(aIni, aFim, bIni, bFim) {
   return a1 <= b2 && b1 <= a2;
 }
 
+// Arredonda para 2 casas decimais, eliminando o ruído de ponto flutuante que
+// aparece ao somar valores como 45.45 várias vezes (ex.: "636.3000000000001").
+function round2(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+
+/** Formata um total de pontos para exibição, livre de ruído de ponto flutuante. */
+function formatPontos(n) {
+  return String(round2(n));
+}
+
 /** Normaliza um nome para casamento tolerante (trim, minúsculas, sem acentos). */
 function normalizarNome(nome) {
   return String(nome || '')
@@ -309,6 +320,8 @@ window.dispositivoLegal         = dispositivoLegal;
 window.dispositivoLegalOcorrencia = dispositivoLegalOcorrencia;
 window.TIPOS_OCORRENCIA         = TIPOS_OCORRENCIA;
 window.labelOcorrencia          = labelOcorrencia;
+window.round2               = round2;
+window.formatPontos         = formatPontos;
 window.carregarFeriadosMunicipais = carregarFeriadosMunicipais;
 window.ehDiaUtil                = ehDiaUtil;
 window.diasUteisNoMes           = diasUteisNoMes;

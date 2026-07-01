@@ -537,7 +537,7 @@
       const ptosEnviados = manuais
         .filter(m => m.status === 'enviado')
         .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
-      document.getElementById('m-env').textContent = ptosEnviados;
+      document.getElementById('m-env').textContent = formatPontos(ptosEnviados);
 
       let alerts = '';
       if (result.atingiuTetoPV)    alerts += alerta('info',  'PV atingiu o teto de 1.000 pontos — excedente descartado.');
@@ -649,10 +649,10 @@
         const pendentes = manuais.filter(m => m.status === 'enviado' || m.status === 'pendente').length;
         return `<tr id="${fiscalAnchor(f)}"${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td data-label="Fiscal">${escHtml(f.nome || f.id)}</td>
-          <td data-label="Pts Req." class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>
-          <td data-label="PP" class="td-num">${result.pp}</td>
-          <td data-label="PN" class="td-num">${result.pn}</td>
-          <td data-label="PV" class="td-num">${result.pv}</td>
+          <td data-label="Pts Req." class="td-num">${ptosReq > 0 ? formatPontos(ptosReq) : '—'}</td>
+          <td data-label="PP" class="td-num">${formatPontos(result.pp)}</td>
+          <td data-label="PN" class="td-num">${formatPontos(result.pn)}</td>
+          <td data-label="PV" class="td-num">${formatPontos(result.pv)}</td>
           <td data-label="Apuração" class="td-num fw-bold ${result.apuracao > 0 ? 'text-verde' : ''}">${result.apuracao}</td>
           <td data-label="Pendentes" class="td-num">${pendentes > 0 ? `<span class="badge badge-pendente">${pendentes}</span>` : '—'}</td>
           <td data-label="Ações" class="nao-imprimir">
@@ -672,8 +672,8 @@
         const statusIcon   = temRecusado ? '⚠️' : temPendente ? '⏳' : manuais.length ? '✅' : '—';
         return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td><a href="#${fiscalAnchor(f)}" class="mini-resumo-link">${escHtml(nomeAbrev(f.nome || f.id))}</a></td>
-          <td class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>
-          <td class="td-num">${result.pv}</td>
+          <td class="td-num">${ptosReq > 0 ? formatPontos(ptosReq) : '—'}</td>
+          <td class="td-num">${formatPontos(result.pv)}</td>
           <td class="td-num ${result.apuracao > 0 ? 'text-verde fw-bold' : ''}">${result.apuracao > 0 ? result.apuracao : '—'}</td>
           <td class="td-status">${statusIcon}</td>
         </tr>`;
