@@ -185,6 +185,44 @@ function dispositivoLegalOcorrencia(tipo) {
   return _TIPO_OCR_TO_DISPOSITIVO[tipo] || 'Art. 11 da Lei Complementar nº 548/2023';
 }
 
+// ── Rateio de pontos de ocorrência por dia útil (Art. 11 c/c Art. 3º da LC 548/2023) ──
+// Produtividade só existe onde há tarefa efetivamente realizada (Art. 3º) — o que não
+// ocorre em fim de semana/feriado. Por isso o rateio da "média" (hoje um placeholder de
+// 1.000 pts, o teto do Art. 2º §4º, até existir histórico de 11 meses por fiscal) usa
+// como divisor os dias úteis do mês, não os dias corridos.
+const FERIADOS_NACIONAIS_FIXOS_MMDD = ['01-01','04-21','05-01','09-07','10-12','11-02','11-15','12-25'];
+const MEDIA_PRODUTIVIDADE_OCORRENCIA = 1000;
+
+// Carrega data/feriados.csv (feriados móveis nacionais + municipais + pontos
+// facultativos de Anápolis) uma única vez. Mantido manualmente, uma vez por ano.
+async function carregarFeriadosMunicipais() {
+  try {
+    const resp = await fetch('data/feriados.csv');
+    const texto = await resp.text();
+    const linhas = texto.trim().split('\n').slice(1); // pula cabeçalho
+    return new Set(linhas.map(l => l.split(',')[0].trim()).filter(Boolean));
+  } catch (_) {
+    return new Set();
+  }
+}
+
+function ehDiaUtil(dataISO, feriadosSet) {
+  const d = new Date(dataISO + 'T12:00:00');
+  if (d.getDay() === 0 || d.getDay() === 6) return false; // fim de semana
+  if (FERIADOS_NACIONAIS_FIXOS_MMDD.includes(dataISO.slice(5))) return false; // feriado nacional fixo
+  return !feriadosSet.has(dataISO); // feriado móvel/municipal/facultativo
+}
+
+function diasUteisNoMes(mes, ano, feriadosSet) {
+  const diasNoMes = new Date(ano, mes, 0).getDate();
+  let count = 0;
+  for (let dia = 1; dia <= diasNoMes; dia++) {
+    const iso = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    if (ehDiaUtil(iso, feriadosSet)) count++;
+  }
+  return count;
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -200,3 +238,7 @@ window.formatComplexidade  = formatComplexidade;
 window.complexidadeHtml    = complexidadeHtml;
 window.dispositivoLegal         = dispositivoLegal;
 window.dispositivoLegalOcorrencia = dispositivoLegalOcorrencia;
+window.carregarFeriadosMunicipais = carregarFeriadosMunicipais;
+window.ehDiaUtil        = ehDiaUtil;
+window.diasUteisNoMes   = diasUteisNoMes;
+window.MEDIA_PRODUTIVIDADE_OCORRENCIA = MEDIA_PRODUTIVIDADE_OCORRENCIA;

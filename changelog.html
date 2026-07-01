@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.13.0</span>
+            <span class="badge-date">29/06/2026</span>
+          </div>
+          <div class="changelog-title">Pontuação de ocorrência por dia útil real (Art. 11 c/c Art. 3º da LC 548/2023)</div>
+          <ul class="changelog-changes">
+            <li><strong>Fim dos 50 pontos fixos por dia</strong> — os lançamentos gerados ao aceitar uma ocorrência passam a ratear <strong>1.000 pontos</strong> (placeholder do teto do Art. 2º, §4º, até existir cálculo real da média aritmética dos últimos 11 meses por fiscal, conforme o Art. 11) pelos <strong>dias úteis do mês</strong>, em vez de um valor fixo sobre todos os dias corridos. Isso corrige uma distorção onde meses inteiros geravam 1.400–1.550 pontos (acima do teto legal de 1.000).</li>
+            <li><strong>Fins de semana e feriados não geram lançamento</strong> — consistente com o Art. 3º da LC 548/2023, que amarra pontos positivos à realização efetiva de tarefa mediante ordem de serviço (o que não ocorre em dia sem expediente). Um mês integralmente coberto por uma ocorrência agora soma ≈1.000 pontos com precisão, sem o resíduo indevido de sábados/domingos/feriados.</li>
+            <li><strong>Novo arquivo <code>data/feriados.csv</code></strong> — feriados nacionais móveis e municipais de Anápolis (Carnaval, Sexta-feira Santa, Corpus Christi, Dia de Sant'Ana em 26/07, aniversário da cidade em 31/07, vésperas de Natal e Ano Novo), mantido manualmente uma vez por ano. Feriados nacionais de data fixa (01/01, 21/04, 01/05, 07/09, 12/10, 02/11, 15/11, 25/12) são calculados em código, sem necessidade de manutenção.</li>
+            <li><strong>Novos helpers em <code>js/utils.js</code></strong>: <code>carregarFeriadosMunicipais()</code>, <code>ehDiaUtil()</code> e <code>diasUteisNoMes()</code>, aplicados tanto em <code>ocorrencias.html</code> (aceite de ocorrência) quanto em <code>parametrizacao.html</code> (ferramenta de reprocessamento em massa), garantindo consistência entre os dois caminhos.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.12.1</span>
             <span class="badge-date">28/06/2026</span>
           </div>

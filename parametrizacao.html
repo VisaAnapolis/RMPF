@@ -1014,6 +1014,8 @@
             return ctx;
           };
 
+          const feriados = window.carregarFeriadosMunicipais ? await window.carregarFeriadosMunicipais() : new Set();
+
           for (const o of aceitas) {
             const porMes = diasDaOcorrPorMesSeed(o.data_inicio, o.data_fim);
             const key = `${mes}-${ano}`;
@@ -1025,11 +1027,18 @@
             const fiscalCtx = getFiscalCtx(o.fiscal_email, o.fiscal_nome);
             log('info', `👤 ${escHtml(o.fiscal_nome || o.fiscal_email)} — ${TIPO_LABELS_SEED[o.tipo] || o.tipo} — ${dias.length} dia(s)`);
 
+            // Rateio por dia útil (Art. 11 c/c Art. 3º da LC 548/2023) — mesma lógica de ocorrencias.html.
+            const totalUteis = window.diasUteisNoMes ? window.diasUteisNoMes(mes, ano, feriados) : 30;
+            const media = window.MEDIA_PRODUTIVIDADE_OCORRENCIA || 1000;
+            const taxa = totalUteis > 0 ? Math.round((media / totalUteis) * 100) / 100 : 0;
+
             for (const dia of dias) {
               try {
                 const apagados = await window.db_deleteLancamentosDia(o.fiscal_email, dia);
                 totalApagados += apagados;
                 if (apagados) log('info', `  🗑️ ${dia}: ${apagados} lançamento(s) removido(s).`);
+
+                if (window.ehDiaUtil && !window.ehDiaUtil(dia, feriados)) continue; // fim de semana/feriado: sem lançamento
 
                 await window.db_createManual({
                   controle:       `OCR-${ano}-${String(mes).padStart(2,'0')}-${dia.replace(/-/g,'')}`,
@@ -1043,13 +1052,16 @@
                   tipo_nome:      'Ocorrência',
                   item_pontuacao: null,
                   complexidade:   '—',
-                  pontos:         50,
-                  pontos_homologado: 50,
+                  pontos:         taxa,
+                  pontos_homologado: taxa,
                   descricao:      `Ocorrência: ${TIPO_LABELS_SEED[o.tipo] || o.tipo} — aceita pelo administrador`,
                   obs:            o.obs_admin || null,
                   status:         'homologado',
                   origem:         'ocorrencia',
                   ocorrencia_id:  o.id,
+                  dispositivo_legal: window.dispositivoLegalOcorrencia
+                    ? window.dispositivoLegalOcorrencia(o.tipo)
+                    : 'Art. 11 da Lei Complementar nº 548/2023',
                 });
                 totalDias++;
                 fiscalCtx.diasGerados++;
