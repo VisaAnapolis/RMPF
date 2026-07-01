@@ -191,6 +191,73 @@ async function getManuaisPorOcorrencia(ocorrenciaId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Aceita uma ocorrência: rateia MEDIA_PRODUTIVIDADE_OCORRENCIA (1000) pelos dias
+// úteis do mês e gera 1 manual por dia útil (status 'homologado', origem
+// 'ocorrencia', ocorrencia_id), depois marca a ocorrência como 'aceito'.
+// Lógica compartilhada entre o aceite manual (ocorrencias.html) e o auto-aceite
+// da sincronização de férias — mesmo rateio e mesma pré-checagem.
+// Pré-checagem: recusa se algum dia coberto já tiver pontos de OUTRO lançamento
+// (não-'ocorrencia', não-'recusado'). Retorna { ok:true } ou
+// { ok:false, motivo:'dia_com_lancamento', dia, pontos }.
+async function aceitarOcorrencia(o, opts) {
+  opts = opts || {};
+  const porMes = window.diasDaOcorrenciaPorMes(o.data_inicio, o.data_fim);
+
+  // 1. Nenhum dia coberto pode ter outra atividade lançada.
+  for (const { mes, ano, dias } of Object.values(porMes)) {
+    const manuais = await getManuais(o.fiscal_email, mes, ano);
+    for (const dia of dias) {
+      const totalDia = manuais.reduce((acc, m) => {
+        if (!m || m.data !== dia) return acc;
+        if (m.origem === 'ocorrencia') return acc;
+        if (m.status === 'recusado') return acc;
+        return acc + (Number(m.pontos) || 0);
+      }, 0);
+      if (totalDia > 0) return { ok: false, motivo: 'dia_com_lancamento', dia, pontos: totalDia };
+    }
+  }
+
+  // 2. Gerar 1 manual por dia útil, rateando 1000 pts pelos dias úteis do mês.
+  const feriados = await window.carregarFeriadosMunicipais();
+  const label  = window.labelOcorrencia ? window.labelOcorrencia(o.tipo) : o.tipo;
+  const sufixo = opts.sufixoDescricao || 'aceita pelo administrador';
+  const obs    = opts.obsAdmin || null;
+  for (const { mes, ano, dias } of Object.values(porMes)) {
+    const totalUteis = window.diasUteisNoMes(mes, ano, feriados);
+    const taxa = totalUteis > 0
+      ? Math.round((window.MEDIA_PRODUTIVIDADE_OCORRENCIA / totalUteis) * 100) / 100 : 0;
+    for (const dia of dias) {
+      if (!window.ehDiaUtil(dia, feriados)) continue;
+      await createManual({
+        controle:       `OCR-${ano}-${String(mes).padStart(2,'0')}-${dia.replace(/-/g,'')}`,
+        fiscal_email:   o.fiscal_email,
+        fiscal_nome:    o.fiscal_nome,
+        mes, ano,
+        data:           dia,
+        tipo_id:        99,
+        tipo_codigo:    'OCR',
+        tipo_nome:      'Ocorrência',
+        item_pontuacao: null,
+        complexidade:   '—',
+        pontos:         taxa,
+        pontos_homologado: taxa,
+        descricao:      `Ocorrência: ${label} — ${sufixo}`,
+        obs:            obs,
+        status:         'homologado',
+        origem:         'ocorrencia',
+        ocorrencia_id:  o.id,
+        dispositivo_legal: window.dispositivoLegalOcorrencia
+          ? window.dispositivoLegalOcorrencia(o.tipo)
+          : 'Art. 11 da Lei Complementar nº 548/2023',
+      });
+    }
+  }
+
+  // 3. Marcar a ocorrência como aceita.
+  await updateOcorrencia(o.id, { status: 'aceito', obs_admin: obs });
+  return { ok: true };
+}
+
 // ── CVS Override ─────────────────────────────────────────
 
 async function getCvsOverride(id) {
@@ -1148,6 +1215,7 @@ window.db_getManuaisPorOcorrencia = getManuaisPorOcorrencia;
 window.db_createOcorrencia    = createOcorrencia;
 window.db_updateOcorrencia    = updateOcorrencia;
 window.db_deleteOcorrencia    = deleteOcorrencia;
+window.db_aceitarOcorrencia   = aceitarOcorrencia;
 window.ocorrenciaConflitante  = ocorrenciaConflitante;
 window.db_getFeriasEscala     = getFeriasEscala;
 window.db_acquireFeriasSyncLock = acquireFeriasSyncLock;

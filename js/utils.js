@@ -172,14 +172,39 @@ function dispositivoLegal(itemPontuacao, pontos, duplaReducao) {
   return texto;
 }
 
-const _TIPO_OCR_TO_DISPOSITIVO = {
-  ferias:           'Art. 11, inciso I, da Lei Complementar nº 548/2023',
-  licenca_medica:   'Art. 11, inciso V, da Lei Complementar nº 548/2023',
-  licenca_gestante: 'Art. 11, inciso VII, da Lei Complementar nº 548/2023',
-  cargo_comissao:   'Art. 11, inciso X, da Lei Complementar nº 548/2023',
-  afastamento_legal:'Art. 11, caput, da Lei Complementar nº 548/2023',
-  outros:           'Art. 11, caput, da Lei Complementar nº 548/2023',
-};
+// ── Tipos de ocorrência = hipóteses do Art. 11 da LC 548/2023 ──
+// Fonte única: alimenta o dropdown de ocorrencias.html (só os `manual:true`, na
+// ordem dos incisos), o label de exibição e o dispositivo_legal (inciso exato).
+//   - Inciso I (Férias) é sincronizado automaticamente do VISA → fora do dropdown
+//     manual, mas mantido aqui para renderizar/embasar as ocorrências criadas.
+//   - `afastamento_legal`/`outros` (caput) são LEGADOS: mantidos só para exibir/
+//     embasar ocorrências antigas; NÃO aparecem no dropdown (sem a opção "outros").
+const TIPOS_OCORRENCIA = [
+  { tipo: 'ferias',            inciso: 'inciso I',    label: 'Férias',                                       manual: false },
+  { tipo: 'casamento',         inciso: 'inciso II',   label: 'Casamento',                                    manual: true  },
+  { tipo: 'luto',              inciso: 'inciso III',  label: 'Luto por falecimento de familiar',             manual: true  },
+  { tipo: 'juri',              inciso: 'inciso IV',   label: 'Convocação para o Tribunal do Júri',           manual: true  },
+  { tipo: 'licenca_medica',    inciso: 'inciso V',    label: 'Licença para tratamento da própria saúde',     manual: true  },
+  { tipo: 'licenca_familia',   inciso: 'inciso VI',   label: 'Licença por doença em pessoa da família',      manual: true  },
+  { tipo: 'licenca_gestante',  inciso: 'inciso VII',  label: 'Licença gestante / maternidade',               manual: true  },
+  { tipo: 'paternidade',       inciso: 'inciso VIII', label: 'Nascimento de filho(a) — licença-paternidade', manual: true  },
+  { tipo: 'adocao',            inciso: 'inciso IX',   label: 'Adoção de criança',                            manual: true  },
+  { tipo: 'cargo_comissao',    inciso: 'inciso X',    label: 'Exercício de cargo em comissão',               manual: true  },
+  // Legado (fora do dropdown; só exibição/embasamento de registros antigos):
+  { tipo: 'afastamento_legal', inciso: 'caput',       label: 'Outros afastamentos funcionais imperativos',   manual: false },
+  { tipo: 'outros',            inciso: 'caput',       label: 'Outros afastamentos funcionais imperativos',   manual: false },
+];
+
+const _TIPO_OCR_LABELS = {};
+const _TIPO_OCR_TO_DISPOSITIVO = {};
+TIPOS_OCORRENCIA.forEach(t => {
+  _TIPO_OCR_LABELS[t.tipo] = t.label;
+  _TIPO_OCR_TO_DISPOSITIVO[t.tipo] = `Art. 11, ${t.inciso}, da Lei Complementar nº 548/2023`;
+});
+
+function labelOcorrencia(tipo) {
+  return _TIPO_OCR_LABELS[tipo] || tipo;
+}
 
 function dispositivoLegalOcorrencia(tipo) {
   return _TIPO_OCR_TO_DISPOSITIVO[tipo] || 'Art. 11 da Lei Complementar nº 548/2023';
@@ -282,6 +307,8 @@ window.formatComplexidade  = formatComplexidade;
 window.complexidadeHtml    = complexidadeHtml;
 window.dispositivoLegal         = dispositivoLegal;
 window.dispositivoLegalOcorrencia = dispositivoLegalOcorrencia;
+window.TIPOS_OCORRENCIA         = TIPOS_OCORRENCIA;
+window.labelOcorrencia          = labelOcorrencia;
 window.carregarFeriadosMunicipais = carregarFeriadosMunicipais;
 window.ehDiaUtil                = ehDiaUtil;
 window.diasUteisNoMes           = diasUteisNoMes;
