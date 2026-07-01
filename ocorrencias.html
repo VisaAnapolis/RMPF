@@ -478,8 +478,8 @@
 
       const porMes = diasDaOcorrenciaPorMes(o.data_inicio, o.data_fim);
 
-      // ── 1. Verificar se os lançamentos já existentes em cada dia
-      //      da ocorrência respeitam o teto de 24 pontos ────────────
+      // ── 1. Verificar se algum dia do período já possui lançamentos —
+      //      dia coberto por ocorrência não pode ter nenhuma outra atividade ──
       for (const { mes, ano, dias } of Object.values(porMes)) {
         let manuais;
         try {
@@ -495,11 +495,10 @@
             if (m.status === 'recusado') return acc;
             return acc + (Number(m.pontos) || 0);
           }, 0);
-          if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
+          if (totalDia > 0) {
             alertEl.innerHTML = alerta('danger',
               `⚠️ O dia <strong>${fmtData(dia)}</strong> já possui <strong>${totalDia}</strong> ponto(s) ` +
-              `em lançamentos e excede o limite de <strong>${LIMITE_PONTOS_OCORRENCIA_DIA}</strong> ` +
-              `para dias com ocorrência aceita. ` +
+              `em lançamentos. Dias cobertos por ocorrência não podem ter nenhuma outra atividade lançada. ` +
               `Peça ao fiscal para excluir/ajustar lançamentos desse dia antes de aceitar a ocorrência.`
             );
             return;

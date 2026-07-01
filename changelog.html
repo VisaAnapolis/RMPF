@@ -44,6 +44,17 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.14.5</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: aceite de ocorrência bloqueia se houver qualquer lançamento no período</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: pré-checagem ao aceitar ocorrência também usava teto de 24 pontos</strong> — em `ocorrencias.html`, a verificação que roda antes de aceitar uma ocorrência só bloqueava o aceite se os lançamentos já existentes em algum dia do período ultrapassassem 24 pontos. Mesma inconsistência corrigida na v1.14.4 para lançamento/edição: agora o aceite é bloqueado se houver <strong>qualquer</strong> lançamento (mesmo 1 ponto) em algum dia do período, pedindo ao administrador que o fiscal exclua/ajuste os lançamentos antes de aceitar.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.14.4</span>
             <span class="badge-date">01/07/2026</span>
           </div>
