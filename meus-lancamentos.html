@@ -468,16 +468,6 @@
     return null;
   }
 
-  function somaPontosDiaComFiltro(manuais, dataISO, excluirId) {
-    return (manuais || []).reduce((acc, m) => {
-      if (!m || m.id === excluirId) return acc;
-      if (m.data !== dataISO) return acc;
-      if (m.origem === 'ocorrencia') return acc;
-      if (m.status === 'recusado') return acc;
-      return acc + (Number(m.pontos) || 0);
-    }, 0);
-  }
-
   async function validarPrazoLancamento(dataISO, origem) {
     if (origem === 'visa_csv' || origem === 'sim_csv' || origem === 'ocorrencia') {
       return { permitido: true, mensagem: '' };
@@ -485,21 +475,12 @@
     return await db_validateDeadlineReleaseDate(dataISO);
   }
 
-  async function validarLimitePontosOcorrenciaEdicao(idManual, dataISO, pontosNovo) {
+  // Nenhum lançamento é permitido em dia coberto por ocorrência aceita (férias,
+  // licença médica, licença gestante, cargo em comissão, afastamento legal) —
+  // o fiscal está afastado nesse dia, então não há atividade a lançar.
+  async function validarLimitePontosOcorrenciaEdicao(idManual, dataISO) {
     const ocorrencia = await getOcorrenciaAceitaNoDia(_user.email, dataISO);
-    if (!ocorrencia) return { ok: true, ocorrencia: null, somaAtual: 0, total: Number(pontosNovo) || 0 };
-    const mes = Number(String(dataISO).split('-')[1]);
-    const ano = Number(String(dataISO).split('-')[0]);
-    const manuais = await db_getManuais(_user.email, mes, ano);
-    const somaAtual = somaPontosDiaComFiltro(manuais, dataISO, idManual);
-    const total = somaAtual + (Number(pontosNovo) || 0);
-    return {
-      ok: total <= LIMITE_PONTOS_OCORRENCIA_DIA,
-      ocorrencia,
-      somaAtual,
-      total,
-      disponivel: Math.max(0, LIMITE_PONTOS_OCORRENCIA_DIA - somaAtual),
-    };
+    return { ok: !ocorrencia, ocorrencia };
   }
 
   // Bloqueia mover/lançar um Plantão Fiscal (PLT) para uma data que já possui
@@ -556,13 +537,12 @@
           `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisOpfEdit}</strong> vistoria(s) (VISA/SIM).`);
         return;
       }
-      const validacao = await validarLimitePontosOcorrenciaEdicao(id, data, pontosNum);
-      if (!validacao.ok && validacao.ocorrencia) {
+      const validacao = await validarLimitePontosOcorrenciaEdicao(id, data);
+      if (!validacao.ok) {
         const tipoLabel = TIPO_LABELS_OCR[validacao.ocorrencia.tipo] || validacao.ocorrencia.tipo;
-        document.getElementById('edit-alert').innerHTML = alerta('warn',
-          `⚠️ Dia coberto por ocorrência aceita de <strong>${escHtml(tipoLabel)}</strong>. ` +
-          `Limite diário: <strong>${LIMITE_PONTOS_OCORRENCIA_DIA}</strong> pontos; já lançado: ` +
-          `<strong>${validacao.somaAtual}</strong>.`
+        document.getElementById('edit-alert').innerHTML = alerta('danger',
+          `🚫 Dia coberto por ocorrência aceita de <strong>${escHtml(tipoLabel)}</strong>. ` +
+          `Não é permitido lançar atividades nesse dia.`
         );
         return;
       }
@@ -663,13 +643,12 @@
           `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisOpfCorr}</strong> vistoria(s) (VISA/SIM).`);
         return;
       }
-      const validacao = await validarLimitePontosOcorrenciaEdicao(id, data, pontosNum);
-      if (!validacao.ok && validacao.ocorrencia) {
+      const validacao = await validarLimitePontosOcorrenciaEdicao(id, data);
+      if (!validacao.ok) {
         const tipoLabel = TIPO_LABELS_OCR[validacao.ocorrencia.tipo] || validacao.ocorrencia.tipo;
-        document.getElementById('corrigir-alert').innerHTML = alerta('warn',
-          `⚠️ Dia coberto por ocorrência aceita de <strong>${escHtml(tipoLabel)}</strong>. ` +
-          `Limite diário: <strong>${LIMITE_PONTOS_OCORRENCIA_DIA}</strong> pontos; já lançado: ` +
-          `<strong>${validacao.somaAtual}</strong>.`
+        document.getElementById('corrigir-alert').innerHTML = alerta('danger',
+          `🚫 Dia coberto por ocorrência aceita de <strong>${escHtml(tipoLabel)}</strong>. ` +
+          `Não é permitido lançar atividades nesse dia.`
         );
         return;
       }

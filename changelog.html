@@ -44,6 +44,17 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.14.4</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: bloqueia qualquer lançamento em dia coberto por ocorrência aceita</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: era permitido lançar até 24 pontos em dia de ocorrência</strong> — em `lancamento.html` e `meus-lancamentos.html`, um dia coberto por uma ocorrência aceita (férias, licença médica, licença gestante, cargo em comissão, afastamento legal) permitia ao fiscal lançar (ou editar/corrigir) atividades normais até um teto de 24 pontos no total do dia. Isso está errado: o fiscal está afastado nesse dia, não deveria haver nenhuma outra atividade lançada — nem nos dias úteis (que já recebem o rateio da ocorrência) nem nos fins de semana/feriados do período (que não recebem lançamento algum). Agora qualquer tentativa de lançar, editar ou corrigir uma atividade em dia coberto por ocorrência aceita é bloqueada por completo, sem exceção de pontos.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.14.3</span>
             <span class="badge-date">01/07/2026</span>
           </div>
