@@ -740,30 +740,23 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               }
             }
 
-            // ── Verificar limite de 24 pts em dia com ocorrência aceita ─
+            // ── Dia coberto por ocorrência aceita → importação ignorada ─
+            // Alinhado com a regra de lançamento manual (lancamento.html /
+            // meus-lancamentos.html): dias cobertos por ocorrência aceita não
+            // admitem nenhum outro lançamento, sem exceção de pontuação.
             if (dataISO) {
               const dtParts = dataISO.split('-');
               const dtMes = Number(dtParts[1]);
               const dtAno = Number(dtParts[0]);
               const ocorrAceitas = await _getOcorrenciasAceitasVisa(emailFiscal, dtMes, dtAno);
               if (_dataCobertaOcorrVisa(dataISO, ocorrAceitas)) {
-                estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, dtMes, dtAno);
-                const somaDia = estadoPontos.byDia.get(dataISO) || 0;
-                const pontosExistenteMesmoDoc =
-                  existing && _manualContaNoLimiteOcorrenciaVisa(existing) && existing.data === dataISO
-                    ? (Number(existing.pontos) || 0)
-                    : 0;
-                const baseDia = somaDia - pontosExistenteMesmoDoc;
-                const totalDia = baseDia + (Number(pontosFiscal) || 0);
-                if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
-                  ignorados++;
-                  onProgress(
-                    `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: dia ${dataISO} com ocorrência aceita ` +
-                    `ultrapassaria ${LIMITE_PONTOS_OCORRENCIA_DIA} pontos (total projetado: ${totalDia}). Importação rejeitada.`,
-                    'warn'
-                  );
-                  continue;
-                }
+                ignorados++;
+                onProgress(
+                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: dia ${dataISO} coberto por ` +
+                  `ocorrência aceita. Importação ignorada.`,
+                  'warn'
+                );
+                continue;
               }
             }
 
