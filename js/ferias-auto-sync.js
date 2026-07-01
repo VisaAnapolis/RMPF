@@ -6,16 +6,21 @@
 // Administrador, ao carregar a página. Como a fonte é o Firestore (doc único
 // `ferias/escala`, mesmo projeto visam-3a30b) e há um `updatedAt` de servidor a
 // cada save do VISA, a detecção de mudança usa esse timestamp como "watermark":
-// só quando ele avança (ou muda a competência aberta) é que a reconciliação é
-// executada — caso contrário é apenas 1 leitura barata. Um lock distribuído
-// (ferias_sync_locks/escala) evita execuções concorrentes entre admins.
+// só quando ele avança (ou muda a competência aberta) é que a reconciliação
+// completa é executada. Um lock distribuído (ferias_sync_locks/escala) evita
+// execuções concorrentes entre admins.
 //
 // Escopo: só a COMPETÊNCIA ABERTA (db_getProximaCompetencia). Sub-períodos de
 // férias que caem em meses fechados/passados não são tocados. As ocorrências
-// criadas nascem `status:'pendente'` (idêntico ao lançamento manual) e carregam
-// `origem:'ferias_visa'` para permitir a reconciliação (criar/remover) e nunca
-// afetar lançamentos manuais. O aceite (geração de pontos em `manuais`) continua
-// sendo feito pelo administrador na própria ocorrencias.html.
+// carregam `origem:'ferias_visa'` (para reconciliar criar/remover) e nunca
+// afetam lançamentos manuais.
+//
+// AUTO-ACEITE: além de criar a ocorrência, a sincronização a ACEITA
+// automaticamente (as férias já vêm validadas da gestão), gerando os pontos em
+// `manuais` por dia útil com o mesmo rateio do aceite manual (db_aceitarOcorrencia).
+// Também aceita qualquer ferias_visa que ainda esteja `pendente` (ex.: criadas
+// antes deste recurso). Se um dia coberto já tiver outro lançamento, a ocorrência
+// fica `pendente` e é reportada (mesma pré-checagem do aceite manual).
 
 let _feriasSyncRodando = false;
 let _feriasSyncIniciado = false;
@@ -66,7 +71,8 @@ function _feriasKey(email, dataInicio, dataFim) {
 }
 
 // Lê a escala do VISA e reconcilia as ocorrências de férias da competência
-// aberta, criando as que faltam e removendo as que saíram do VISA.
+// aberta: cria as que faltam, remove as que saíram, e ACEITA as pendentes
+// (gerando os pontos). Retorna um resumo { criadas, aceitas, removidas, ... }.
 async function verificarESincronizarFerias(user) {
   if (_feriasSyncRodando) return;
   if (!user || user.perfil !== 'Administrador') return;
@@ -97,16 +103,27 @@ async function verificarESincronizarFerias(user) {
     const watermark = escala && escala.updatedAt && escala.updatedAt.toMillis
       ? escala.updatedAt.toMillis() : 0;
 
-    // 3. Comparar com o estado salvo — pular se mesma competência e watermark igual
+    // 3. Estado salvo → o watermark (updatedAt da escala) mudou nesta competência?
     let state = {};
     try { state = await window.db_getImportState(); } catch (_) {}
     const st = state && state.ferias;
-    if (st && Number(st.mes) === mes && Number(st.ano) === ano &&
-        Number(st.watermark) === watermark) {
-      return; // nada mudou desde a última sincronização desta competência
-    }
+    const watermarkMudou = !(st && Number(st.mes) === mes && Number(st.ano) === ano &&
+                             Number(st.watermark) === watermark);
 
-    // 4. Lock distribuído
+    // 4. Existentes (origem ferias_visa) da competência aberta — 1 leitura.
+    //    Precede o lock para decidir se há trabalho (reconciliar OU aceitar pendentes).
+    const todasAuto = await window.db_getOcorrenciasPorOrigem('ferias_visa');
+    const existentes = new Map();
+    todasAuto.forEach(o => {
+      if (Number(o.mes) !== mes || Number(o.ano) !== ano) return;
+      existentes.set(_feriasKey(o.fiscal_email, o.data_inicio, o.data_fim), o);
+    });
+    const pendentesExistentes = [...existentes.values()].filter(o => o.status === 'pendente');
+
+    // Nada mudou no VISA e não há pendentes a aceitar → sai barato (só leituras).
+    if (!watermarkMudou && pendentesExistentes.length === 0) return;
+
+    // 5. Lock distribuído
     try {
       await window.db_acquireFeriasSyncLock(user.email, user.nome || user.email);
     } catch (e) {
@@ -117,118 +134,141 @@ async function verificarESincronizarFerias(user) {
     }
 
     try {
-      // 5. Mapa nome→email dos fiscais do RMPF (perfil Fiscal)
-      const fiscais = await window.db_getTodosFiscais();
-      const mapaNome = new Map();
-      fiscais.forEach(f => {
-        const n = window.normalizarNome(f.nome);
-        if (n) mapaNome.set(n, { email: f.email || f.id, nome: f.nome || (f.email || f.id) });
-      });
-
-      // 6. Conjunto DESEJADO — só sub-períodos que caem na competência aberta
-      //    A coleção ferias tem dois tipos de lançamento no mesmo array
-      //    (ex.: "Férias" e "Licença-prêmio"), distinguidos pelo campo `obs`.
-      //    Aqui só entram os de FÉRIAS (obs == "Férias", tolerante a caixa/acento).
-      const desejadas = new Map(); // key -> {email, nome, mes, ano, data_inicio, data_fim}
+      let criadas = 0, removidas = 0, aceitas = 0, ignorados = 0;
+      const conflitos = [];   // sobreposição com outra ocorrência (não criada)
+      const bloqueadas = [];  // aceite bloqueado: dia já tem outro lançamento
       const naoResolvidos = new Set();
-      let ignorados = 0; // lançamentos que não são férias (obs != "Férias")
-      for (const p of periodos) {
-        if (!p || !p.nome || !p.inicio || !p.fim) continue;
-        if (window.normalizarNome(p.obs) !== 'ferias') { ignorados++; continue; }
-        if (p.fim < p.inicio) continue;
-        const alvo = mapaNome.get(window.normalizarNome(p.nome));
-        if (!alvo) { naoResolvidos.add(String(p.nome).trim()); continue; }
-        const porMes = window.diasDaOcorrenciaPorMes(p.inicio, p.fim);
-        for (const parte of Object.values(porMes)) {
-          if (Number(parte.mes) !== mes || Number(parte.ano) !== ano) continue; // só competência aberta
-          const ini = parte.dias[0];
-          const fimReal = parte.dias[parte.dias.length - 1];
-          const data_fim = (fimReal === ini) ? null : fimReal;
-          desejadas.set(_feriasKey(alvo.email, ini, data_fim), {
-            email: alvo.email, nome: alvo.nome,
-            mes: parte.mes, ano: parte.ano,
-            data_inicio: ini, data_fim,
-          });
-        }
-      }
+      const aAceitar = [];    // ocorrências (com id) a aceitar nesta rodada
 
-      // 7. Conjunto EXISTENTE (origem ferias_visa) restrito à competência aberta
-      const todasAuto = await window.db_getOcorrenciasPorOrigem('ferias_visa');
-      const existentes = new Map();
-      todasAuto.forEach(o => {
-        if (Number(o.mes) !== mes || Number(o.ano) !== ano) return;
-        existentes.set(_feriasKey(o.fiscal_email, o.data_inicio, o.data_fim), o);
-      });
+      if (watermarkMudou) {
+        // 6. Mapa nome→email dos fiscais do RMPF (perfil Fiscal)
+        const fiscais = await window.db_getTodosFiscais();
+        const mapaNome = new Map();
+        fiscais.forEach(f => {
+          const n = window.normalizarNome(f.nome);
+          if (n) mapaNome.set(n, { email: f.email || f.id, nome: f.nome || (f.email || f.id) });
+        });
 
-      // 8. Reconciliação
-      let criadas = 0, removidas = 0;
-      const conflitos = [];
-
-      // 8a. Remover as que saíram/mudaram no VISA (espelhar). Se aceita, apaga
-      //     antes os manuais (pontos) gerados por ela.
-      for (const [key, o] of existentes) {
-        if (desejadas.has(key)) continue;
-        try {
-          if (o.status === 'aceito') {
-            const ms = await window.db_getManuaisPorOcorrencia(o.id);
-            for (const m of ms) { try { await window.db_deleteManual(m.id); } catch (_) {} }
+        // 7. Conjunto DESEJADO — só obs="Férias" (a coleção tem dois tipos) e só a
+        //    competência aberta. Períodos que cruzam meses são cortados no mês aberto.
+        const desejadas = new Map();
+        for (const p of periodos) {
+          if (!p || !p.nome || !p.inicio || !p.fim) continue;
+          if (window.normalizarNome(p.obs) !== 'ferias') { ignorados++; continue; }
+          if (p.fim < p.inicio) continue;
+          const alvo = mapaNome.get(window.normalizarNome(p.nome));
+          if (!alvo) { naoResolvidos.add(String(p.nome).trim()); continue; }
+          const porMes = window.diasDaOcorrenciaPorMes(p.inicio, p.fim);
+          for (const parte of Object.values(porMes)) {
+            if (Number(parte.mes) !== mes || Number(parte.ano) !== ano) continue;
+            const ini = parte.dias[0];
+            const fimReal = parte.dias[parte.dias.length - 1];
+            const data_fim = (fimReal === ini) ? null : fimReal;
+            desejadas.set(_feriasKey(alvo.email, ini, data_fim), {
+              email: alvo.email, nome: alvo.nome,
+              mes: parte.mes, ano: parte.ano,
+              data_inicio: ini, data_fim,
+            });
           }
-          await window.db_deleteOcorrencia(o.id);
-          removidas++;
-        } catch (e) {
-          console.warn('[Férias sync] Falha ao remover ocorrência', o.id, e && e.message);
         }
-      }
 
-      // 8b. Criar as novas — reusa a validação de sobreposição do lançamento
-      //     manual, ignorando as próprias (origem ferias_visa).
-      for (const [key, d] of desejadas) {
-        if (existentes.has(key)) continue; // já existe, nada a fazer
-        try {
-          const conflito = await window.ocorrenciaConflitante(
-            d.email, d.data_inicio, d.data_fim, null, { ignorarOrigem: 'ferias_visa' });
-          if (conflito) {
-            conflitos.push(`${window.nomeCurto ? window.nomeCurto(d.nome) : d.nome} (${window.fmtData(d.data_inicio)})`);
-            continue;
+        // 8a. Remover as que saíram/mudaram no VISA (espelhar). Se aceita, apaga
+        //     antes os manuais (pontos) gerados por ela.
+        for (const [key, o] of existentes) {
+          if (desejadas.has(key)) continue;
+          try {
+            if (o.status === 'aceito') {
+              const ms = await window.db_getManuaisPorOcorrencia(o.id);
+              for (const m of ms) { try { await window.db_deleteManual(m.id); } catch (_) {} }
+            }
+            await window.db_deleteOcorrencia(o.id);
+            removidas++;
+          } catch (e) {
+            console.warn('[Férias sync] Falha ao remover ocorrência', o.id, e && e.message);
           }
-          await window.db_createOcorrencia({
-            fiscal_email: d.email,
-            fiscal_nome:  d.nome,
-            mes: d.mes, ano: d.ano,
-            tipo: 'ferias',
-            data_inicio: d.data_inicio,
-            data_fim: d.data_fim,
-            descricao: 'Férias — sincronizado automaticamente do VISA',
-            status: 'pendente',
-            origem: 'ferias_visa',
-            dispositivo_legal: window.dispositivoLegalOcorrencia
-              ? window.dispositivoLegalOcorrencia('ferias')
-              : 'Art. 11, inciso I, da Lei Complementar nº 548/2023',
-          });
-          criadas++;
+        }
+
+        // 8b. Criar as faltantes; juntar as pendentes (novas e antigas) p/ aceitar.
+        for (const [key, d] of desejadas) {
+          const existente = existentes.get(key);
+          if (existente) {
+            if (existente.status === 'pendente') aAceitar.push(existente);
+            continue; // já aceita → nada a fazer
+          }
+          try {
+            const conflito = await window.ocorrenciaConflitante(
+              d.email, d.data_inicio, d.data_fim, null, { ignorarOrigem: 'ferias_visa' });
+            if (conflito) {
+              conflitos.push(`${window.nomeCurto ? window.nomeCurto(d.nome) : d.nome} (${window.fmtData(d.data_inicio)})`);
+              continue;
+            }
+            const novoId = await window.db_createOcorrencia({
+              fiscal_email: d.email,
+              fiscal_nome:  d.nome,
+              mes: d.mes, ano: d.ano,
+              tipo: 'ferias',
+              data_inicio: d.data_inicio,
+              data_fim: d.data_fim,
+              descricao: 'Férias — sincronizado automaticamente do VISA',
+              status: 'pendente',
+              origem: 'ferias_visa',
+              dispositivo_legal: window.dispositivoLegalOcorrencia
+                ? window.dispositivoLegalOcorrencia('ferias')
+                : 'Art. 11, inciso I, da Lei Complementar nº 548/2023',
+            });
+            aAceitar.push({
+              id: novoId, fiscal_email: d.email, fiscal_nome: d.nome,
+              mes: d.mes, ano: d.ano, tipo: 'ferias',
+              data_inicio: d.data_inicio, data_fim: d.data_fim,
+            });
+            criadas++;
+          } catch (e) {
+            console.warn('[Férias sync] Falha ao criar ocorrência para', d.email, e && e.message);
+          }
+        }
+      } else {
+        // Watermark igual: a escala não mudou → só aceitar as pendentes que já
+        // existem (ex.: criadas antes do auto-aceite, ou aceites antes bloqueados).
+        for (const o of pendentesExistentes) aAceitar.push(o);
+      }
+
+      // 8c. Aceitar (gera os pontos por dia útil) — mesmo rateio do aceite manual.
+      for (const o of aAceitar) {
+        try {
+          const r = await window.db_aceitarOcorrencia(o, { sufixoDescricao: 'sincronizada automaticamente do VISA' });
+          if (r && r.ok) aceitas++;
+          else if (r && r.motivo === 'dia_com_lancamento') {
+            bloqueadas.push(`${window.nomeCurto ? window.nomeCurto(o.fiscal_nome) : o.fiscal_nome} (${window.fmtData(r.dia)})`);
+          }
         } catch (e) {
-          console.warn('[Férias sync] Falha ao criar ocorrência para', d.email, e && e.message);
+          console.warn('[Férias sync] Falha ao aceitar ocorrência', o.id, e && e.message);
         }
       }
 
-      // 9. Persistir o novo watermark só após sucesso
-      await window.db_setImportState({
-        ferias: { watermark, mes, ano, synced_at: new Date().toISOString() },
-      });
+      // 9. Persistir o novo watermark (só quando reconciliou a escala).
+      if (watermarkMudou) {
+        await window.db_setImportState({
+          ferias: { watermark, mes, ano, synced_at: new Date().toISOString() },
+        });
+      }
 
       // 10. Feedback
       const compLabel = window.mesAnoLabel ? window.mesAnoLabel(mes, ano) : `${mes}/${ano}`;
       console.info(
-        `[Férias sync] ${compLabel}: periodos=${periodos.length}, ignorados(não-férias)=${ignorados}, ` +
-        `desejadas(mês aberto)=${desejadas.size}, existentes=${existentes.size}, ` +
-        `criadas=${criadas}, removidas=${removidas}, conflitos=${conflitos.length}, ` +
-        `nomesNaoResolvidos=${naoResolvidos.size}`);
-      // Toast isolado: um erro ao renderizar nunca pode invalidar a
-      // reconciliação (que já foi persistida) nem o valor de retorno.
-      if (criadas || removidas || naoResolvidos.size || conflitos.length) {
+        `[Férias sync] ${compLabel}: watermarkMudou=${watermarkMudou}, existentes=${existentes.size}, ` +
+        `criadas=${criadas}, aceitas=${aceitas}, removidas=${removidas}, bloqueadas=${bloqueadas.length}, ` +
+        `conflitos=${conflitos.length}, ignorados(não-férias)=${ignorados}, nomesNaoResolvidos=${naoResolvidos.size}`);
+      // Toast isolado: um erro ao renderizar nunca invalida a reconciliação
+      // (já persistida) nem o valor de retorno.
+      if (criadas || removidas || aceitas || bloqueadas.length || naoResolvidos.size || conflitos.length) {
         try {
           _feriasSyncMsg(
-            `✅ Férias sincronizadas (${compLabel}): ${criadas} criada(s), ${removidas} removida(s).`, 'ok');
+            `✅ Férias sincronizadas (${compLabel}): ${criadas} criada(s), ${aceitas} aceita(s), ${removidas} removida(s).`, 'ok');
+          if (bloqueadas.length) {
+            _feriasSyncMsg(
+              `⚠️ ${bloqueadas.length} não aceita(s) — o dia já tem outro lançamento: ` +
+              bloqueadas.join(', ') + '. Ajuste os lançamentos e recarregue.', 'warn');
+          }
           if (conflitos.length) {
             _feriasSyncMsg(
               `⚠️ ${conflitos.length} período(s) não criado(s) por conflito com outra ocorrência: ` +
@@ -245,7 +285,7 @@ async function verificarESincronizarFerias(user) {
         }
       }
 
-      return { criadas, removidas, ignorados, conflitos: conflitos.length, naoResolvidos: naoResolvidos.size };
+      return { criadas, aceitas, removidas, bloqueadas: bloqueadas.length, ignorados, conflitos: conflitos.length, naoResolvidos: naoResolvidos.size };
     } finally {
       try { await window.db_releaseFeriasSyncLock(); } catch (_) {}
     }

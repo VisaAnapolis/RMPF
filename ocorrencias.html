@@ -53,12 +53,9 @@
             <label class="form-label required" for="o-tipo">Tipo de Ocorrência</label>
             <select class="form-control" id="o-tipo" required>
               <option value="">— selecione —</option>
-              <!-- "Férias" (Art. 11, I) saiu do lançamento manual: agora é
-                   sincronizado automaticamente da escala de férias do VISA. -->
-              <option value="licenca_medica">Licença Médica</option>
-              <option value="licenca_gestante">Licença Gestante</option>
-              <option value="cargo_comissao">Cargo em Comissão</option>
-              <option value="afastamento_legal">Outros afastamentos funcionais imperativos</option>
+              <!-- Preenchido dinamicamente com os incisos do Art. 11 da LC 548/2023
+                   (window.TIPOS_OCORRENCIA, manual:true) — ver preencherTipos().
+                   "Férias" (inciso I) é sincronizado do VISA, fora do dropdown. -->
             </select>
           </div>
           <div class="form-row cols-2">
@@ -189,14 +186,23 @@
   let _ocorrs = [];
   let _sort  = { key: 'periodo', dir: 1 };
 
-  const TIPO_LABELS = {
-    ferias: 'Férias',
-    licenca_medica: 'Licença Médica',
-    licenca_gestante: 'Licença Gestante',
-    cargo_comissao: 'Cargo em Comissão',
-    afastamento_legal: 'Outros afastamentos funcionais imperativos',
-    outros: 'Outros afastamentos funcionais imperativos',
-  };
+  // Labels derivados da fonte única (js/utils.js → TIPOS_OCORRENCIA), para
+  // renderização (inclui os tipos legados, p/ exibir ocorrências antigas).
+  const TIPO_LABELS = (window.TIPOS_OCORRENCIA || []).reduce((m, t) => { m[t.tipo] = t.label; return m; }, {});
+
+  // Popula o dropdown de "Tipo de Ocorrência" com os incisos do Art. 11
+  // (apenas os manuais — Férias/inciso I é sincronizado do VISA, e os tipos
+  // legados "caput"/"outros" ficam de fora).
+  function preencherTipos() {
+    const sel = document.getElementById('o-tipo');
+    if (!sel) return;
+    (window.TIPOS_OCORRENCIA || []).filter(t => t.manual).forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t.tipo;
+      opt.textContent = t.label;
+      sel.appendChild(opt);
+    });
+  }
 
   function buildSidebar(perfil) {
     const links = perfil === 'Fiscal' ? [
@@ -428,79 +434,36 @@
     const alertEl = document.getElementById('rev-alert');
     const o      = _ocorrs.find(x => x.id === id);
 
-    if (status === 'aceito' && o) {
-      alertEl.innerHTML = alerta('info', '🔄 Verificando conflitos de lançamento…');
-
-      const porMes = diasDaOcorrenciaPorMes(o.data_inicio, o.data_fim);
-
-      // ── 1. Verificar se algum dia do período já possui lançamentos —
-      //      dia coberto por ocorrência não pode ter nenhuma outra atividade ──
-      for (const { mes, ano, dias } of Object.values(porMes)) {
-        let manuais;
-        try {
-          manuais = await window.db_getManuais(o.fiscal_email, mes, ano);
-        } catch(e) {
-          alertEl.innerHTML = alerta('danger', 'Erro ao verificar lançamentos: ' + escHtml(e.message));
-          return;
-        }
-        for (const dia of dias) {
-          const totalDia = manuais.reduce((acc, m) => {
-            if (!m || m.data !== dia) return acc;
-            if (m.origem === 'ocorrencia') return acc;
-            if (m.status === 'recusado') return acc;
-            return acc + (Number(m.pontos) || 0);
-          }, 0);
-          if (totalDia > 0) {
-            alertEl.innerHTML = alerta('danger',
-              `⚠️ O dia <strong>${fmtData(dia)}</strong> já possui <strong>${totalDia}</strong> ponto(s) ` +
-              `em lançamentos. Dias cobertos por ocorrência não podem ter nenhuma outra atividade lançada. ` +
-              `Peça ao fiscal para excluir/ajustar lançamentos desse dia antes de aceitar a ocorrência.`
-            );
-            return;
-          }
-        }
-      }
-
-      // ── 2. Gerar lançamentos rateando 1000 pts pelos dias úteis do mês ──
+    if (status === 'aceito') {
+      if (!o) { alertEl.innerHTML = alerta('danger', 'Ocorrência não encontrada. Recarregue a página.'); return; }
       alertEl.innerHTML = alerta('info', '⏳ Gerando lançamentos de ocorrência…');
+      let r;
       try {
-        const feriados = await window.carregarFeriadosMunicipais();
-        for (const { mes, ano, dias } of Object.values(porMes)) {
-          const totalUteis = window.diasUteisNoMes(mes, ano, feriados);
-          const taxa = totalUteis > 0 ? Math.round((window.MEDIA_PRODUTIVIDADE_OCORRENCIA / totalUteis) * 100) / 100 : 0;
-          for (const dia of dias) {
-            if (!window.ehDiaUtil(dia, feriados)) continue;
-            await window.db_createManual({
-              controle:       `OCR-${ano}-${String(mes).padStart(2,'0')}-${dia.replace(/-/g,'')}`,
-              fiscal_email:   o.fiscal_email,
-              fiscal_nome:    o.fiscal_nome,
-              mes,
-              ano,
-              data:           dia,
-              tipo_id:        99,
-              tipo_codigo:    'OCR',
-              tipo_nome:      'Ocorrência',
-              item_pontuacao: null,
-              complexidade:   '—',
-              pontos:         taxa,
-              pontos_homologado: taxa,
-              descricao:      `Ocorrência: ${TIPO_LABELS[o.tipo] || o.tipo} — aceita pelo administrador`,
-              obs:            obs || null,
-              status:         'homologado',
-              origem:         'ocorrencia',
-              ocorrencia_id:  id,
-              dispositivo_legal: window.dispositivoLegalOcorrencia
-                ? window.dispositivoLegalOcorrencia(o.tipo)
-                : 'Art. 11 da Lei Complementar nº 548/2023',
-            });
-          }
-        }
+        // Mesma lógica compartilhada do auto-aceite da sincronização de férias
+        // (pré-checagem de conflito → gera manuais por dia útil → marca aceito).
+        r = await window.db_aceitarOcorrencia(o, { obsAdmin: obs });
       } catch(e) {
         alertEl.innerHTML = alerta('danger', 'Erro ao gerar lançamentos: ' + escHtml(e.message));
         return;
       }
+      if (!r || !r.ok) {
+        if (r && r.motivo === 'dia_com_lancamento') {
+          alertEl.innerHTML = alerta('danger',
+            `⚠️ O dia <strong>${fmtData(r.dia)}</strong> já possui <strong>${r.pontos}</strong> ponto(s) ` +
+            `em lançamentos. Dias cobertos por ocorrência não podem ter nenhuma outra atividade lançada. ` +
+            `Peça ao fiscal para excluir/ajustar lançamentos desse dia antes de aceitar a ocorrência.`);
+        } else {
+          alertEl.innerHTML = alerta('danger', 'Não foi possível aceitar a ocorrência.');
+        }
+        return;
+      }
+      document.getElementById('modal-rev').style.display = 'none';
+      document.getElementById('alert-area').innerHTML = alerta('ok', 'Ocorrência <strong>aceito</strong>.');
+      loadOcorrencias();
+      return;
     }
 
+    // status === 'recusado'
     try {
       await db_updateOcorrencia(id, { status, obs_admin: obs || null });
       document.getElementById('modal-rev').style.display = 'none';
@@ -508,7 +471,7 @@
       loadOcorrencias();
 
       // ── Notificação push ao fiscal (fire-and-forget) ──────
-      if (o && status === 'recusado' && typeof window.dispararNotificacaoFiscal === 'function') {
+      if (o && typeof window.dispararNotificacaoFiscal === 'function') {
         window.dispararNotificacaoFiscal(
           o.fiscal_email,
           '⚠️ Ocorrência Recusada',
@@ -565,6 +528,7 @@
     if (user.perfil === 'Fiscal') {
       document.getElementById('form-wrap').style.display = '';
       buildSels('o-mes','o-ano');
+      preencherTipos();
       document.getElementById('o-mes').value = _um;
       document.getElementById('o-ano').value = _ua;
       document.getElementById('btn-registrar').addEventListener('click', registrarOcorrencia);
@@ -590,7 +554,7 @@
       // pendentes aparecerem de imediato.
       if (typeof window.verificarESincronizarFerias === 'function') {
         window.verificarESincronizarFerias(user)
-          .then(r => { if (r && (r.criadas || r.removidas)) loadOcorrencias(); })
+          .then(r => { if (r && (r.criadas || r.removidas || r.aceitas)) loadOcorrencias(); })
           .catch(() => {});
       }
     }
