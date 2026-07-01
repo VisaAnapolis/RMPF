@@ -14,17 +14,20 @@ const PARAMS = {
  * @param {number} pnsExtras  - Pontos negativos / glosas
  */
 function calcular(ativCVS = [], ativManuais = [], pnsExtras = 0) {
-  const pp = [
+  // round2 evita que o ruído de ponto flutuante da soma de muitas parcelas
+  // decimais (ex.: rateio de ocorrências a 45.45 pts/dia) vaze para a tela
+  // (ex.: "636.3000000000001") ou desvie o Math.ceil() da apuração final.
+  const pp = round2([
     ...ativCVS.map(a => Number(a.pontos) || 0),
     ...ativManuais
       .filter(a => a.status === 'aceito' || a.status === 'fechado' || a.status === 'homologado')
       .map(a => Number(a.pontos_homologado != null ? a.pontos_homologado : a.pontos) || 0),
-  ].reduce((s, v) => s + v, 0);
+  ].reduce((s, v) => s + v, 0));
 
-  const pn     = Number(pnsExtras) || 0;
-  const pv     = Math.max(0, pp - pn);
-  const pvLim  = Math.min(pv, PARAMS.teto_pv);
-  const bruto  = (pvLim - PARAMS.base_formula) * PARAMS.fator_formula;
+  const pn     = round2(Number(pnsExtras) || 0);
+  const pv     = round2(Math.max(0, pp - pn));
+  const pvLim  = round2(Math.min(pv, PARAMS.teto_pv));
+  const bruto  = round2((pvLim - PARAMS.base_formula) * PARAMS.fator_formula);
   const apuracao = Math.max(0, Math.ceil(Math.min(bruto, PARAMS.teto_final)));
 
   return {

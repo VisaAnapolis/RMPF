@@ -297,7 +297,7 @@
       const ptosEnviados = _manuais
         .filter(m => m.status === 'enviado')
         .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
-      document.getElementById('m-env').textContent = ptosEnviados;
+      document.getElementById('m-env').textContent = formatPontos(ptosEnviados);
       document.getElementById('metrics-wrap').style.display = '';
       renderTabela();
     } catch(e) {
