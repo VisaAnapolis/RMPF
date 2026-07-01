@@ -13,6 +13,7 @@
   <link rel="manifest"                     href="manifest.webmanifest">
   <meta name="theme-color" content="#1565c0">
   <style>
+    html { scroll-behavior: smooth; }
     /* Fiscal dashboard: fixed 4-col grid so Apuração Final fills the row below */
     #view-fiscal .metrics-grid {
       grid-template-columns: repeat(4, 1fr);
@@ -63,6 +64,24 @@
       .admin-mini-resumo tbody td.td-num { text-align: right; font-variant-numeric: tabular-nums; }
       .admin-mini-resumo tbody td.td-status { text-align: center; font-size: 1rem; }
       .admin-mini-resumo tbody tr:last-child td { border-bottom: none; }
+      .mini-resumo-link {
+        color: inherit;
+        text-decoration: underline dotted;
+        text-underline-offset: 2px;
+      }
+      .mini-resumo-link:active { opacity: .7; }
+    }
+
+    /* Realce temporário ao navegar da Visão Geral até o card do fiscal */
+    #tbody-admin tr {
+      scroll-margin-top: calc(var(--header-h, 56px) + 16px);
+    }
+    #tbody-admin tr:target {
+      animation: fiscal-card-highlight 2s ease-out;
+    }
+    @keyframes fiscal-card-highlight {
+      from { box-shadow: inset 0 0 0 2px var(--azul, #1565c0); }
+      to   { box-shadow: inset 0 0 0 2px transparent; }
     }
 
     /* Fiscais que não atingiram a apuração de R$ 200 */
@@ -597,6 +616,10 @@
     return partes[0] + ' ' + partes[partes.length - 1][0] + '.';
   }
 
+  function fiscalAnchor(f) {
+    return 'fiscal-card-' + String(f.email || f.id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+
   async function loadAdmin() {
     const mes = Number(document.getElementById('admin-sel-mes').value);
     const ano = Number(document.getElementById('admin-sel-ano').value);
@@ -624,7 +647,7 @@
           .filter(m => m.status === 'enviado')
           .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
         const pendentes = manuais.filter(m => m.status === 'enviado' || m.status === 'pendente').length;
-        return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
+        return `<tr id="${fiscalAnchor(f)}"${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td data-label="Fiscal">${escHtml(f.nome || f.id)}</td>
           <td data-label="Pts Req." class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>
           <td data-label="PP" class="td-num">${result.pp}</td>
@@ -648,7 +671,7 @@
         const temPendente  = manuais.some(m => m.status === 'enviado' || m.status === 'pendente');
         const statusIcon   = temRecusado ? '⚠️' : temPendente ? '⏳' : manuais.length ? '✅' : '—';
         return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
-          <td>${escHtml(nomeAbrev(f.nome || f.id))}</td>
+          <td><a href="#${fiscalAnchor(f)}" class="mini-resumo-link">${escHtml(nomeAbrev(f.nome || f.id))}</a></td>
           <td class="td-num">${ptosReq > 0 ? ptosReq : '—'}</td>
           <td class="td-num">${result.pv}</td>
           <td class="td-num ${result.apuracao > 0 ? 'text-verde fw-bold' : ''}">${result.apuracao > 0 ? result.apuracao : '—'}</td>
