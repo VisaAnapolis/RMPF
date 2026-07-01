@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.14.3</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: pontuação de ocorrência agora é rateada pelos dias úteis do mês</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: excesso de pontos gerados por ocorrência</strong> — ao aceitar uma ocorrência (férias, licença médica, licença gestante, cargo em comissão, afastamento legal), o sistema lançava <strong>50 pontos fixos por dia</strong> para <em>todos</em> os dias do período, inclusive fins de semana e feriados. Um mês inteiro (28–31 dias) gerava 1.400–1.550 pontos, quando o teto mensal é <strong>1.000 pontos</strong>. Agora os 1.000 pontos são <strong>rateados pelos dias úteis do mês</strong> (excluindo sábados, domingos, feriados nacionais fixos e feriados municipais de Anápolis) e <strong>nenhum lançamento é criado</strong> nos dias não úteis — um mês integralmente coberto soma ≈1.000 pontos.</li>
+            <li><strong>Novos helpers em <code>js/utils.js</code></strong> — <code>carregarFeriadosMunicipais()</code> (lê <code>data/feriados.csv</code>), <code>ehDiaUtil(dataISO, feriadosSet)</code> e <code>diasUteisNoMes(mes, ano, feriadosSet)</code>. A taxa por dia útil é <code>1000 / diasUteisNoMes</code>, arredondada em 2 casas decimais — por isso os lançamentos de ocorrência passam a ter pontuação fracionária (ex.: 45,45), diferente dos demais tipos de lançamento.</li>
+            <li><strong>Novo arquivo <code>data/feriados.csv</code></strong> — feriados municipais de Anápolis/GO (Carnaval, Sexta-feira Santa, Corpus Christi, Dia de Sant'Ana, aniversário da cidade, vésperas de Natal e Ano Novo) para 2026; datas nacionais fixas (Confraternização, Tiradentes, Trabalho, Independência, Nossa Senhora Aparecida, Finados, Proclamação da República, Natal) são calculadas em código.</li>
+            <li><strong>Aplicado em <code>ocorrencias.html</code></strong> (aceite de ocorrência) <strong>e <code>parametrizacao.html</code></strong> (ferramenta "Converter Ocorrências Aceitas em Pontos"). Nesta última, o apagamento dos lançamentos antigos continua ocorrendo em todos os dias do período — apenas a criação do novo lançamento é pulada nos dias não úteis. Lançamentos já existentes no banco não são alterados; a nova lógica vale apenas para lançamentos gerados a partir desta versão.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.14.2</span>
             <span class="badge-date">30/06/2026</span>
           </div>

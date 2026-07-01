@@ -185,6 +185,43 @@ function dispositivoLegalOcorrencia(tipo) {
   return _TIPO_OCR_TO_DISPOSITIVO[tipo] || 'Art. 11 da Lei Complementar nº 548/2023';
 }
 
+// ─────────────────────────────────────────────────────────────
+// Rateio de pontos de ocorrência por dia útil (evita ultrapassar
+// o teto mensal de 1000 pontos quando o período cobre um mês inteiro)
+// ─────────────────────────────────────────────────────────────
+const FERIADOS_NACIONAIS_FIXOS_MMDD = ['01-01','04-21','05-01','09-07','10-12','11-02','11-15','12-25'];
+const MEDIA_PRODUTIVIDADE_OCORRENCIA = 1000; // placeholder até existir média real do fiscal
+
+async function carregarFeriadosMunicipais() {
+  try {
+    const resp = await fetch('data/feriados.csv');
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const texto = await resp.text();
+    const linhas = texto.trim().split('\n').slice(1);
+    return new Set(linhas.map(l => l.split(',')[0].trim()).filter(Boolean));
+  } catch (e) {
+    console.warn('Não foi possível carregar data/feriados.csv — feriados municipais não serão excluídos do rateio:', e);
+    return new Set();
+  }
+}
+
+function ehDiaUtil(dataISO, feriadosSet) {
+  const d = new Date(dataISO + 'T12:00:00');
+  if (d.getDay() === 0 || d.getDay() === 6) return false;
+  if (FERIADOS_NACIONAIS_FIXOS_MMDD.includes(dataISO.slice(5))) return false;
+  return !feriadosSet.has(dataISO);
+}
+
+function diasUteisNoMes(mes, ano, feriadosSet) {
+  const diasNoMes = new Date(ano, mes, 0).getDate();
+  let count = 0;
+  for (let dia = 1; dia <= diasNoMes; dia++) {
+    const iso = `${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+    if (ehDiaUtil(iso, feriadosSet)) count++;
+  }
+  return count;
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -200,3 +237,7 @@ window.formatComplexidade  = formatComplexidade;
 window.complexidadeHtml    = complexidadeHtml;
 window.dispositivoLegal         = dispositivoLegal;
 window.dispositivoLegalOcorrencia = dispositivoLegalOcorrencia;
+window.carregarFeriadosMunicipais = carregarFeriadosMunicipais;
+window.ehDiaUtil                = ehDiaUtil;
+window.diasUteisNoMes           = diasUteisNoMes;
+window.MEDIA_PRODUTIVIDADE_OCORRENCIA = MEDIA_PRODUTIVIDADE_OCORRENCIA;
