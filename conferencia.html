@@ -209,6 +209,7 @@
 <script src="js/visa-import.js"></script>
 <script src="js/sim-import.js"></script>
 <script src="js/visa-auto-import.js"></script>
+<script src="js/ferias-auto-sync.js"></script>
 <script src="js/notifications.js"></script>
 <script>
   let _user        = null;
@@ -570,6 +571,13 @@
     // muda (ao carregar e por polling), reusando a lógica de visa-import.js.
     if (typeof window.iniciarAutoImportVISA === 'function') {
       window.iniciarAutoImportVISA(user);
+    }
+
+    // ── Sincronização automática das férias do VISA (Administrador) ───
+    // Cria as ocorrências de "Férias" (pendentes) da competência aberta a
+    // partir da escala mantida pela gestão no VISA (doc ferias/escala).
+    if (typeof window.iniciarAutoSyncFerias === 'function') {
+      window.iniciarAutoSyncFerias(user);
     }
 
     buildMesSelect('sel-mes');

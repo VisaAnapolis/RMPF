@@ -53,7 +53,8 @@
             <label class="form-label required" for="o-tipo">Tipo de Ocorrência</label>
             <select class="form-control" id="o-tipo" required>
               <option value="">— selecione —</option>
-              <option value="ferias">Férias</option>
+              <!-- "Férias" (Art. 11, I) saiu do lançamento manual: agora é
+                   sincronizado automaticamente da escala de férias do VISA. -->
               <option value="licenca_medica">Licença Médica</option>
               <option value="licenca_gestante">Licença Gestante</option>
               <option value="cargo_comissao">Cargo em Comissão</option>
@@ -181,6 +182,7 @@
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
 <script src="js/notifications.js"></script>
+<script src="js/ferias-auto-sync.js"></script>
 <script>
   let _user  = null;
   let _perfil = '';
@@ -234,56 +236,9 @@
     }
   }
 
-  /**
-   * Retorna objeto agrupado por "mes-ano" com os dias (ISO) da ocorrência.
-   * Lida corretamente com ocorrências que cruzam a virada do mês.
-   */
-  function diasDaOcorrenciaPorMes(dataInicio, dataFim) {
-    const fim = dataFim || dataInicio;
-    const result = {};
-    const cur = new Date(dataInicio + 'T12:00:00');
-    const end = new Date(fim + 'T12:00:00');
-    while (cur <= end) {
-      const iso = cur.toISOString().split('T')[0];
-      const mes = cur.getMonth() + 1;
-      const ano = cur.getFullYear();
-      const key = `${mes}-${ano}`;
-      if (!result[key]) result[key] = { mes, ano, dias: [] };
-      result[key].dias.push(iso);
-      cur.setDate(cur.getDate() + 1);
-    }
-    return result;
-  }
-
-  /**
-   * Verifica se dois períodos [aIni..aFim] e [bIni..bFim] se sobrepõem.
-   * Datas em ISO (YYYY-MM-DD); quando não há fim, considera-se o próprio início.
-   */
-  function periodosSeSobrepoem(aIni, aFim, bIni, bFim) {
-    const a1 = aIni, a2 = aFim || aIni;
-    const b1 = bIni, b2 = bFim || bIni;
-    return a1 <= b2 && b1 <= a2;
-  }
-
-  /**
-   * Retorna a primeira ocorrência (não recusada) do fiscal que se sobrepõe ao
-   * período informado, ou null se não houver conflito. Consulta todos os meses
-   * abrangidos pelo novo período para capturar ocorrências que cruzam meses.
-   */
-  async function ocorrenciaConflitante(email, inicio, fim, ignoreId) {
-    const periodos = diasDaOcorrenciaPorMes(inicio, fim);
-    const existentes = new Map();
-    for (const { mes, ano } of Object.values(periodos)) {
-      const lista = await db_getOcorrencias(email, mes, ano);
-      lista.forEach(o => existentes.set(o.id, o));
-    }
-    for (const o of existentes.values()) {
-      if (ignoreId && o.id === ignoreId) continue;
-      if (o.status === 'recusado') continue;
-      if (periodosSeSobrepoem(inicio, fim, o.data_inicio, o.data_fim)) return o;
-    }
-    return null;
-  }
+  // diasDaOcorrenciaPorMes / periodosSeSobrepoem (js/utils.js) e
+  // ocorrenciaConflitante (js/firestore.js) agora são compartilhados — a mesma
+  // lógica é reutilizada pela sincronização automática de férias.
 
   async function registrarOcorrencia() {
     const tipo  = document.getElementById('o-tipo').value;
@@ -628,6 +583,15 @@
       } catch (e) {
         console.warn('[Ocorrencias] Falha ao carregar fiscais:', e);
         document.getElementById('alert-area').innerHTML = alerta('warn', 'Não foi possível carregar a lista de fiscais. Recarregue a página.');
+      }
+
+      // Sincroniza automaticamente as férias do VISA (só Administrador) e
+      // recarrega a lista quando cria/remove algo, para as novas ocorrências
+      // pendentes aparecerem de imediato.
+      if (typeof window.verificarESincronizarFerias === 'function') {
+        window.verificarESincronizarFerias(user)
+          .then(r => { if (r && (r.criadas || r.removidas)) loadOcorrencias(); })
+          .catch(() => {});
       }
     }
 

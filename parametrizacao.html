@@ -490,6 +490,7 @@
 <script src="js/sim-import.js"></script>
 <script src="js/visa-auto-import.js"></script>
 <script src="js/sim-auto-import.js"></script>
+<script src="js/ferias-auto-sync.js"></script>
 <script>
   let _currentUserEmail = '';
 
@@ -542,6 +543,12 @@
     // enquanto o admin estiver nesta página: ao carregar e por polling.
     if (typeof window.iniciarAutoImportSIM === 'function') {
       window.iniciarAutoImportSIM(user);
+    }
+    // Sincronização automática das férias do VISA (Administrador): cria as
+    // ocorrências de "Férias" (pendentes) da competência aberta a partir do
+    // doc ferias/escala mantido pela gestão no VISA.
+    if (typeof window.iniciarAutoSyncFerias === 'function') {
+      window.iniciarAutoSyncFerias(user);
     }
 
     document.getElementById('btn-logout').addEventListener('click', () => {
