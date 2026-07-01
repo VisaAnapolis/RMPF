@@ -144,6 +144,53 @@ async function deleteOcorrencia(id) {
   await window.db.collection('ocorrencias').doc(id).delete();
 }
 
+/**
+ * Retorna a primeira ocorrência (não recusada) do fiscal que se sobrepõe ao
+ * período informado, ou null se não houver conflito. Consulta todos os meses
+ * abrangidos pelo período (incluindo o lookback de getOcorrencias) para capturar
+ * ocorrências que cruzam meses. Compartilhada entre o lançamento manual
+ * (ocorrencias.html) e a sincronização automática de férias.
+ *
+ * opts.ignorarOrigem: quando definido, ignora ocorrências com esse `origem`
+ * (ex.: a própria sincronização passa 'ferias_visa' para não conflitar consigo).
+ */
+async function ocorrenciaConflitante(email, inicio, fim, ignoreId, opts) {
+  opts = opts || {};
+  const periodos = window.diasDaOcorrenciaPorMes(inicio, fim);
+  const existentes = new Map();
+  for (const { mes, ano } of Object.values(periodos)) {
+    const lista = await getOcorrencias(email, mes, ano);
+    lista.forEach(o => existentes.set(o.id, o));
+  }
+  for (const o of existentes.values()) {
+    if (ignoreId && o.id === ignoreId) continue;
+    if (o.status === 'recusado') continue;
+    if (opts.ignorarOrigem && o.origem === opts.ignorarOrigem) continue;
+    if (window.periodosSeSobrepoem(inicio, fim, o.data_inicio, o.data_fim)) return o;
+  }
+  return null;
+}
+
+// Todas as ocorrências com um dado `origem` (ex.: 'ferias_visa'), sem filtro de
+// mês/ano — usada pela sincronização de férias para reconciliar o que já criou.
+// `origem` sozinho usa o índice de campo único automático do Firestore.
+async function getOcorrenciasPorOrigem(origem) {
+  const snap = await window.db.collection('ocorrencias')
+    .where('origem', '==', origem)
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+// Manuais gerados por uma ocorrência aceita (origem:'ocorrencia', ocorrencia_id).
+// Usada para apagar os pontos quando a ocorrência de férias correspondente é
+// removida no VISA e precisa ser desfeita no RMPF.
+async function getManuaisPorOcorrencia(ocorrenciaId) {
+  const snap = await window.db.collection('manuais')
+    .where('ocorrencia_id', '==', ocorrenciaId)
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // ── CVS Override ─────────────────────────────────────────
 
 async function getCvsOverride(id) {
@@ -1030,6 +1077,46 @@ async function getOcorrenciasAceitasTodas() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// ── Férias (VISA) → sincronização ────────────────────────
+// A escala de férias é mantida pela gestão no app VISA num doc único
+// `ferias/escala` → { periodos: [{nome, inicio, fim, obs?}], updatedAt, updatedBy }.
+// Compartilham o mesmo projeto Firestore (visam-3a30b); a regra permite leitura
+// a qualquer autenticado. Uma única leitura de documento, sem índice.
+async function getFeriasEscala() {
+  const snap = await window.db.collection('ferias').doc('escala').get();
+  return snap.exists ? { id: snap.id, ...snap.data() } : null;
+}
+
+// ── Ferias Sync Lock ─────────────────────────────────────
+// Transação atômica (check+set). Doc único ferias_sync_locks/escala (a escala é
+// um doc global, então um lock basta). Lock obsoleto (> 5 min) é sobrescrito.
+async function acquireFeriasSyncLock(fiscalEmail, fiscalNome) {
+  const ref = window.db.collection('ferias_sync_locks').doc('escala');
+  await window.db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (snap.exists) {
+      const data = snap.data();
+      const lockedAt = data.locked_at?.toMillis?.() || 0;
+      const ageMs = Date.now() - lockedAt;
+      const STALE_MS = 5 * 60 * 1000; // 5 min safety net
+      if (ageMs < STALE_MS) {
+        throw new Error(
+          `Sincronização de férias já em andamento por ${data.locked_by_nome || data.locked_by}. Aguarde a conclusão.`
+        );
+      }
+    }
+    tx.set(ref, {
+      locked_by:      fiscalEmail,
+      locked_by_nome: fiscalNome || fiscalEmail,
+      locked_at:      firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+}
+
+async function releaseFeriasSyncLock() {
+  await window.db.collection('ferias_sync_locks').doc('escala').delete();
+}
+
 // ── Exports ──────────────────────────────────────────────
 
 window.db_getFechamento                  = getFechamento;
@@ -1056,9 +1143,15 @@ window.db_deleteImportadosMes   = deleteImportadosMes;
 window.db_getOcorrencias      = getOcorrencias;
 window.db_getOcorrenciasTodas = getOcorrenciasTodas;
 window.db_getOcorrenciasAceitasTodas = getOcorrenciasAceitasTodas;
+window.db_getOcorrenciasPorOrigem = getOcorrenciasPorOrigem;
+window.db_getManuaisPorOcorrencia = getManuaisPorOcorrencia;
 window.db_createOcorrencia    = createOcorrencia;
 window.db_updateOcorrencia    = updateOcorrencia;
 window.db_deleteOcorrencia    = deleteOcorrencia;
+window.ocorrenciaConflitante  = ocorrenciaConflitante;
+window.db_getFeriasEscala     = getFeriasEscala;
+window.db_acquireFeriasSyncLock = acquireFeriasSyncLock;
+window.db_releaseFeriasSyncLock = releaseFeriasSyncLock;
 window.db_getCvsOverride      = getCvsOverride;
 window.db_setCvsOverride      = setCvsOverride;
 window.db_getUsuario          = getUsuario;

@@ -222,6 +222,51 @@ function diasUteisNoMes(mes, ano, feriadosSet) {
   return count;
 }
 
+// ─────────────────────────────────────────────────────────────
+// Períodos de ocorrência (compartilhado entre o lançamento manual
+// de ocorrencias.html e a sincronização automática de férias)
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Retorna objeto agrupado por "mes-ano" com os dias (ISO) da ocorrência.
+ * Lida corretamente com ocorrências que cruzam a virada do mês.
+ */
+function diasDaOcorrenciaPorMes(dataInicio, dataFim) {
+  const fim = dataFim || dataInicio;
+  const result = {};
+  const cur = new Date(dataInicio + 'T12:00:00');
+  const end = new Date(fim + 'T12:00:00');
+  while (cur <= end) {
+    const iso = cur.toISOString().split('T')[0];
+    const mes = cur.getMonth() + 1;
+    const ano = cur.getFullYear();
+    const key = `${mes}-${ano}`;
+    if (!result[key]) result[key] = { mes, ano, dias: [] };
+    result[key].dias.push(iso);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return result;
+}
+
+/**
+ * Verifica se dois períodos [aIni..aFim] e [bIni..bFim] se sobrepõem.
+ * Datas em ISO (YYYY-MM-DD); quando não há fim, considera-se o próprio início.
+ */
+function periodosSeSobrepoem(aIni, aFim, bIni, bFim) {
+  const a1 = aIni, a2 = aFim || aIni;
+  const b1 = bIni, b2 = bFim || bIni;
+  return a1 <= b2 && b1 <= a2;
+}
+
+/** Normaliza um nome para casamento tolerante (trim, minúsculas, sem acentos). */
+function normalizarNome(nome) {
+  return String(nome || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -241,3 +286,6 @@ window.carregarFeriadosMunicipais = carregarFeriadosMunicipais;
 window.ehDiaUtil                = ehDiaUtil;
 window.diasUteisNoMes           = diasUteisNoMes;
 window.MEDIA_PRODUTIVIDADE_OCORRENCIA = MEDIA_PRODUTIVIDADE_OCORRENCIA;
+window.diasDaOcorrenciaPorMes   = diasDaOcorrenciaPorMes;
+window.periodosSeSobrepoem      = periodosSeSobrepoem;
+window.normalizarNome           = normalizarNome;
