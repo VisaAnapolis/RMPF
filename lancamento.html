@@ -207,31 +207,12 @@
     return null;
   }
 
-  function somaPontosDiaComFiltro(manuais, dataISO, excluirId) {
-    return (manuais || []).reduce((acc, m) => {
-      if (!m || m.id === excluirId) return acc;
-      if (m.data !== dataISO) return acc;
-      if (m.origem === 'ocorrencia') return acc;
-      if (m.status === 'recusado') return acc;
-      return acc + (Number(m.pontos) || 0);
-    }, 0);
-  }
-
-  async function validarLimitePontosOcorrenciaDia(fiscalEmail, mes, ano, dataISO, pontosNovo, excluirId) {
-    const ocorrConflito = await verificarOcorrenciaParaData(fiscalEmail, mes, ano, dataISO);
-    if (!ocorrConflito) {
-      return { ok: true, ocorrencia: null, somaAtual: 0, total: Number(pontosNovo) || 0 };
-    }
-    const manuais = await window.db_getManuais(fiscalEmail, mes, ano);
-    const somaAtual = somaPontosDiaComFiltro(manuais, dataISO, excluirId);
-    const total = somaAtual + (Number(pontosNovo) || 0);
-    return {
-      ok: total <= LIMITE_PONTOS_OCORRENCIA_DIA,
-      ocorrencia: ocorrConflito,
-      somaAtual,
-      total,
-      disponivel: Math.max(0, LIMITE_PONTOS_OCORRENCIA_DIA - somaAtual),
-    };
+  // Nenhum lançamento é permitido em dia coberto por ocorrência aceita (férias,
+  // licença médica, licença gestante, cargo em comissão, afastamento legal) —
+  // o fiscal está afastado nesse dia, então não há atividade a lançar.
+  async function validarLimitePontosOcorrenciaDia(fiscalEmail, mes, ano, dataISO) {
+    const ocorrencia = await verificarOcorrenciaParaData(fiscalEmail, mes, ano, dataISO);
+    return { ok: !ocorrencia, ocorrencia };
   }
 
   // When tipo changes, populate items
@@ -395,14 +376,13 @@
       return;
     }
 
-    // ── Verificar teto de pontos em dia com ocorrência aceita ─
-    const validacaoOcorr = await validarLimitePontosOcorrenciaDia(user.email, mes, ano, data, pontosNum, null);
-    if (!validacaoOcorr.ok && validacaoOcorr.ocorrencia) {
+    // ── Bloquear lançamento em dia com ocorrência aceita ──────
+    const validacaoOcorr = await validarLimitePontosOcorrenciaDia(user.email, mes, ano, data);
+    if (!validacaoOcorr.ok) {
       const tipoLabel = TIPO_LABELS_OCR[validacaoOcorr.ocorrencia.tipo] || validacaoOcorr.ocorrencia.tipo;
-      showAlert('warn',
-        `⚠️ O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
-        `<strong>${tipoLabel}</strong>. O limite diário é <strong>${LIMITE_PONTOS_OCORRENCIA_DIA} pontos</strong> ` +
-        `e você já possui <strong>${validacaoOcorr.somaAtual}</strong> ponto(s) lançado(s) neste dia.`
+      showAlert('danger',
+        `🚫 O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
+        `<strong>${tipoLabel}</strong>. Não é permitido lançar atividades em dias cobertos por ocorrência.`
       );
       btns.forEach(b => { b.disabled = false; });
       return;
@@ -515,10 +495,9 @@
       const ocorrConflito = await verificarOcorrenciaParaData(user.email, mes, ano, data);
       if (ocorrConflito) {
         const tipoLabel = TIPO_LABELS_OCR[ocorrConflito.tipo] || ocorrConflito.tipo;
-        alertDataEl.innerHTML = alerta('warn',
-          `⚠️ O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
-          `<strong>${tipoLabel}</strong>. Lançamentos são permitidos até ` +
-          `<strong>${LIMITE_PONTOS_OCORRENCIA_DIA} pontos</strong> no total do dia.`
+        alertDataEl.innerHTML = alerta('danger',
+          `🚫 O dia <strong>${fmtData(data)}</strong> está coberto pela ocorrência aceita de ` +
+          `<strong>${tipoLabel}</strong>. Não é permitido lançar atividades nesse dia.`
         );
         alertDataEl.style.display = '';
       } else {

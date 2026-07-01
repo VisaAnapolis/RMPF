@@ -478,8 +478,8 @@
 
       const porMes = diasDaOcorrenciaPorMes(o.data_inicio, o.data_fim);
 
-      // ── 1. Verificar se os lançamentos já existentes em cada dia
-      //      da ocorrência respeitam o teto de 24 pontos ────────────
+      // ── 1. Verificar se algum dia do período já possui lançamentos —
+      //      dia coberto por ocorrência não pode ter nenhuma outra atividade ──
       for (const { mes, ano, dias } of Object.values(porMes)) {
         let manuais;
         try {
@@ -495,11 +495,10 @@
             if (m.status === 'recusado') return acc;
             return acc + (Number(m.pontos) || 0);
           }, 0);
-          if (totalDia > LIMITE_PONTOS_OCORRENCIA_DIA) {
+          if (totalDia > 0) {
             alertEl.innerHTML = alerta('danger',
               `⚠️ O dia <strong>${fmtData(dia)}</strong> já possui <strong>${totalDia}</strong> ponto(s) ` +
-              `em lançamentos e excede o limite de <strong>${LIMITE_PONTOS_OCORRENCIA_DIA}</strong> ` +
-              `para dias com ocorrência aceita. ` +
+              `em lançamentos. Dias cobertos por ocorrência não podem ter nenhuma outra atividade lançada. ` +
               `Peça ao fiscal para excluir/ajustar lançamentos desse dia antes de aceitar a ocorrência.`
             );
             return;
@@ -507,11 +506,15 @@
         }
       }
 
-      // ── 2. Gerar lançamentos de 50 pts/dia ───────────────
+      // ── 2. Gerar lançamentos rateando 1000 pts pelos dias úteis do mês ──
       alertEl.innerHTML = alerta('info', '⏳ Gerando lançamentos de ocorrência…');
       try {
+        const feriados = await window.carregarFeriadosMunicipais();
         for (const { mes, ano, dias } of Object.values(porMes)) {
+          const totalUteis = window.diasUteisNoMes(mes, ano, feriados);
+          const taxa = totalUteis > 0 ? Math.round((window.MEDIA_PRODUTIVIDADE_OCORRENCIA / totalUteis) * 100) / 100 : 0;
           for (const dia of dias) {
+            if (!window.ehDiaUtil(dia, feriados)) continue;
             await window.db_createManual({
               controle:       `OCR-${ano}-${String(mes).padStart(2,'0')}-${dia.replace(/-/g,'')}`,
               fiscal_email:   o.fiscal_email,
@@ -524,8 +527,8 @@
               tipo_nome:      'Ocorrência',
               item_pontuacao: null,
               complexidade:   '—',
-              pontos:         50,
-              pontos_homologado: 50,
+              pontos:         taxa,
+              pontos_homologado: taxa,
               descricao:      `Ocorrência: ${TIPO_LABELS[o.tipo] || o.tipo} — aceita pelo administrador`,
               obs:            obs || null,
               status:         'homologado',
