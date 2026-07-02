@@ -388,11 +388,17 @@
     // regra ativa) apenas na primeira homologação — se já existe um valor
     // homologado salvo, ele é preservado tal como está (o admin pode ter
     // ajustado manualmente ao rever o lançamento).
-    ptsHomEl.value = isPlantaoFiscal
+    const valorPreenchido = isPlantaoFiscal
       ? 0
       : (m.pontos_homologado != null
           ? m.pontos_homologado
           : pontosComFator30h(m.pontos, m.fiscal_email, _fiscais30hAtivo));
+    ptsHomEl.value = valorPreenchido;
+    // step="1" (padrão) arredonda para o inteiro mais próximo ao clicar nas
+    // setinhas ▲▼, descartando a fração de valores 30h não-inteiros (ex.:
+    // certidão 2,67). step="0.01" preserva a fração nesses casos; mantém
+    // step="1" (incremento de 1 ponto) no caso comum de valor inteiro.
+    ptsHomEl.step = Number.isInteger(Number(valorPreenchido)) ? '1' : '0.01';
     ptsHomEl.disabled = isPlantaoFiscal;
     document.getElementById('hom-motivo').value    = m.motivo_recusa || '';
     const aviso = document.getElementById('hom-pendencia-aviso');
