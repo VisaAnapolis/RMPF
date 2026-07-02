@@ -358,7 +358,7 @@
     const tbodyAtiv = document.getElementById('tbody-ativ');
     tbodyAtiv.innerHTML = aceitas.length ? aceitas.map(m =>
       `<tr><td data-label="Data">${fmtData(m.data)}</td>
-       <td data-label="Tipo">${escHtml(m.tipo_nome||m.tipo_codigo||'—')}</td><td data-label="Descrição">${escHtml(m.descricao||'—')}</td>
+       <td data-label="Tipo">${escHtml(m.tipo_nome||m.tipo_codigo||'—')}</td><td data-label="Descrição">${escHtml(m.descricao||'—')}${window.prazoWarningHtml(m)}</td>
        <td data-label="Pontos" class="td-num">${formatPontos(m.pontos_homologado??m.pontos)}</td></tr>`
     ).join('') : '<tr class="empty-row"><td colspan="4">Nenhuma atividade aceita</td></tr>';
 
@@ -382,7 +382,7 @@
     document.getElementById('rel-tbody-ativ').innerHTML = aceitas.length ? aceitas.map(m =>
       `<tr><td style="border:1px solid #ccc;padding:4px 7px">${fmtData(m.data)}</td>
        <td style="border:1px solid #ccc;padding:4px 7px">${escHtml(m.tipo_nome||m.tipo_codigo||'—')}</td>
-       <td style="border:1px solid #ccc;padding:4px 7px">${escHtml(m.descricao||'—')}</td>
+       <td style="border:1px solid #ccc;padding:4px 7px">${escHtml(m.descricao||'—')}${window.prazoWarningHtml(m)}</td>
        <td style="border:1px solid #ccc;padding:4px 7px;text-align:right">${formatPontos(m.pontos_homologado??m.pontos)}</td></tr>`
     ).join('') : '<tr><td colspan="4" style="padding:8px;text-align:center;color:#999">Sem atividades</td></tr>';
 

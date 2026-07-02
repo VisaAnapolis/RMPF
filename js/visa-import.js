@@ -345,6 +345,83 @@ function visaDataToISO(dataStr) {
   return null;
 }
 
+// ── Helpers de prazo (portados de VISA/os.html) ───────────
+// Sentinela usada na base VISA para "prazo não informado" (30.03.1900).
+const PRAZO_SEM_INFORMACAO = '1900-03-30';
+
+// Hora "5:03:56 PM" → "17:03:56" (tramitacao.csv usa AM/PM). Cópia de os.html.
+function converterHora12para24(horaStr) {
+  if (!horaStr || String(horaStr).trim() === '') return '00:00:00';
+  let s = String(horaStr).trim().toUpperCase();
+  if (s.includes('.') && !s.includes(':')) s = s.replace(/\./g, ':');
+  const mPeriodo = s.match(/\b(AM|PM)\b/);
+  const periodo = mPeriodo ? mPeriodo[1] : null;
+  s = s.replace(/\b(AM|PM)\b/g, '').trim().replace(/\s+/g, '');
+  const partes = s.split(':').map(p => p.trim()).filter(Boolean);
+  if (partes.length < 2) return '00:00:00';
+  let h = parseInt(partes[0], 10);
+  let m = parseInt(partes[1], 10);
+  let sec = partes.length >= 3 ? parseInt(partes[2], 10) : 0;
+  if ([h, m, sec].some(n => Number.isNaN(n))) return '00:00:00';
+  if (periodo) {
+    if (periodo === 'PM' && h !== 12) h += 12;
+    if (periodo === 'AM' && h === 12) h = 0;
+  }
+  h = Math.min(Math.max(h, 0), 23);
+  m = Math.min(Math.max(m, 0), 59);
+  sec = Math.min(Math.max(sec, 0), 59);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+// Soma N dias úteis (pula sáb/dom) a uma data ISO. Cópia de os.html.
+function adicionarDiasUteis(dataISO, diasUteis) {
+  if (!dataISO) return '';
+  const data = new Date(dataISO + 'T00:00:00');
+  let add = 0;
+  while (add < diasUteis) {
+    data.setDate(data.getDate() + 1);
+    const dow = data.getDay();
+    if (dow !== 0 && dow !== 6) add++;
+  }
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+}
+
+// Protocolo: encontra a data de encaminhamento ao fiscal cuja janela de
+// responsabilidade contém a data da inspeção (DT_VISITA). Ordena as
+// tramitações cronologicamente; cada tramitação com DESTINO = fiscal abre uma
+// janela que vai até a tramitação seguinte (quando o fiscal repassou para um
+// órgão/outro). Retorna a data ISO de início dessa janela, ou null se nenhuma
+// janela contiver a data. Espelha a lógica de buscarInfoProtocolo de os.html,
+// mas seleciona a janela pela data do registro, não a última tramitação.
+function encontrarDataEncaminhaProtocolo(numeroProtocolo, dataVisitaISO, tramitacaoPorProtocolo, fiscalMap) {
+  if (!numeroProtocolo || !dataVisitaISO) return null;
+  const trams = tramitacaoPorProtocolo.get(String(numeroProtocolo).trim());
+  if (!trams || trams.length === 0) return null;
+
+  // Ordena ascendente por data + hora (com ISO já pré-calculado em _dataISO).
+  const ordenadas = [...trams].sort((a, b) => {
+    if (a._dataISO !== b._dataISO) return a._dataISO < b._dataISO ? -1 : 1;
+    const hA = converterHora12para24(a.HORA || '00:00:00');
+    const hB = converterHora12para24(b.HORA || '00:00:00');
+    return hA < hB ? -1 : (hA > hB ? 1 : 0);
+  });
+
+  for (let k = 0; k < ordenadas.length; k++) {
+    const destino = String(ordenadas[k].DESTINO || '').trim();
+    if (!destino || !fiscalMap.has(normNomeVisa(destino))) continue; // não é fiscal
+    const inicio = ordenadas[k]._dataISO;
+    if (!inicio) continue;
+    const fim = (k + 1 < ordenadas.length) ? ordenadas[k + 1]._dataISO : null; // aberta se última
+    if (dataVisitaISO >= inicio && (fim === null || dataVisitaISO <= fim)) {
+      return inicio;
+    }
+  }
+  return null;
+}
+
 async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFiscais, onProgress, onProgressBar }) {
   mes = Number(mes); ano = Number(ano);
 
@@ -373,9 +450,11 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     });
     const rows = parsed.data;
 
-    // ── Carregar CSVs de autorização do terceiro fiscal ──
-    const requerimentoMap = new Map(); // OS normalizada → { prioridade: boolean }
-    const oficioMap       = new Map(); // Oficio normalizado → { terceiro: boolean }
+    // ── Carregar CSVs de autorização do terceiro fiscal + prazo da OS ──
+    const requerimentoMap = new Map(); // OS       → { prioridade: boolean, prazo: ISO|null }
+    const oficioMap       = new Map(); // Oficio   → { terceiro: boolean, prazo: ISO|null }
+    const denunciaMap     = new Map(); // Denuncia → { prazo: ISO|null }
+    const tramitacaoPorProtocolo = new Map(); // PROTOCOLO → [ { DATA, HORA, DESTINO, _dataISO } ]
 
     try {
       const reqText = await window.fetchGitHubCSV('data/requerimento.csv');
@@ -389,17 +468,20 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           const osKey = String(r['OS'] || '').replace(/"/g, '').trim();
           if (!osKey) continue;
           const prioridade = String(r['prioridade'] || '').replace(/"/g, '').trim().toLowerCase();
-          requerimentoMap.set(osKey, { prioridade: prioridade === 'true' || prioridade === '1' || prioridade === 'sim' });
+          requerimentoMap.set(osKey, {
+            prioridade: prioridade === 'true' || prioridade === '1' || prioridade === 'sim',
+            prazo: visaDataToISO(String(r['Prazo'] || '').replace(/"/g, '').trim()),
+          });
         }
         onProgress(`📑 ${requerimentoMap.size} requerimento(s) carregado(s).`, 'info');
       }
     } catch (err) {
-      onProgress('⚠️ Não foi possível carregar requerimento.csv — autorizações de terceiro fiscal não verificadas.', 'warn');
+      onProgress('⚠️ Não foi possível carregar requerimento.csv — autorização de terceiro fiscal e prazo não verificados.', 'warn');
       console.error('Failed to load requerimento.csv:', err);
     }
 
     try {
-      const ofiText = await window.fetchGitHubCSV('data/Oficio.csv');
+      const ofiText = await window.fetchGitHubCSV('data/oficio.csv');
       if (ofiText !== null) {
         const ofiParsed = Papa.parse(ofiText, {
           header: true,
@@ -409,14 +491,72 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         for (const r of ofiParsed.data) {
           const ofiKey = String(r['Oficio'] || '').replace(/"/g, '').trim();
           if (!ofiKey) continue;
-          const terceiro = String(r['terceiro'] || '').replace(/"/g, '').trim().toLowerCase();
-          oficioMap.set(ofiKey, { terceiro: terceiro === 'true' || terceiro === '1' || terceiro === 'sim' });
+          const terceiro = String(r['Terceiro'] || r['terceiro'] || '').replace(/"/g, '').trim().toLowerCase();
+          oficioMap.set(ofiKey, {
+            terceiro: terceiro === 'true' || terceiro === '1' || terceiro === 'sim',
+            prazo: visaDataToISO(String(r['Prazo'] || '').replace(/"/g, '').trim()),
+          });
         }
         onProgress(`📑 ${oficioMap.size} ofício(s) carregado(s).`, 'info');
       }
     } catch (err) {
-      onProgress('⚠️ Não foi possível carregar Oficio.csv — autorizações de terceiro fiscal não verificadas.', 'warn');
-      console.error('Failed to load Oficio.csv:', err);
+      onProgress('⚠️ Não foi possível carregar oficio.csv — autorização de terceiro fiscal e prazo não verificados.', 'warn');
+      console.error('Failed to load oficio.csv:', err);
+    }
+
+    // ── Prazo das denúncias (data/denuncia.csv, chave Denuncia) ──
+    try {
+      const denText = await window.fetchGitHubCSV('data/denuncia.csv');
+      if (denText !== null) {
+        const denParsed = Papa.parse(denText.replace(/^﻿/, ''), {
+          header: true,
+          delimiter: ';',
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
+        });
+        for (const r of denParsed.data) {
+          const denKey = String(r['Denuncia'] || '').replace(/"/g, '').trim();
+          if (!denKey) continue;
+          denunciaMap.set(denKey, {
+            prazo: visaDataToISO(String(r['Prazo'] || '').replace(/"/g, '').trim()),
+          });
+        }
+        onProgress(`📑 ${denunciaMap.size} denúncia(s) carregada(s).`, 'info');
+      }
+    } catch (err) {
+      onProgress('⚠️ Não foi possível carregar denuncia.csv — prazo de denúncias não verificado.', 'warn');
+      console.error('Failed to load denuncia.csv:', err);
+    }
+
+    // ── Tramitações dos protocolos (data/tramitacao.csv) ──
+    // Usadas para achar a janela do fiscal que contém a data da inspeção e daí
+    // o prazo do protocolo (encaminhamento ao fiscal + 15 dias úteis).
+    try {
+      const tramText = await window.fetchGitHubCSV('data/tramitacao.csv');
+      if (tramText !== null) {
+        const tramParsed = Papa.parse(tramText.replace(/^﻿/, ''), {
+          header: true,
+          delimiter: ';',
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
+        });
+        for (const t of tramParsed.data) {
+          const proto = String(t['PROTOCOLO'] || '').replace(/"/g, '').trim();
+          if (!proto) continue;
+          const rec = {
+            DATA:    String(t['DATA'] || '').replace(/"/g, '').trim(),
+            HORA:    String(t['HORA'] || '').replace(/"/g, '').trim(),
+            DESTINO: String(t['DESTINO'] || '').replace(/"/g, '').trim(),
+          };
+          rec._dataISO = visaDataToISO(rec.DATA) || '';
+          if (!tramitacaoPorProtocolo.has(proto)) tramitacaoPorProtocolo.set(proto, []);
+          tramitacaoPorProtocolo.get(proto).push(rec);
+        }
+        onProgress(`📑 ${tramitacaoPorProtocolo.size} protocolo(s) com tramitação carregado(s).`, 'info');
+      }
+    } catch (err) {
+      onProgress('⚠️ Não foi possível carregar tramitacao.csv — prazo de protocolos não verificado.', 'warn');
+      console.error('Failed to load tramitacao.csv:', err);
     }
 
     // ── Tabela de complexidade CNAE (data/cnae.csv) ──────────
@@ -627,6 +767,23 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       else if (motivoOSNorm === 'DENUNCIA')     osNumero = denuncia;
       else if (motivoOSNorm === 'REQUERIMENTO') osNumero = os;
       const documento = tipoRaw;
+
+      // ── Prazo da OS e conformidade (cumprida fora do prazo) ──
+      // Compara o prazo de execução da OS com a data do registro da inspeção
+      // (DT_VISITA), não com a data atual. Requerimento/Ofício/Denúncia usam o
+      // campo Prazo do CSV; Protocolo = encaminhamento ao fiscal + 15 dias úteis
+      // (janela de tramitação que contém a data da inspeção).
+      let prazoOsISO = '';
+      if      (motivoOSNorm === 'REQUERIMENTO') prazoOsISO = (requerimentoMap.get(osNumero) || {}).prazo || '';
+      else if (motivoOSNorm === 'DE OFICIO')    prazoOsISO = (oficioMap.get(osNumero) || {}).prazo || '';
+      else if (motivoOSNorm === 'DENUNCIA')     prazoOsISO = (denunciaMap.get(osNumero) || {}).prazo || '';
+      else if (motivoOSNorm === 'PROTOCOLO') {
+        const encISO = encontrarDataEncaminhaProtocolo(osNumero, dataISO, tramitacaoPorProtocolo, fiscalMap);
+        prazoOsISO = encISO ? adicionarDiasUteis(encISO, 15) : '';
+      }
+      if (prazoOsISO === PRAZO_SEM_INFORMACAO) prazoOsISO = ''; // sentinela "sem prazo"
+      const foraDoPrazo = !!(prazoOsISO && dataISO && dataISO > prazoOsISO);
+      const prazoOsFinal = prazoOsISO || null;
 
       const rawFiscais = [
         { nome: row['Fiscal1'], isTerceiro: false },
@@ -875,6 +1032,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 zerado_motivo: zeradoMotivo,
                 motivo_os: motivoOS,
                 os_numero: osNumero,
+                prazo_os: prazoOsFinal,
+                fora_do_prazo: foraDoPrazo,
                 documento,
                 origem: 'visa_csv',
                 visa_controle: controleVisa,
@@ -944,6 +1103,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 zerado_motivo: zeradoMotivo,
                 motivo_os: motivoOS,
                 os_numero: osNumero,
+                prazo_os: prazoOsFinal,
+                fora_do_prazo: foraDoPrazo,
                 documento,
                 status: statusInicial,
                 motivo_pendencia: motivoPendencia,

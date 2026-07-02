@@ -146,6 +146,13 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
       const dataISO = simTimestampToISO(os.dataCumprimento);
       const descricao = `Auditoria SIM — OS ${osNum}`;
 
+      // ── Prazo da OS e conformidade (cumprida fora do prazo) ──
+      // A OS de auditoria já traz o prazo (os.prazo) e a data de cumprimento
+      // (os.dataCumprimento) no próprio doc de ordens_servico. Fora do prazo =
+      // cumprida depois do prazo.
+      const prazoOsISO = simTimestampToISO(os.prazo);
+      const foraDoPrazo = !!(prazoOsISO && dataISO && dataISO > prazoOsISO);
+
       try {
         const existing = await window.db_getSIMManual(osNum, emailFiscal);
 
@@ -220,6 +227,8 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             origem: 'sim_csv',
             sim_os: osNum,
             os_doc_id: os._docId || null,
+            prazo_os: prazoOsISO || null,
+            fora_do_prazo: foraDoPrazo,
             dispositivo_legal: window.dispositivoLegal
               ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, pontosOs, false, itemDecretoZerado || undefined)
               : (pontosOs === 0 ? (itemDecretoZerado ? `Item ${itemDecretoZerado} do Anexo VII do Decreto 49.723/2023 (não cumulativo — pontuação zerada)` : null) : 'Item 1 do Anexo VII do Decreto 49.723/2023'),
@@ -258,6 +267,8 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             origem: 'sim_csv',
             sim_os: osNum,
             os_doc_id: os._docId || null,
+            prazo_os: prazoOsISO || null,
+            fora_do_prazo: foraDoPrazo,
             dispositivo_legal: window.dispositivoLegal
               ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, pontosOs, false, itemDecretoZerado || undefined)
               : (pontosOs === 0 ? (itemDecretoZerado ? `Item ${itemDecretoZerado} do Anexo VII do Decreto 49.723/2023 (não cumulativo — pontuação zerada)` : null) : 'Item 1 do Anexo VII do Decreto 49.723/2023'),
