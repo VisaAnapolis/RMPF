@@ -70,8 +70,9 @@
             <col style="width:6%"><!-- Complexidade -->
             <col style="width:5%"><!-- Área -->
             <col style="width:5%"><!-- Fiscais -->
-            <col style="width:13%"><!-- Descrição -->
+            <col style="width:12%"><!-- Descrição -->
             <col style="width:6%"><!-- Pontos Requeridos -->
+            <col style="width:4%"><!-- Prazo -->
             <col style="width:6%"><!-- Pontos Homologados -->
             <col style="width:6%"><!-- Status -->
             <col style="width:5%"><!-- Anexo -->
@@ -91,6 +92,7 @@
               <th class="td-center">Fiscais</th>
               <th>Descrição</th>
               <th class="td-num">Pontos Requeridos</th>
+              <th class="td-center">Prazo</th>
               <th class="td-num">Pontos Homologados</th>
               <th>Status</th>
               <th class="td-center nao-imprimir">Anexo</th>
@@ -98,7 +100,7 @@
             </tr>
           </thead>
           <tbody id="tbody-conferencia">
-            <tr class="empty-row"><td colspan="16">Selecione um fiscal e competência</td></tr>
+            <tr class="empty-row"><td colspan="17">Selecione um fiscal e competência</td></tr>
           </tbody>
         </table>
       </div>
@@ -285,7 +287,7 @@
     }
     document.getElementById('alert-area').innerHTML = '';
     const tbody = document.getElementById('tbody-conferencia');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="16"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="17"><div class="spinner"></div></td></tr>';
 
     try {
       const _timeout = new Promise((_, rej) =>
@@ -303,7 +305,7 @@
       document.getElementById('metrics-wrap').style.display = '';
       renderTabela();
     } catch(e) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="16">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="17">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
     }
   }
 
@@ -312,7 +314,7 @@
     const isAdmin = _perfil === 'Administrador';
 
     if (!_manuais.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="16">Nenhum lançamento nesta competência</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="17">Nenhum lançamento nesta competência</td></tr>';
       return;
     }
 
@@ -358,7 +360,7 @@
         <td data-label="Data" class="td-nowrap">${fmtData(m.data)}</td>
         <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo||'—')}</td>
         <td data-label="Origem da Demanda">${isVigilanciaAtiva ? `<span class="text-vigilancia-ativa">${escHtml(m.motivo_os)}</span>` : escHtml(m.motivo_os || '—')}</td>
-        <td data-label="OS" class="td-nowrap">${escHtml(m.os_numero || '—')}${window.prazoWarningHtml(m)}</td>
+        <td data-label="OS" class="td-nowrap">${escHtml(m.os_numero || '—')}</td>
         <td data-label="Documento">${escHtml(m.documento || '—')}</td>
         <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
         <td data-label="Complexidade" class="td-center">${window.complexidadeHtml ? window.complexidadeHtml(m) : (m.complexidade || '—')}</td>
@@ -366,6 +368,7 @@
         <td data-label="Fiscais" class="td-center td-nowrap">${m.qtd_fiscais != null ? escHtml(String(m.qtd_fiscais)) : '—'}</td>
         <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao||'—')}</a>` : escHtml(m.descricao||'—')}</td>
         <td data-label="Pontos Requeridos" class="td-num">${m.pontos!=null?formatPontos(m.pontos):'—'}${m.zerado_motivo ? ` <span class="cx-decreto" style="cursor:help" title="${escHtml(m.zerado_motivo)}">⚠️</span>` : ''}</td>
+        <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
         <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado!=null?formatPontos(m.pontos_homologado):'—'}</td>
         <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : badge(m.status)}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
         <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
