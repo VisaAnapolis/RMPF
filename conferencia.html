@@ -364,7 +364,7 @@
         <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>
         <td data-label="Fiscais" class="td-center td-nowrap">${m.qtd_fiscais != null ? escHtml(String(m.qtd_fiscais)) : '—'}</td>
         <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao||'—')}</a>` : escHtml(m.descricao||'—')}</td>
-        <td data-label="Pontos Requeridos" class="td-num">${m.pontos!=null?formatPontos(m.pontos):'—'}</td>
+        <td data-label="Pontos Requeridos" class="td-num">${m.pontos!=null?formatPontos(m.pontos):'—'}${m.zerado_motivo ? ` <span class="cx-decreto" style="cursor:help" title="${escHtml(m.zerado_motivo)}">⚠️</span>` : ''}</td>
         <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado!=null?formatPontos(m.pontos_homologado):'—'}</td>
         <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : badge(m.status)}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
         <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
@@ -459,6 +459,21 @@
     if (status === 'aceito' && motivoOSNorm === 'PLANTAO FISCAL' && Number(ponHom) !== 0) {
       document.getElementById('hom-alert').innerHTML = alerta('warn', 'Lançamentos de Plantão Fiscal devem ter pontuação zero.');
       return;
+    }
+
+    // ── Revalida não cumulatividade antes de homologar com pontos > 0 ──────
+    // Um Plantão/OPF manual ou um Relatório Técnico (alta) importado pode ter
+    // sido lançado DEPOIS que esta vistoria entrou em conferência — sem esta
+    // checagem, o admin poderia homologar pontos que deveriam estar zerados
+    // (Anexo VII, itens 9/13/18).
+    if (status === 'aceito' && manual && manual.tipo_codigo === 'VIS' && Number(ponHom) > 0
+        && typeof window.motivoNaoCumulatividadeVistoria === 'function') {
+      const motivoConflito = await window.motivoNaoCumulatividadeVistoria(manual.fiscal_email, manual.data, manual.id);
+      if (motivoConflito) {
+        document.getElementById('hom-alert').innerHTML = alerta('warn',
+          `🚫 Não é possível homologar pontuação maior que zero: há ${motivoConflito}.`);
+        return;
+      }
     }
 
     try {

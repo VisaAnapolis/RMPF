@@ -362,23 +362,35 @@ importação, `visa-import.js` busca o CSV via `fetchGitHubCSV('data/cnae.csv')`
 
 ## 15.1. Plantão Fiscal × Vistorias (não cumulatividade)
 
-Regra: **Plantão fiscal não é cumulativo com a pontuação das vistorias realizadas no mesmo dia** (Tabela de Pontuação, item 6). A regra é **por fiscal** — o plantão de um fiscal só afeta as vistorias dele.
+Regra: **Plantão fiscal não é cumulativo com a pontuação das vistorias realizadas no mesmo dia** (Anexo VII, item 9). A regra é **por fiscal** — o plantão de um fiscal só afeta as vistorias dele. Cobre vistorias importadas de **ambas** as origens, VISA e SIM.
 
 | Situação | Comportamento |
 |---|---|
-| Plantão manual (PLT) lançado **antes** da importação | Ao importar, as vistorias (`VIS`) do VISA naquela data entram com **pontos = 0** automaticamente. Log: *"vistoria zerada — plantão fiscal manual em DD/MM"*. |
-| Vistorias importadas **antes** + tentativa de lançar plantão manual | **Bloqueado** em `lancamento.html` (e ao editar/corrigir em `meus-lancamentos.html`) com a mensagem *"Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação"* — **apenas** quando há vistorias importadas que **geram pontos** (`pontos > 0`) na data. Vistorias zeradas (ex.: origem da demanda "PLANTÃO FISCAL", que já entra com `pontos = 0`) **não bloqueiam**, pois não há pontuação a não cumular. |
-| Vistoria já homologada (`aceito`/`fechado`) | **Não é zerada** automaticamente — só reportada. O admin decide via conferência. |
+| Plantão manual (PLT) lançado **antes** da importação | Ao importar, as vistorias (`VIS`) do VISA e/ou do SIM naquela data entram com **pontos = 0** automaticamente, e o motivo é gravado em `zerado_motivo`. Log: *"vistoria zerada — plantão fiscal manual em DD/MM"*. |
+| Vistorias importadas **antes** + tentativa de lançar plantão manual | **Bloqueado** em `lancamento.html` (e ao editar/corrigir em `meus-lancamentos.html`) com a mensagem *"Impossível lançar plantão em data com vistoria(s) importada(s) com pontuação"* — **apenas** quando há vistorias importadas (VISA ou SIM) que **geram pontos** (`pontos > 0`) na data. Vistorias zeradas (ex.: origem da demanda "PLANTÃO FISCAL", que já entra com `pontos = 0`) **não bloqueiam**, pois não há pontuação a não cumular. |
+| Vistoria já homologada (`aceito`/`fechado`) | **Não é zerada** automaticamente — só reportada. O admin decide via conferência; `conferencia.html` revalida a regra e bloqueia a homologação de pontos > 0 quando ainda há conflito. |
 
 **Identificação:**
 - Plantão manual → `tipo_codigo === 'PLT'` e `origem !== 'visa_csv'` (controle `PLT-AAAA-MM-NNN`).
-- Vistoria importada → `origem === 'visa_csv'` e `tipo_codigo === 'VIS'`.
+- Vistoria importada → `tipo_codigo === 'VIS'` e `origem === 'visa_csv'` **ou** `origem === 'sim_csv'` (`ehVistoriaQualquer`).
 
-**Helpers** (`js/visa-import.js`): `ehPlantaoManual`, `ehVistoriaImportada`, `datasComPlantaoManual`, `vistoriasImportadasNoDia`.
+**Helpers** (`js/visa-import.js`): `ehPlantaoManual`, `ehVistoriaQualquer`, `datasComPlantaoManual`, `vistoriasImportadasNoDia`, `motivoNaoCumulatividadeVistoria` (revalidação avulsa, usada em `conferencia.html`). `js/sim-import.js` reaproveita `datasComPlantaoManual` para aplicar a mesma zeragem às vistorias do SIM.
 
 ### Correção retroativa — `corrige-plantao.html`
 
-Página de utilidade (admin) que varre os lançamentos de **Junho/2026**, identifica vistorias importadas em datas com plantão manual do mesmo fiscal e **zera os pontos** (com simulação prévia + log). Vistorias homologadas são ignoradas. Acesso direto pela URL `corrige-plantao.html`.
+Página de utilidade (admin) que varre os lançamentos de **Junho/2026**, identifica vistorias **importadas do VISA** em datas com plantão manual do mesmo fiscal e **zera os pontos** (com simulação prévia + log). Vistorias homologadas são ignoradas. Acesso direto pela URL `corrige-plantao.html`. Ferramenta pontual e histórica — não cobre vistorias do SIM nem as regras de OPF/REL abaixo; a partir da v1.15.0 essas não-cumulatividades já são aplicadas prospectivamente na importação e reforçadas na homologação.
+
+## 15.2. Relatório Técnico de Inspeção (alta) × Vistoria (não cumulatividade)
+
+Regra: **relatório técnico de inspeção de alta complexidade não é cumulativo com a pontuação de vistoria no mesmo dia** (Anexo VII, item 13). Como `REL` só existe via importação do VISA (tipo `somenteCsv`, nunca lançamento manual), a regra é aplicada inteiramente dentro de `importarInspecoesVISA` (`js/visa-import.js`): a vistoria do dia é quem zera, o relatório técnico mantém seus pontos — mesmo padrão de prioridade já usado em Plantão e OPF.
+
+Como REL e VIS podem vir de linhas diferentes do mesmo CSV, `rowsFiltradas` é ordenado (ordenação estável) para processar as linhas de relatório técnico de alta complexidade **antes** das demais, garantindo que `relAltaDatas` já esteja populado quando a vistoria do mesmo dia é processada na mesma rodada de importação.
+
+**Identificação:** `ehRelAltaImportada` → `origem === 'visa_csv'`, `tipo_codigo === 'REL'`, `item_pontuacao === 10` (alta).
+
+## 15.3. Rastreabilidade da zeragem por não cumulatividade
+
+Toda vistoria (VISA ou SIM) zerada pelas regras acima (Plantão item 9, OPF item 18, REL-alta item 13) grava a explicação no campo `zerado_motivo`. `meus-lancamentos.html` e `conferencia.html` exibem um ícone ⚠️ com tooltip ao lado dos Pontos Requeridos quando esse campo está presente — antes, a única indicação da zeragem era um log de importação visível apenas a quem executava o import (nunca ao fiscal dono do lançamento).
 
 ---
 
@@ -391,12 +403,14 @@ Página de utilidade (admin) que varre os lançamentos de **Junho/2026**, identi
 | Chave do documento | `visa_{CONTROLE}_{email_normalizado}` |
 | Re-importação | Sobrescreve se não homologado; ignora se homologado |
 | Edição pelo fiscal | Proibida para `origem: 'visa_csv'` |
-| Homologação | Admin homologa individualmente por fiscal |
+| Homologação | Admin homologa individualmente por fiscal; revalida não cumulatividade antes de aceitar pontos > 0 |
 | Fonte CNAE | `data/cnae.csv` do VISA, carregado em memória a cada importação |
 | Descrição | `Vistoria VISA — OS X — CNAE Y — [descrição]` |
 | Controle RMPF | `VISA-{CONTROLE do CSV}` |
-| Plantão × Vistoria | Por fiscal: plantão manual zera vistorias importadas na data; bloqueia plantão posterior **só** se já houver vistorias importadas que geram pontos (`pontos > 0`) |
+| Plantão × Vistoria (item 9) | Por fiscal, VISA + SIM: plantão manual zera vistorias importadas na data; bloqueia plantão posterior **só** se já houver vistorias importadas que geram pontos (`pontos > 0`) |
+| Operação Fiscal × Vistoria (item 18) | Por fiscal, VISA + SIM: OPF manual zera vistorias importadas na data; bloqueia OPF posterior se já houver vistoria na data |
+| Relatório Técnico (alta) × Vistoria (item 13) | Por fiscal, só VISA (REL é `somenteCsv`): relatório técnico de alta complexidade zera vistoria do mesmo dia |
 
 ---
 
-*Documento gerado em 28/04/2026 — RMPF / VISA Anápolis*
+*Documento gerado em 28/04/2026 — RMPF / VISA Anápolis. Seções 15.2, 15.3 e revalidação de homologação adicionadas na v1.15.0.*
