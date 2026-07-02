@@ -44,6 +44,80 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.14.12</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: setinhas de Pts Homologados descartavam a fração dos valores 30h</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção no campo "Pts Homologados" da homologação</strong> (<code>conferencia.html</code>) — o campo não definia o atributo <code>step</code>, então o padrão do navegador (<code>step="1"</code>) arredondava o valor para o inteiro mais próximo assim que o administrador clicava numa seta ▲▼, descartando a fração de pontuações 30h que não fecham em número redondo (ex.: certidão 2 × 4/3 = 2,67; faixas de área 8→10,67 e 16→21,33). Agora o <code>step</code> é definido dinamicamente: <code>0.01</code> quando o valor pré-preenchido tem fração, <code>1</code> no caso comum de valor inteiro (preserva o incremento de 1 ponto).</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.14.11</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Padronização de Pontos em 2 casas decimais + regra automática de produtividade para fiscais de 30h</div>
+          <ul class="changelog-changes">
+            <li><strong><code>formatPontos()</code> sempre com 2 casas decimais</strong> (<code>js/utils.js</code>) — antes a exibição variava entre 0, 1 e 2 casas conforme o valor (ex.: <code>48</code>, <code>636.3</code>, <code>45.45</code>); todas as exibições de Pontos Requeridos/Homologados e PP/PN/PV em <code>dashboard.html</code>, <code>fechamento.html</code>, <code>conferencia.html</code> e <code>meus-lancamentos.html</code> passam a usar esse helper.</li>
+            <li><strong>Regra automática de produtividade para fiscais de 30 horas semanais</strong> — fiscais com carga horária de 30h têm direito a pontuação proporcionalmente maior por atividade (fator 40/30 ≈ 1,333), antes calculado e digitado manualmente pelo administrador na homologação (ex.: 48 → 64). Adiciona lista fixa de e-mails (<code>FISCAIS_30H</code>, <code>js/utils.js</code>) e passa a pré-preencher automaticamente o campo "Pts Homologados" em <code>conferencia.html</code> com o valor já ajustado — o administrador ainda revisa e pode editar antes de aceitar. Aplicado também ao rateio automático de ocorrências aceitas (<code>aceitarOcorrencia</code>, <code>js/firestore.js</code>).</li>
+            <li><strong>Novo flag em Parametrização</strong> — card "📊 Produtividade — Fiscais de 30 Horas" (desligado por padrão), persistido em <code>app_config/fiscais_30h</code> no Firestore, seguindo o mesmo padrão do card "Prazo de Lançamentos Fiscais".</li>
+            <li><strong>Correção de rótulo</strong> — a Apuração Final estava rotulada como "R$" em vários pontos (<code>dashboard.html</code>, <code>fechamento.html</code>), mas na verdade é um percentual (capado em 200%), não valor monetário; corrigido para "%".</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.14.10</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: exibição de pontuação com ruído de ponto flutuante</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção de pontuações exibidas como <code>636.3000000000001</code></strong> — o rateio de ocorrências gera pontos diários fracionários (ex.: 45,45); somar muitas dessas parcelas em JS acumulava ruído de ponto flutuante binário, visível cru na tela do dashboard (visão fiscal, tabela admin e mini-resumo), <code>conferencia.html</code> e <code>fechamento.html</code>.</li>
+            <li><strong>Novos <code>round2()</code>/<code>formatPontos()</code></strong> (<code>js/utils.js</code>), reutilizados em todos os pontos de exibição de somas de pontos.</li>
+            <li><strong><code>calcular()</code> (<code>js/calculo.js</code>) agora arredonda <code>pp</code>, <code>pn</code>, <code>pv</code>, <code>pvLim</code> e <code>bruto</code></strong> para 2 casas antes de aplicar <code>Math.ceil()</code> na apuração final — evita também um possível desvio de R$1 na apuração quando o ruído cai perto de um limite inteiro.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.14.9</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Férias: auto-aceite (gera os lançamentos) + dropdown de ocorrências com os incisos do Art. 11</div>
+          <ul class="changelog-changes">
+            <li><strong>Sincronização de férias passa a aceitar automaticamente</strong> — antes as ocorrências de férias sincronizadas do VISA ficavam <code>pendente</code> e só geravam pontos com aceite manual do administrador. Agora a sincronização gera 1 <code>manual</code> por dia útil com o mesmo rateio do aceite manual (<code>1000 / dias úteis do mês</code>, <code>status:'homologado'</code>, <code>origem:'ocorrencia'</code>), marcando a ocorrência como <code>aceito</code>; também aceita automaticamente as pendentes já existentes. Lógica de aceite extraída para <code>db_aceitarOcorrencia(o, opts)</code> (<code>js/firestore.js</code>), fonte única entre aceite manual e automático.</li>
+            <li><strong>Dropdown de ocorrências reformulado para os incisos exatos do Art. 11 da LC 548/2023</strong> — fonte única <code>TIPOS_OCORRENCIA</code> (<code>js/utils.js</code>) alimenta o dropdown, o label de exibição e o <code>dispositivo_legal</code>; adiciona os incisos faltantes (Casamento, Luto, Tribunal do Júri, Doença em pessoa da família, Nascimento de filho(a), Adoção). Férias (inciso I) sai do dropdown manual (é sincronizada do VISA); a opção "outros" é removida.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.14.8</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Sincronização automática de férias (VISA → ocorrências) + remoção do tipo Férias manual</div>
+          <ul class="changelog-changes">
+            <li><strong>Novo módulo <code>js/ferias-auto-sync.js</code></strong> — busca automaticamente a escala de férias já lançada pela gestão no VISA (<code>ferias/escala</code>) e cria as ocorrências correspondentes no RMPF, eliminando o re-lançamento manual duplicado pelo fiscal. Roda em sessão de Administrador ao carregar <code>ocorrencias.html</code>, <code>conferencia.html</code> e <code>parametrizacao.html</code>, com detecção de mudança por watermark (<code>ferias/escala.updatedAt</code>) e lock distribuído (<code>ferias_sync_locks</code>) contra execução concorrente.</li>
+            <li><strong>Espelha edições/remoções do VISA</strong> — remove ocorrências que saíram da escala e, se já aceitas, apaga também os pontos correspondentes em <code>manuais</code>; nunca altera lançamentos manuais. Escopo limitado à competência aberta.</li>
+            <li><strong>"Férias" removida do dropdown manual</strong> em <code>ocorrencias.html</code> (o tipo continua válido para renderizar histórico) — passa a ser sincronizada automaticamente do VISA.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.14.7</span>
+            <span class="badge-date">01/07/2026</span>
+          </div>
+          <div class="changelog-title">Nomes clicáveis na Visão Geral (mobile) do Dashboard ADM</div>
+          <ul class="changelog-changes">
+            <li><strong>Navegação rápida no Dashboard mobile do Administrador</strong> — cada nome de fiscal na mini-tabela "📋 Visão Geral" agora é um link que rola a página até o card correspondente na seção "👥 Resumo por Fiscal" logo abaixo, com um realce visual temporário (borda azul que desaparece após ~2s) para facilitar a localização. Nova função <code>fiscalAnchor(f)</code> (<code>dashboard.html</code>) gera um <code>id</code> estável por fiscal.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.14.6</span>
             <span class="badge-date">01/07/2026</span>
           </div>
