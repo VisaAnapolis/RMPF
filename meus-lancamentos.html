@@ -754,7 +754,6 @@
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
-    document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     buildMesSelect(); buildAnoSelect();
     let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();

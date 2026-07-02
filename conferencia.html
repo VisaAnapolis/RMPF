@@ -572,7 +572,6 @@
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
     document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
-    document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     try {
       _fiscais30hAtivo = (await db_getFiscais30hConfig()).ativo;

@@ -515,7 +515,6 @@
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
     document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
-    document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     buildSels('sel-mes','sel-ano');
     const _emailParaUm = user.perfil === 'Fiscal' ? user.email : null;
