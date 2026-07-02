@@ -84,7 +84,7 @@
       to   { box-shadow: inset 0 0 0 2px transparent; }
     }
 
-    /* Fiscais que não atingiram a apuração de R$ 200 */
+    /* Fiscais que não atingiram a apuração de 200% */
     .tr-lara td { background: var(--laraP) !important; color: var(--lara) !important; font-weight: 600; }
 
     /* Sync card do VISA */
@@ -213,7 +213,7 @@
         <div class="metric-card verde metric-card-wide">
           <div class="metric-label">Apuração Final</div>
           <div class="metric-value" id="m-apur">—</div>
-          <div class="metric-desc">R$ da produtividade</div>
+          <div class="metric-desc">% da produtividade</div>
         </div>
       </div>
 
@@ -529,10 +529,10 @@
       const manuais = await db_getManuais(user.email, mes, ano);
       const result  = calcular([], manuais, 0);
 
-      document.getElementById('m-pp').textContent   = result.pp;
-      document.getElementById('m-pn').textContent   = result.pn;
-      document.getElementById('m-pv').textContent   = result.pv;
-      document.getElementById('m-apur').textContent = result.apuracao;
+      document.getElementById('m-pp').textContent   = formatPontos(result.pp);
+      document.getElementById('m-pn').textContent   = formatPontos(result.pn);
+      document.getElementById('m-pv').textContent   = formatPontos(result.pv);
+      document.getElementById('m-apur').textContent = result.apuracao + '%';
 
       const ptosEnviados = manuais
         .filter(m => m.status === 'enviado')
@@ -541,7 +541,7 @@
 
       let alerts = '';
       if (result.atingiuTetoPV)    alerts += alerta('info',  'PV atingiu o teto de 1.000 pontos — excedente descartado.');
-      if (result.atingiuTetoFinal) alerts += alerta('info',  'Apuração atingiu o teto de R$ 200,00.');
+      if (result.atingiuTetoFinal) alerts += alerta('info',  'Apuração atingiu o teto de 200%.');
       const pendentes = manuais.filter(m => m.status === 'enviado').length;
       if (pendentes > 0)           alerts += alerta('warn',  `Você tem <strong>${pendentes}</strong> lançamento(s) aguardando homologação.`);
       const pendentesVisa = manuais.filter(m => m.status === 'pendente' && m.origem === 'visa_csv');
@@ -597,8 +597,8 @@
           <td data-label="OS">${escHtml(m.os_numero || '—')}</td>
           <td data-label="Documento">${escHtml(m.documento || '—')}</td>
           <td data-label="Descrição">${escHtml(m.descricao || '—')}</td>
-          <td data-label="Pts Req." class="td-num">${m.pontos ?? '—'}</td>
-          <td data-label="Pts Hom." class="td-num">${m.pontos_homologado != null ? m.pontos_homologado : '—'}</td>
+          <td data-label="Pts Req." class="td-num">${m.pontos != null ? formatPontos(m.pontos) : '—'}</td>
+          <td data-label="Pts Hom." class="td-num">${m.pontos_homologado != null ? formatPontos(m.pontos_homologado) : '—'}</td>
           <td data-label="Status">${statusCell}</td>
           <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
           <td data-label="Ações" class="td-center nao-imprimir">${acoes}</td>
@@ -653,7 +653,7 @@
           <td data-label="PP" class="td-num">${formatPontos(result.pp)}</td>
           <td data-label="PN" class="td-num">${formatPontos(result.pn)}</td>
           <td data-label="PV" class="td-num">${formatPontos(result.pv)}</td>
-          <td data-label="Apuração" class="td-num fw-bold ${result.apuracao > 0 ? 'text-verde' : ''}">${result.apuracao}</td>
+          <td data-label="Apuração" class="td-num fw-bold ${result.apuracao > 0 ? 'text-verde' : ''}">${result.apuracao}%</td>
           <td data-label="Pendentes" class="td-num">${pendentes > 0 ? `<span class="badge badge-pendente">${pendentes}</span>` : '—'}</td>
           <td data-label="Ações" class="nao-imprimir">
             <a href="conferencia.html?fiscal=${encodeURIComponent(f.email || f.id)}&mes=${mes}&ano=${ano}" class="btn btn-outline btn-sm">Conferir</a>
@@ -674,7 +674,7 @@
           <td><a href="#${fiscalAnchor(f)}" class="mini-resumo-link">${escHtml(nomeAbrev(f.nome || f.id))}</a></td>
           <td class="td-num">${ptosReq > 0 ? formatPontos(ptosReq) : '—'}</td>
           <td class="td-num">${formatPontos(result.pv)}</td>
-          <td class="td-num ${result.apuracao > 0 ? 'text-verde fw-bold' : ''}">${result.apuracao > 0 ? result.apuracao : '—'}</td>
+          <td class="td-num ${result.apuracao > 0 ? 'text-verde fw-bold' : ''}">${result.apuracao > 0 ? result.apuracao + '%' : '—'}</td>
           <td class="td-status">${statusIcon}</td>
         </tr>`;
       }).join('');

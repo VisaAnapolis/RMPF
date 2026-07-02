@@ -174,7 +174,7 @@
             <div class="calc-row"><span class="calc-label">PV = PP − PN (mín. 0)</span><span class="calc-val" id="rel-pv">—</span></div>
             <div class="calc-row"><span class="calc-label">PV Limitado (máx. 1.000)</span><span class="calc-val" id="rel-pvlim">—</span></div>
             <div class="calc-row"><span class="calc-label">Bruto = (PV Lim − 250) × 0,2666</span><span class="calc-val" id="rel-bruto">—</span></div>
-            <div class="calc-row total"><span class="calc-label">Apuração Final = máx(0, teto(R$ 200))</span><span class="calc-val" id="rel-apur">—</span></div>
+            <div class="calc-row total"><span class="calc-label">Apuração Final = máx(0, teto(200%))</span><span class="calc-val" id="rel-apur">—</span></div>
           </div>
         </div>
 
@@ -324,7 +324,7 @@
     const dt = rec.fechado_em?.toDate?.()?.toLocaleString('pt-BR') || '—';
     const por = rec.fechado_por_nome || rec.fechado_por || '—';
     document.getElementById('ja-fechado-banner').innerHTML =
-      alerta('info', `✅ Competência fechada em <strong>${dt}</strong> por <strong>${escHtml(por)}</strong>. Apuração: <strong>R$ ${rec.apuracao},00</strong>.`) +
+      alerta('info', `✅ Competência fechada em <strong>${dt}</strong> por <strong>${escHtml(por)}</strong>. Apuração: <strong>${rec.apuracao}%</strong>.`) +
       `<div class="btn-group mt-2"><button class="btn btn-warn" id="btn-reabrir">🔓 Reabrir Competência</button></div>`;
     document.getElementById('ja-fechado-banner').style.display = '';
     document.getElementById('admin-form-fields').style.display = 'none';
@@ -342,11 +342,11 @@
   function renderSummary(pnExtra, mes, ano) {
     _result = calcular([], _manuais, pnExtra);
 
-    document.getElementById('m-pp').textContent    = _result.pp;
-    document.getElementById('m-pn').textContent    = _result.pn;
-    document.getElementById('m-pv').textContent    = _result.pv;
-    document.getElementById('m-pvlim').textContent = _result.pvLim;
-    document.getElementById('m-apur').textContent  = _result.apuracao;
+    document.getElementById('m-pp').textContent    = formatPontos(_result.pp);
+    document.getElementById('m-pn').textContent    = formatPontos(_result.pn);
+    document.getElementById('m-pv').textContent    = formatPontos(_result.pv);
+    document.getElementById('m-pvlim').textContent = formatPontos(_result.pvLim);
+    document.getElementById('m-apur').textContent  = _result.apuracao + '%';
 
     const ptosEnviados = _manuais
       .filter(m => m.status === 'enviado')
@@ -358,7 +358,7 @@
     tbodyAtiv.innerHTML = aceitas.length ? aceitas.map(m =>
       `<tr><td data-label="Data">${fmtData(m.data)}</td>
        <td data-label="Tipo">${escHtml(m.tipo_nome||m.tipo_codigo||'—')}</td><td data-label="Descrição">${escHtml(m.descricao||'—')}</td>
-       <td data-label="Pontos" class="td-num">${m.pontos_homologado??m.pontos}</td></tr>`
+       <td data-label="Pontos" class="td-num">${formatPontos(m.pontos_homologado??m.pontos)}</td></tr>`
     ).join('') : '<tr class="empty-row"><td colspan="4">Nenhuma atividade aceita</td></tr>';
 
     document.getElementById('summary-wrap').style.display = '';
@@ -371,18 +371,18 @@
     document.getElementById('rel-comp').textContent = `Competência: ${MESES[mes-1]} / ${ano}`;
     document.getElementById('rel-fiscal-nome').textContent = `Fiscal: ${nomeFiscal}`;
 
-    document.getElementById('rel-pp').textContent    = _result.pp;
-    document.getElementById('rel-pn').textContent    = _result.pn;
-    document.getElementById('rel-pv').textContent    = _result.pv;
-    document.getElementById('rel-pvlim').textContent = _result.pvLim;
+    document.getElementById('rel-pp').textContent    = formatPontos(_result.pp);
+    document.getElementById('rel-pn').textContent    = formatPontos(_result.pn);
+    document.getElementById('rel-pv').textContent    = formatPontos(_result.pv);
+    document.getElementById('rel-pvlim').textContent = formatPontos(_result.pvLim);
     document.getElementById('rel-bruto').textContent = _result.bruto.toFixed(2);
-    document.getElementById('rel-apur').textContent  = `R$ ${_result.apuracao},00`;
+    document.getElementById('rel-apur').textContent  = `${_result.apuracao}%`;
 
     document.getElementById('rel-tbody-ativ').innerHTML = aceitas.length ? aceitas.map(m =>
       `<tr><td style="border:1px solid #ccc;padding:4px 7px">${fmtData(m.data)}</td>
        <td style="border:1px solid #ccc;padding:4px 7px">${escHtml(m.tipo_nome||m.tipo_codigo||'—')}</td>
        <td style="border:1px solid #ccc;padding:4px 7px">${escHtml(m.descricao||'—')}</td>
-       <td style="border:1px solid #ccc;padding:4px 7px;text-align:right">${m.pontos_homologado??m.pontos}</td></tr>`
+       <td style="border:1px solid #ccc;padding:4px 7px;text-align:right">${formatPontos(m.pontos_homologado??m.pontos)}</td></tr>`
     ).join('') : '<tr><td colspan="4" style="padding:8px;text-align:center;color:#999">Sem atividades</td></tr>';
 
     // Always reset the occurrences section before conditionally repopulating it,
@@ -486,7 +486,7 @@
       document.getElementById('print-btn-wrap').style.display = 'flex';
       document.getElementById('btn-fechar').disabled = true;
       document.getElementById('admin-form-fields').style.display = 'none';
-      document.getElementById('alert-area').innerHTML = alerta('ok', `Competência fechada! <strong>Apuração: R$ ${_result.apuracao},00</strong>. Clique em "Imprimir" para salvar o relatório.`);
+      document.getElementById('alert-area').innerHTML = alerta('ok', `Competência fechada! <strong>Apuração: ${_result.apuracao}%</strong>. Clique em "Imprimir" para salvar o relatório.`);
       window.scrollTo(0, 0);
     } catch(e) {
       document.getElementById('alert-area').innerHTML = alerta('danger', 'Erro ao fechar: ' + e.message);

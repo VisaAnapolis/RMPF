@@ -289,9 +289,41 @@ function round2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
 }
 
-/** Formata um total de pontos para exibição, livre de ruído de ponto flutuante. */
+/** Formata um total de pontos para exibição, sempre com 2 casas decimais. */
 function formatPontos(n) {
-  return String(round2(n));
+  return round2(n).toFixed(2);
+}
+
+// ── Regra de produtividade — fiscais de 30 horas semanais ──────────────
+// Carga horária reduzida (30h em vez de 40h) dá direito a pontuação
+// proporcionalmente maior por atividade (fator 40/30). Lista fixa: situação
+// imutável, não depende de cadastro no admin nem do sistema VISA.
+const FATOR_30H = 40 / 30; // ≈ 1.3333...
+
+const FISCAIS_30H = new Set([
+  'ariannefvieira@hotmail.com',
+  'edsonarantes@anapolis.go.gov.br',
+  'geraldoedsonrosa@gmail.com',
+  'joseluizribeiro22@gmail.com',
+  'juliocteles@anapolis.go.gov.br',
+  'kamillarolim@gmail.com',
+  'marciorodovalho@anapolis.go.gov.br',
+  'santosrat@gmail.com',
+  'silviamarques@anapolis.go.gov.br',
+  'tathnut@hotmail.com',
+]);
+
+function ehFiscal30h(email) {
+  return FISCAIS_30H.has(String(email || '').trim().toLowerCase());
+}
+
+// Aplica o fator 40/30 aos pontos de um fiscal de 30h, quando a regra
+// estiver ativa (flag de Parametrização). `pontos` é o valor requerido
+// (tabela); o retorno já vem arredondado em 2 casas.
+function pontosComFator30h(pontos, email, regraAtiva) {
+  const base = Number(pontos) || 0;
+  if (regraAtiva && ehFiscal30h(email)) return round2(base * FATOR_30H);
+  return round2(base);
 }
 
 /** Normaliza um nome para casamento tolerante (trim, minúsculas, sem acentos). */
@@ -322,6 +354,10 @@ window.TIPOS_OCORRENCIA         = TIPOS_OCORRENCIA;
 window.labelOcorrencia          = labelOcorrencia;
 window.round2               = round2;
 window.formatPontos         = formatPontos;
+window.FATOR_30H             = FATOR_30H;
+window.FISCAIS_30H           = FISCAIS_30H;
+window.ehFiscal30h           = ehFiscal30h;
+window.pontosComFator30h     = pontosComFator30h;
 window.carregarFeriadosMunicipais = carregarFeriadosMunicipais;
 window.ehDiaUtil                = ehDiaUtil;
 window.diasUteisNoMes           = diasUteisNoMes;
