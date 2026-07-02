@@ -692,6 +692,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             if (ehAlimentacaoAlta(c.complexidade, c.equipe)) {
               c.pontos = pontosPorAreaVisa(areaRegulado);
               c.visa_area = areaRegulado; // pode ser null (sem área) → exibe '—', pontos 48
+              c.eh_alimentacao_alta = true; // marca para dispositivo_legal citar o Item 4 quando pontos=48
             }
           }
         }
@@ -725,7 +726,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                        cnae_origem: c.informado ? 'INS' : 'CAE',
                        pontos: c.pontos, visa_area: c.visa_area ?? null,
                        qtd_fiscais: c.qtd_fiscais ?? null,
-                       complexidade_origem: c.complexidade_origem || null });
+                       complexidade_origem: c.complexidade_origem || null,
+                       eh_alimentacao_alta: !!c.eh_alimentacao_alta });
         }
       } else {
         // Tipos não-VIS: o CNAE é sempre o informado na inspeção (inspecoes.csv).
@@ -778,6 +780,11 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             const estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
             let pontosFiscal = pontosFinalA;
             let zeradoMotivo = null;
+            // Item do Anexo VII que REJEITA a pontuação (citado em dispositivo_legal
+            // no lugar do item produtivo quando pontosFiscal acaba em zero).
+            let itemDecretoZerado = motivoOSNorm === 'PLANTAO FISCAL' && pontosBaseA > 0
+              ? 9 // vistoria já contemplada no Plantão Fiscal (item 9), não pontua em separado
+              : null;
 
             // ── Vistoria não cumulativa com Plantão/OPF manual ou REL alta ──
             // Se o fiscal tem, na mesma data, plantão manual (item 9), operação
@@ -786,6 +793,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             if (tipoInfoA.tipo_codigo === 'VIS' && dataISO && pontosFiscal > 0) {
               if (estadoPontos.plantaoDatas.has(dataISO)) {
                 pontosFiscal = 0;
+                itemDecretoZerado = 9;
                 zeradoMotivo = `Plantão fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 9).`;
                 onProgress(
                   `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
@@ -794,6 +802,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 );
               } else if (estadoPontos.opfDatas.has(dataISO)) {
                 pontosFiscal = 0;
+                itemDecretoZerado = 18;
                 zeradoMotivo = `Operação fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 18).`;
                 onProgress(
                   `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
@@ -802,6 +811,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 );
               } else if (estadoPontos.relAltaDatas.has(dataISO)) {
                 pontosFiscal = 0;
+                itemDecretoZerado = 13;
                 zeradoMotivo = `Relatório técnico de inspeção (alta complexidade) em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 13).`;
                 onProgress(
                   `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
@@ -815,6 +825,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               // já enxerguem este relatório técnico de alta complexidade.
               estadoPontos.relAltaDatas.add(dataISO);
             }
+
+            // Item 4 do Anexo VII (vistoria de alimentação de alta complexidade,
+            // faixa ≥400m²/sem área — 48 pontos): sem isto, dispositivoLegal() não
+            // consegue distinguir esse caso do Item 1 genérico (mesma pontuação).
+            const itemDecretoAlimentacao =
+              !itemDecretoZerado && tipoInfoA.tipo_codigo === 'VIS' && tipoInfoA.item_pontuacao === 1 &&
+              alvo.eh_alimentacao_alta && pontosFiscal === 48
+                ? 4
+                : null;
 
             // ── Dia coberto por ocorrência aceita → importação ignorada ─
             // Alinhado com a regra de lançamento manual (lancamento.html /
@@ -867,7 +886,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 visa_area: alvo.visa_area ?? null,
                 qtd_fiscais: alvo.qtd_fiscais ?? null,
                 dispositivo_legal: window.dispositivoLegal
-                  ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFinalA, _duplaReducaoVis)
+                  ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFiscal, _duplaReducaoVis, itemDecretoZerado || itemDecretoAlimentacao || undefined)
                   : null,
               };
               if (existing.status === 'recusado') {
@@ -938,7 +957,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 visa_area: alvo.visa_area ?? null,
                 qtd_fiscais: alvo.qtd_fiscais ?? null,
                 dispositivo_legal: window.dispositivoLegal
-                  ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFinalA, _duplaReducaoVisCreate)
+                  ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFiscal, _duplaReducaoVisCreate, itemDecretoZerado || itemDecretoAlimentacao || undefined)
                   : null,
               }, null, true, alvo.cnae);
               _aplicarManualNoMapaPontosVisa(estadoPontos.byDia, {

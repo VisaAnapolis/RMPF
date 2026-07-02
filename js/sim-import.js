@@ -156,10 +156,14 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
         // sem isso, uma vistoria do SIM escaparia da não cumulatividade.
         let pontosOs = pontos;
         let zeradoMotivo = null;
+        // Item do Anexo VII que REJEITA a pontuação — citado em dispositivo_legal
+        // no lugar do Item 1 (produtivo) quando pontosOs acaba em zero.
+        let itemDecretoZerado = null;
         if (dataISO) {
           const estado = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
           if (estado.plantaoDatas && estado.plantaoDatas.has(dataISO)) {
             pontosOs = 0;
+            itemDecretoZerado = 9;
             zeradoMotivo = `Plantão fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 9).`;
             onProgress(
               `⚠️ OS ${osNum} — ${nomeFiscalOs}: vistoria zerada — ` +
@@ -168,6 +172,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             );
           } else if (estado.opfDatas && estado.opfDatas.has(dataISO)) {
             pontosOs = 0;
+            itemDecretoZerado = 18;
             zeradoMotivo = `Operação fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 18).`;
             onProgress(
               `⚠️ OS ${osNum} — ${nomeFiscalOs}: vistoria zerada — ` +
@@ -216,8 +221,8 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             sim_os: osNum,
             os_doc_id: os._docId || null,
             dispositivo_legal: window.dispositivoLegal
-              ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, SIM_PONTOS, false)
-              : 'Item 1 do Anexo VII do Decreto 49.723/2023',
+              ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, pontosOs, false, itemDecretoZerado || undefined)
+              : (pontosOs === 0 ? (itemDecretoZerado ? `Item ${itemDecretoZerado} do Anexo VII do Decreto 49.723/2023 (não cumulativo — pontuação zerada)` : null) : 'Item 1 do Anexo VII do Decreto 49.723/2023'),
           };
           if (existing.status === 'recusado') {
             updateData.status = 'enviado';
@@ -254,8 +259,8 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             sim_os: osNum,
             os_doc_id: os._docId || null,
             dispositivo_legal: window.dispositivoLegal
-              ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, SIM_PONTOS, false)
-              : 'Item 1 do Anexo VII do Decreto 49.723/2023',
+              ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, pontosOs, false, itemDecretoZerado || undefined)
+              : (pontosOs === 0 ? (itemDecretoZerado ? `Item ${itemDecretoZerado} do Anexo VII do Decreto 49.723/2023 (não cumulativo — pontuação zerada)` : null) : 'Item 1 do Anexo VII do Decreto 49.723/2023'),
           }, null, true);
           const estado = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
           _aplicarManualNoMapaPontosSim(estado.byDia, {

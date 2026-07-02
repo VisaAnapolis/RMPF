@@ -159,10 +159,26 @@ const _ITEM_PONTUACAO_TO_DECRETO = {
   16: 19,                    // CER
 };
 
-// Retorna o texto do dispositivo legal que embasa a pontuação do lançamento.
-// pontos: necessário para detectar os itens 5/6 (alimentação por área: 16 e 8 pts).
+// Retorna o texto do dispositivo legal que embasa (ou rejeita) a pontuação do lançamento.
+// pontos: necessário para detectar os itens 5/6 (alimentação por área: 16 e 8 pts) e para
+// distinguir pontuação zerada (sem base legal a corroborar, salvo rejeição conhecida).
 // duplaReducao: true quando o item E.2 foi aplicado (média/baixa em dupla fiscal).
-function dispositivoLegal(itemPontuacao, pontos, duplaReducao) {
+// itemDecretoOverride: item do Anexo VII já resolvido pelo chamador, usado em dois casos:
+//   (a) pontos === 0 por não cumulatividade — cita o item que REJEITA (ex.: 9, 13, 18),
+//       já que o item produtivo (itemPontuacao) não corrobora pontuação nenhuma aqui;
+//   (b) pontos === 48 numa vistoria de alimentação de alta complexidade (item 4), caso
+//       ambíguo com o item 1 genérico que os valores 8/16 (itens 6/5) não cobrem.
+function dispositivoLegal(itemPontuacao, pontos, duplaReducao, itemDecretoOverride) {
+  if (pontos === 0) {
+    return itemDecretoOverride
+      ? `Item ${itemDecretoOverride} do Anexo VII do Decreto 49.723/2023 (não cumulativo — pontuação zerada)`
+      : null;
+  }
+  if (itemDecretoOverride) {
+    let textoOverride = `Item ${itemDecretoOverride} do Anexo VII do Decreto 49.723/2023`;
+    if (duplaReducao) textoOverride += ' combinado com Item E.2 do Anexo VII do Decreto 49.723/2023';
+    return textoOverride;
+  }
   if (itemPontuacao === 1 && pontos === 8)  return 'Item 6 do Anexo VII do Decreto 49.723/2023';
   if (itemPontuacao === 1 && pontos === 16) return 'Item 5 do Anexo VII do Decreto 49.723/2023';
   const decretoItem = _ITEM_PONTUACAO_TO_DECRETO[itemPontuacao];
