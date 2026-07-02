@@ -493,6 +493,13 @@ table.rmpf-table {
 }
 .loading-text { font-size: .85rem; color: var(--cinzaT); }
 
+/* ── Alerta de prazo (OS cumprida fora do prazo) ── */
+.prazo-alerta {
+  font-size: 1.5em;
+  line-height: 1;
+  display: inline-block;
+}
+
 /* ── Modal ── */
 .modal-backdrop {
   position: fixed; inset: 0;
