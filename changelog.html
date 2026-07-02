@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.16.0</span>
+            <span class="badge-date">02/07/2026</span>
+          </div>
+          <div class="changelog-title">Conformidade de prazo na importação (VISA + Auditoria) — alerta de OS cumprida fora do prazo</div>
+          <ul class="changelog-changes">
+            <li><strong>Prazo da OS calculado na importação</strong> — cada lançamento importado passa a gravar <code>prazo_os</code> e <code>fora_do_prazo</code> em <code>manuais</code>. Ofício/Requerimento/Denúncia usam o campo <code>Prazo</code> do CSV correspondente (<code>oficio.csv</code>, <code>requerimento.csv</code>, <code>denuncia.csv</code> — este último passa a ser carregado pela primeira vez em <code>js/visa-import.js</code>); Protocolo usa a data de encaminhamento ao fiscal + 15 dias úteis, encontrada ao ordenar as tramitações (<code>tramitacao.csv</code>) e escolher a janela do fiscal que contém a data da inspeção; Auditoria (SIM) compara <code>os.prazo</code> com <code>os.dataCumprimento</code> direto da coleção <code>ordens_servico</code>.</li>
+            <li><strong>Comparação pela data do registro, não pela data atual</strong> — reaproveita a mesma regra de vencimento do <code>os.html</code> (repo VISA), mas classifica "fora do prazo" com base em <code>DT_VISITA</code>/<code>dataCumprimento</code> da inspeção, e não na data de hoje.</li>
+            <li><strong>Ícone de alerta ⚠️ clicável + modal</strong> — novo <code>prazoWarningHtml()</code> em <code>js/utils.js</code> exibe um ícone amarelo (ampliado, classe <code>.prazo-alerta</code>) apenas quando o lançamento foi cumprido fora do prazo. Ao clicar (ou Enter/Espaço) abre um modal com origem da demanda, nº da OS, prazo, data do cumprimento e dias de atraso — modal injetado uma única vez e controlado por delegação de eventos, funcionando em qualquer tabela sem wiring por página.</li>
+            <li><strong>Nova coluna "Prazo"</strong> — em <code>dashboard.html</code>, <code>meus-lancamentos.html</code> e <code>conferencia.html</code> o ícone ocupa uma coluna própria entre "Pontos Requeridos" e "Pontos Homologados". Em <code>fechamento.html</code>, sem essa dupla de colunas, permanece junto à Descrição (tela e relatório de impressão).</li>
+            <li><strong>Correção: autorização de terceiro fiscal por ofício estava inoperante</strong> — <code>js/visa-import.js</code> buscava <code>data/Oficio.csv</code> (O maiúsculo), que retorna 404 na API do GitHub (case-sensitive), e lia a coluna <code>terceiro</code> minúscula, inexistente no cabeçalho. Corrigido para <code>data/oficio.csv</code> e coluna <code>Terceiro</code>, restaurando a autorização de terceiro fiscal por ofício.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.15.2</span>
             <span class="badge-date">02/07/2026</span>
           </div>
