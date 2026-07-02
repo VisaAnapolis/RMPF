@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.15.1</span>
+            <span class="badge-date">02/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: dispositivo_legal cita o item que rejeita quando a pontuação é zerada</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: <code>dispositivo_legal</code> contradizia <code>zerado_motivo</code></strong> — quando uma vistoria era zerada por não cumulatividade (Plantão item 9, OPF item 18, REL-alta item 13, introduzidos na v1.15.0) ou pelo motivo "PLANTÃO FISCAL" da própria demanda VISA, o campo <code>dispositivo_legal</code> continuava citando o item produtivo (ex.: "Item 1 do Anexo VII"), como se os pontos tivessem sido concedidos — o ícone ⚖️ contradizia o ⚠️ na mesma linha. <code>dispositivoLegal()</code> (<code>js/utils.js</code>) ganha um 4º parâmetro <code>itemDecretoOverride</code>: quando os pontos são zero, cita o item que <strong>rejeita</strong> a pontuação em vez do item produtivo; sem motivo de rejeição conhecido, retorna <code>null</code>.</li>
+            <li><strong><code>js/visa-import.js</code> e <code>js/sim-import.js</code></strong> passam a usar o valor final de pontos (pós-zeragem) nas chamadas a <code>dispositivoLegal()</code>, em vez do valor anterior à zeragem.</li>
+            <li><strong>Correção: ambiguidade entre Item 1 e Item 4 do Anexo VII</strong> — uma vistoria de alimentação de alta complexidade sem área cadastrada ou com área ≥400m² soma 48 pontos, mesmo valor de uma vistoria genérica (Item 1), e caía sempre no Item 1 por não haver como distinguir os dois casos pelo valor. Agora <code>js/visa-import.js</code> identifica esse caso (<code>eh_alimentacao_alta</code>) e cita corretamente o <strong>Item 4</strong>.</li>
+            <li><strong><code>meus-lancamentos.html</code></strong> recomputa <code>dispositivo_legal</code> ao editar um rascunho ou corrigir um lançamento recusado — antes ficava congelado no valor calculado na criação, mesmo que o fiscal alterasse os pontos.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.15.0</span>
             <span class="badge-date">02/07/2026</span>
           </div>
