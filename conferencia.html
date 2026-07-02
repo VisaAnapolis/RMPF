@@ -216,6 +216,7 @@
   let _manuais     = [];
   let _perfil       = '';
   let _homPendente = false; // true quando o modal foi aberto para autorizar (status 'pendente')
+  let _fiscais30hAtivo = false; // flag de Parametrização — regra de produtividade dos fiscais de 30h
 
   function buildSidebar(perfil) {
     const links = perfil === 'Fiscal' ? [
@@ -290,10 +291,10 @@
         setTimeout(() => rej(new Error('Tempo limite esgotado. Verifique sua conexão e clique em Carregar para tentar novamente.')), 15000));
       _manuais = (await Promise.race([db_getManuais(fiscalEmail, mes, ano), _timeout])).filter(m => m.status !== 'rascunho');
       const result = calcular([], _manuais, 0);
-      document.getElementById('m-pp').textContent   = result.pp;
-      document.getElementById('m-pn').textContent   = result.pn;
-      document.getElementById('m-pv').textContent   = result.pv;
-      document.getElementById('m-apur').textContent = result.apuracao;
+      document.getElementById('m-pp').textContent   = formatPontos(result.pp);
+      document.getElementById('m-pn').textContent   = formatPontos(result.pn);
+      document.getElementById('m-pv').textContent   = formatPontos(result.pv);
+      document.getElementById('m-apur').textContent = result.apuracao + '%';
       const ptosEnviados = _manuais
         .filter(m => m.status === 'enviado')
         .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
@@ -363,8 +364,8 @@
         <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>
         <td data-label="Fiscais" class="td-center td-nowrap">${m.qtd_fiscais != null ? escHtml(String(m.qtd_fiscais)) : '—'}</td>
         <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao||'—')}</a>` : escHtml(m.descricao||'—')}</td>
-        <td data-label="Pontos Requeridos" class="td-num">${m.pontos??'—'}</td>
-        <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado!=null?m.pontos_homologado:'—'}</td>
+        <td data-label="Pontos Requeridos" class="td-num">${m.pontos!=null?formatPontos(m.pontos):'—'}</td>
+        <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado!=null?formatPontos(m.pontos_homologado):'—'}</td>
         <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : badge(m.status)}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
         <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
         <td data-label="Ações" class="nao-imprimir" style="white-space:nowrap">${acoes}</td>
@@ -379,11 +380,19 @@
     document.getElementById('hom-id').value        = id;
     document.getElementById('hom-info').value      = `${m.controle||id} — ${m.tipo_nome||m.tipo_codigo}`;
     document.getElementById('hom-desc').value      = m.descricao || '';
-    document.getElementById('hom-pts-req').value   = m.pontos ?? '';
+    document.getElementById('hom-pts-req').value   = m.pontos != null ? formatPontos(m.pontos) : '';
     const motivoOSNorm = (m.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
     const isPlantaoFiscal = motivoOSNorm === 'PLANTAO FISCAL';
     const ptsHomEl = document.getElementById('hom-pts-hom');
-    ptsHomEl.value    = isPlantaoFiscal ? 0 : (m.pontos_homologado ?? m.pontos ?? '');
+    // Pré-preenche com o requerido ajustado pelo fator 40/30 (fiscais de 30h,
+    // regra ativa) apenas na primeira homologação — se já existe um valor
+    // homologado salvo, ele é preservado tal como está (o admin pode ter
+    // ajustado manualmente ao rever o lançamento).
+    ptsHomEl.value = isPlantaoFiscal
+      ? 0
+      : (m.pontos_homologado != null
+          ? m.pontos_homologado
+          : pontosComFator30h(m.pontos, m.fiscal_email, _fiscais30hAtivo));
     ptsHomEl.disabled = isPlantaoFiscal;
     document.getElementById('hom-motivo').value    = m.motivo_recusa || '';
     const aviso = document.getElementById('hom-pendencia-aviso');
@@ -543,6 +552,12 @@
     document.getElementById('header-nome').textContent = nomeCurto(user.nome||user.email);
     document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
     document.getElementById('footer-version').textContent = window.APP_VERSION || '';
+
+    try {
+      _fiscais30hAtivo = (await db_getFiscais30hConfig()).ativo;
+    } catch (e) {
+      console.warn('[Conferencia] Falha ao carregar config de fiscais 30h:', e);
+    }
 
     // Fiscal sees own data; Administrador sees all fiscais
     if (user.perfil === 'Fiscal') {

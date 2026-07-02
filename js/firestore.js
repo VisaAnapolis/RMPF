@@ -222,10 +222,12 @@ async function aceitarOcorrencia(o, opts) {
   const label  = window.labelOcorrencia ? window.labelOcorrencia(o.tipo) : o.tipo;
   const sufixo = opts.sufixoDescricao || 'aceita pelo administrador';
   const obs    = opts.obsAdmin || null;
+  const regra30h = await db_getFiscais30hConfig();
   for (const { mes, ano, dias } of Object.values(porMes)) {
     const totalUteis = window.diasUteisNoMes(mes, ano, feriados);
-    const taxa = totalUteis > 0
+    const taxaBase = totalUteis > 0
       ? Math.round((window.MEDIA_PRODUTIVIDADE_OCORRENCIA / totalUteis) * 100) / 100 : 0;
+    const taxa = window.pontosComFator30h(taxaBase, o.fiscal_email, regra30h.ativo);
     for (const dia of dias) {
       if (!window.ehDiaUtil(dia, feriados)) continue;
       await createManual({
@@ -831,6 +833,24 @@ async function db_updateDeadlineConfig(dias_prazo, ativo) {
   });
 }
 
+// ── App Config / Produtividade — Fiscais de 30 Horas ───────
+// Liga/desliga a aplicação do fator 40/30 (FATOR_30H, js/utils.js) sobre a
+// pontuação dos fiscais da lista fixa FISCAIS_30H. Desligado por padrão.
+
+async function db_getFiscais30hConfig() {
+  const doc = await window.db.collection('app_config').doc('fiscais_30h').get();
+  if (!doc.exists) return { ativo: false };
+  const d = doc.data();
+  return { ativo: Boolean(d.ativo) };
+}
+
+async function db_updateFiscais30hConfig(ativo) {
+  await window.db.collection('app_config').doc('fiscais_30h').set({
+    ativo: Boolean(ativo),
+    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
 // ── App Config / Notificações Push ─────────────────────────
 // Configuração das notificações push, persistida em app_config/notif_config.
 // Lida por initFCM (js/firebase-config.js):
@@ -1253,6 +1273,8 @@ window.db_setCompetenciaAberta  = setCompetenciaAberta;
 window.db_deleteCompetenciaAberta = deleteCompetenciaAberta;
 window.db_getDeadlineConfig     = db_getDeadlineConfig;
 window.db_updateDeadlineConfig  = db_updateDeadlineConfig;
+window.db_getFiscais30hConfig   = db_getFiscais30hConfig;
+window.db_updateFiscais30hConfig = db_updateFiscais30hConfig;
 window.db_getNotifConfig        = db_getNotifConfig;
 window.db_updateNotifConfig     = db_updateNotifConfig;
 window.db_validateDeadlineReleaseDate = db_validateDeadlineReleaseDate;
