@@ -546,7 +546,12 @@
         );
         return;
       }
-      await db_updateManual(id, { data, descricao: desc, pontos: pontosNum, obs: document.getElementById('edit-obs').value.trim() });
+      const mEdit = _manuais.find(x => x.id === id);
+      await db_updateManual(id, {
+        data, descricao: desc, pontos: pontosNum,
+        obs: document.getElementById('edit-obs').value.trim(),
+        dispositivo_legal: (mEdit && window.dispositivoLegal) ? window.dispositivoLegal(mEdit.item_pontuacao, pontosNum, false) : (mEdit ? mEdit.dispositivo_legal : null),
+      });
       document.getElementById('modal-edit').style.display = 'none';
       showAlert('ok', 'Lançamento atualizado com sucesso.');
       loadManuais();
@@ -652,11 +657,13 @@
         );
         return;
       }
+      const mCorrigir = _manuais.find(x => x.id === id);
       await db_updateManual(id, {
         data, descricao: desc, pontos: pontosNum,
         obs: document.getElementById('corrigir-obs').value.trim(),
         status: 'enviado',
         motivo_recusa: null,
+        dispositivo_legal: (mCorrigir && window.dispositivoLegal) ? window.dispositivoLegal(mCorrigir.item_pontuacao, pontosNum, false) : (mCorrigir ? mCorrigir.dispositivo_legal : null),
       });
       document.getElementById('modal-corrigir').style.display = 'none';
       showAlert('ok', 'Lançamento corrigido e reenviado para conferência.');
