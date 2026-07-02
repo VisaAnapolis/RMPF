@@ -351,6 +351,96 @@ function normalizarNome(nome) {
     .replace(/\s+/g, ' ');
 }
 
+// ── Alerta "cumprida fora do prazo" (⚠️) + modal de detalhe ──
+// A importação (visa-import.js / sim-import.js) grava em cada lançamento
+// `fora_do_prazo` (bool) e `prazo_os` (ISO). O ícone aparece nas tabelas de
+// lançamentos e, ao ser clicado, abre um modal com a redação detalhada.
+// O modal é injetado uma única vez e controlado por delegação de eventos,
+// então funciona em qualquer página/tabela sem wiring adicional.
+
+// Dias corridos de atraso entre o prazo e a data de cumprimento (null se em dia).
+function _prazoDiasAtraso(prazoISO, cumprISO) {
+  if (!prazoISO || !cumprISO) return null;
+  const a = new Date(prazoISO + 'T00:00:00');
+  const b = new Date(cumprISO + 'T00:00:00');
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
+  const diff = Math.round((b - a) / 86400000);
+  return diff > 0 ? diff : null;
+}
+
+// HTML do ícone ⚠️ (só quando o lançamento foi cumprido fora do prazo).
+// Os dados do modal viajam no próprio elemento via data-* (sem lookup externo).
+function prazoWarningHtml(m) {
+  if (!m || !m.fora_do_prazo) return '';
+  const origem = m.motivo_os || (m.origem === 'sim_csv' ? 'Auditoria' : '—');
+  return ` <span class="prazo-alerta" role="button" tabindex="0"` +
+    ` style="cursor:pointer;color:var(--amar)"` +
+    ` title="Cumprida fora do prazo — clique para detalhes"` +
+    ` data-origem="${escHtml(origem)}" data-os="${escHtml(m.os_numero || '—')}"` +
+    ` data-prazo="${escHtml(m.prazo_os || '')}" data-cumpr="${escHtml(m.data || '')}">⚠️</span>`;
+}
+
+// Preenche e exibe o modal a partir do dataset do ícone clicado.
+function abrirForaPrazo(ds) {
+  _initForaPrazoModal();
+  const modal = document.getElementById('modal-fora-prazo');
+  if (!modal) return;
+  const dias = _prazoDiasAtraso(ds.prazo, ds.cumpr);
+  modal.querySelector('#fp-body').innerHTML =
+    `<p style="margin:0 0 12px">Esta ordem de serviço foi cumprida após o prazo de execução.</p>` +
+    `<ul style="list-style:none;padding:0;margin:0;line-height:1.9">` +
+    `<li><strong>Origem da demanda:</strong> ${escHtml(ds.origem || '—')}</li>` +
+    `<li><strong>Nº da OS:</strong> ${escHtml(ds.os || '—')}</li>` +
+    `<li><strong>Prazo para execução:</strong> ${escHtml(ds.prazo ? fmtData(ds.prazo) : '—')}</li>` +
+    `<li><strong>Data do cumprimento:</strong> ${escHtml(ds.cumpr ? fmtData(ds.cumpr) : '—')}</li>` +
+    `<li><strong>Atraso:</strong> ${dias != null ? dias + ' dia(s)' : '—'}</li>` +
+    `</ul>`;
+  modal.style.display = 'flex';
+}
+
+// Injeta o markup do modal (uma vez) e registra os fechamentos.
+function _initForaPrazoModal() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('modal-fora-prazo')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    `<div id="modal-fora-prazo" class="modal-backdrop" style="display:none">` +
+    `<div class="modal" style="max-width:440px">` +
+    `<div class="modal-header"><span>⚠️ Cumprida fora do prazo</span>` +
+    `<button class="modal-close" id="fp-close" aria-label="Fechar">✕</button></div>` +
+    `<div class="modal-body" id="fp-body"></div>` +
+    `<div class="modal-footer"><button class="btn btn-default" id="fp-close2">Fechar</button></div>` +
+    `</div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const modal = document.getElementById('modal-fora-prazo');
+  const hide = () => { modal.style.display = 'none'; };
+  document.getElementById('fp-close').addEventListener('click', hide);
+  document.getElementById('fp-close2').addEventListener('click', hide);
+  modal.addEventListener('click', (e) => { if (e.target === modal) hide(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') hide();
+  });
+}
+
+// Ativação por clique ou Enter/Espaço em qualquer .prazo-alerta (delegação).
+function _onPrazoAlertaActivate(e) {
+  const el = e.target && e.target.closest ? e.target.closest('.prazo-alerta') : null;
+  if (!el) return;
+  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  abrirForaPrazo(el.dataset);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', _onPrazoAlertaActivate);
+  document.addEventListener('keydown', _onPrazoAlertaActivate);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initForaPrazoModal);
+  } else {
+    _initForaPrazoModal();
+  }
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -381,3 +471,5 @@ window.MEDIA_PRODUTIVIDADE_OCORRENCIA = MEDIA_PRODUTIVIDADE_OCORRENCIA;
 window.diasDaOcorrenciaPorMes   = diasDaOcorrenciaPorMes;
 window.periodosSeSobrepoem      = periodosSeSobrepoem;
 window.normalizarNome           = normalizarNome;
+window.prazoWarningHtml          = prazoWarningHtml;
+window.abrirForaPrazo            = abrirForaPrazo;
