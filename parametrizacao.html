@@ -540,7 +540,7 @@
     return links.map(l => {
       const active = current === l.href.split('/').pop() ? ' active' : '';
       return `<a href="${l.href}" class="sidebar-link${active}"><span class="icon">${l.icon}</span>${l.label}</a>`;
-    }).join('');
+    }).join('') + `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
   }
 
   // ── Init ──────────────────────────────────────────────────────

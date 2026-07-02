@@ -225,7 +225,8 @@
         + `<a href="parametrizacao.html" class="sidebar-link${cur==='parametrizacao.html'?' active':''}"><span class="icon">🔧</span>Parametrização</a>`
       : '';
     const changelog = `<a href="changelog.html" class="sidebar-link${cur==='changelog.html'?' active':''}"><span class="icon">📜</span>Changelog</a>`;
-    return base + admin + changelog;
+    const versao = `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
+    return base + admin + changelog + versao;
   }
 
   function buildSels(mesId, anoId) {

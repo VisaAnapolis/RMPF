@@ -44,6 +44,17 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.15.2</span>
+            <span class="badge-date">02/07/2026</span>
+          </div>
+          <div class="changelog-title">Versão do app visível no menu lateral</div>
+          <ul class="changelog-changes">
+            <li><strong>Versão no sidebar</strong> — além do rodapé (já existente em 7 páginas), a versão do app agora aparece também no menu lateral de todas as páginas autenticadas, inclusive <code>admin.html</code> e <code>parametrizacao.html</code>, que antes não mostravam a versão em lugar nenhum. Fonte única continua sendo <code>js/version.js</code>.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.15.1</span>
             <span class="badge-date">02/07/2026</span>
           </div>
@@ -899,7 +910,7 @@
     const cur = location.pathname.split('/').pop();
     return links.map(([href,icon,label]) =>
       `<a href="${href}" class="sidebar-link${cur===href?' active':''}"><span class="icon">${icon}</span>${label}</a>`
-    ).join('');
+    ).join('') + `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
   }
 
   requireAuth(user => {

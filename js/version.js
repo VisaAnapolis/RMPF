@@ -11,14 +11,14 @@
  *    - changelog.html    → adicione entrada da nova versão
  */
 
-const APP_VERSION = '1.15.1';
+const APP_VERSION = '1.15.2';
 
 // Expõe no objeto window para compatibilidade com guard.js e outros scripts
 window.APP_VERSION = APP_VERSION;
 
-// Preenche elementos com id="appVersion" ou id="footer-version" em qualquer página
+// Preenche elementos com id="appVersion", "footer-version" ou "sidebar-version" em qualquer página
 document.addEventListener('DOMContentLoaded', function () {
-  ['appVersion', 'footer-version'].forEach(function (id) {
+  ['appVersion', 'footer-version', 'sidebar-version'].forEach(function (id) {
     const el = document.getElementById(id);
     if (el) el.textContent = APP_VERSION;
   });
