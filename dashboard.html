@@ -150,6 +150,7 @@
   <!-- Sidebar -->
   <nav class="app-sidebar nao-imprimir" id="sidebar">
     <div id="sidebar-links"></div>
+    <div class="sidebar-version">v<span id="sidebar-version"></span></div>
   </nav>
 
   <!-- Main -->
@@ -691,7 +692,6 @@
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
     document.getElementById('sidebar-links').innerHTML = buildSidebar(user.perfil);
     document.getElementById('dash-sub').textContent = '— ' + (user.nome || user.email);
-    document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     document.getElementById('btn-logout').addEventListener('click', () => {
       firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });

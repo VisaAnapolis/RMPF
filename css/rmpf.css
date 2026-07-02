@@ -131,6 +131,13 @@ input, select, textarea { font-family: var(--font); }
   font-weight: 600;
 }
 .sidebar-link .icon { font-size: 1rem; width: 20px; text-align: center; }
+.sidebar-version {
+  margin-top: 10px;
+  padding: 8px 18px;
+  border-top: 1px solid var(--cinzaL);
+  font-size: .7rem;
+  color: var(--cinzaT);
+}
 
 /* Main content */
 .app-main {

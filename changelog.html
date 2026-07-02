@@ -44,6 +44,31 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.15.2</span>
+            <span class="badge-date">02/07/2026</span>
+          </div>
+          <div class="changelog-title">Versão do app visível no menu lateral</div>
+          <ul class="changelog-changes">
+            <li><strong>Versão no sidebar</strong> — além do rodapé (já existente em 7 páginas), a versão do app agora aparece também no menu lateral de todas as páginas autenticadas, inclusive <code>admin.html</code> e <code>parametrizacao.html</code>, que antes não mostravam a versão em lugar nenhum. Fonte única continua sendo <code>js/version.js</code>.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.15.1</span>
+            <span class="badge-date">02/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: dispositivo_legal cita o item que rejeita quando a pontuação é zerada</div>
+          <ul class="changelog-changes">
+            <li><strong>Correção: <code>dispositivo_legal</code> contradizia <code>zerado_motivo</code></strong> — quando uma vistoria era zerada por não cumulatividade (Plantão item 9, OPF item 18, REL-alta item 13, introduzidos na v1.15.0) ou pelo motivo "PLANTÃO FISCAL" da própria demanda VISA, o campo <code>dispositivo_legal</code> continuava citando o item produtivo (ex.: "Item 1 do Anexo VII"), como se os pontos tivessem sido concedidos — o ícone ⚖️ contradizia o ⚠️ na mesma linha. <code>dispositivoLegal()</code> (<code>js/utils.js</code>) ganha um 4º parâmetro <code>itemDecretoOverride</code>: quando os pontos são zero, cita o item que <strong>rejeita</strong> a pontuação em vez do item produtivo; sem motivo de rejeição conhecido, retorna <code>null</code>.</li>
+            <li><strong><code>js/visa-import.js</code> e <code>js/sim-import.js</code></strong> passam a usar o valor final de pontos (pós-zeragem) nas chamadas a <code>dispositivoLegal()</code>, em vez do valor anterior à zeragem.</li>
+            <li><strong>Correção: ambiguidade entre Item 1 e Item 4 do Anexo VII</strong> — uma vistoria de alimentação de alta complexidade sem área cadastrada ou com área ≥400m² soma 48 pontos, mesmo valor de uma vistoria genérica (Item 1), e caía sempre no Item 1 por não haver como distinguir os dois casos pelo valor. Agora <code>js/visa-import.js</code> identifica esse caso (<code>eh_alimentacao_alta</code>) e cita corretamente o <strong>Item 4</strong>.</li>
+            <li><strong><code>meus-lancamentos.html</code></strong> recomputa <code>dispositivo_legal</code> ao editar um rascunho ou corrigir um lançamento recusado — antes ficava congelado no valor calculado na criação, mesmo que o fiscal alterasse os pontos.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.15.0</span>
             <span class="badge-date">02/07/2026</span>
           </div>
@@ -885,7 +910,7 @@
     const cur = location.pathname.split('/').pop();
     return links.map(([href,icon,label]) =>
       `<a href="${href}" class="sidebar-link${cur===href?' active':''}"><span class="icon">${icon}</span>${label}</a>`
-    ).join('');
+    ).join('') + `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
   }
 
   requireAuth(user => {
@@ -896,7 +921,6 @@
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
     document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
-    document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     document.getElementById('btn-logout').addEventListener('click', () => {
       firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });

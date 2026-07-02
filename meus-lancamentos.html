@@ -35,6 +35,7 @@
     <a href="meus-lancamentos.html"class="sidebar-link active"><span class="icon">📋</span>Meus Lançamentos</a>
     <a href="ocorrencias.html"     class="sidebar-link"><span class="icon">📌</span>Ocorrências</a>
     <a href="changelog.html"       class="sidebar-link"><span class="icon">📜</span>Changelog</a>
+    <div class="sidebar-version">v<span id="sidebar-version"></span></div>
   </nav>
 
   <main class="app-main">
@@ -754,7 +755,6 @@
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
-    document.getElementById('footer-version').textContent = window.APP_VERSION || '';
 
     buildMesSelect(); buildAnoSelect();
     let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
