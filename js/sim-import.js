@@ -53,6 +53,7 @@ async function _getEstadoPontosSim(cache, emailFiscal, mes, ano) {
     cache.set(key, {
       docsById: new Map(docs.map(d => [d.id, d])),
       byDia,
+      plantaoDatas: window.datasComPlantaoManual ? window.datasComPlantaoManual(docs) : new Set(),
       opfDatas: window.datasComOpfManual ? window.datasComOpfManual(docs) : new Set(),
     });
   }
@@ -148,13 +149,26 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
       try {
         const existing = await window.db_getSIMManual(osNum, emailFiscal);
 
-        // ── Vistoria SIM não cumulativa com operação fiscal (OPF) manual ──
-        // Decreto item 18: uma OPF manual na mesma data zera a vistoria importada.
+        // ── Vistoria SIM não cumulativa com Plantão ou OPF manual ──────────
+        // Decreto item 9: um Plantão Fiscal manual na mesma data zera a vistoria
+        // importada. Decreto item 18: idem para Operação Fiscal (OPF) manual.
+        // Mesma regra já aplicada às vistorias do VISA (js/visa-import.js) —
+        // sem isso, uma vistoria do SIM escaparia da não cumulatividade.
         let pontosOs = pontos;
+        let zeradoMotivo = null;
         if (dataISO) {
-          const estadoOpf = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
-          if (estadoOpf.opfDatas && estadoOpf.opfDatas.has(dataISO)) {
+          const estado = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
+          if (estado.plantaoDatas && estado.plantaoDatas.has(dataISO)) {
             pontosOs = 0;
+            zeradoMotivo = `Plantão fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 9).`;
+            onProgress(
+              `⚠️ OS ${osNum} — ${nomeFiscalOs}: vistoria zerada — ` +
+              `plantão fiscal manual em ${fmtData(dataISO)}.`,
+              'warn'
+            );
+          } else if (estado.opfDatas && estado.opfDatas.has(dataISO)) {
+            pontosOs = 0;
+            zeradoMotivo = `Operação fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 18).`;
             onProgress(
               `⚠️ OS ${osNum} — ${nomeFiscalOs}: vistoria zerada — ` +
               `operação fiscal (OPF) manual em ${fmtData(dataISO)}.`,
@@ -197,6 +211,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             item_pontuacao: item,
             complexidade: SIM_COMPLEXIDADE,
             pontos: pontosOs, descricao,
+            zerado_motivo: zeradoMotivo,
             origem: 'sim_csv',
             sim_os: osNum,
             os_doc_id: os._docId || null,
@@ -233,6 +248,7 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             item_pontuacao: item,
             complexidade: SIM_COMPLEXIDADE,
             pontos: pontosOs, descricao,
+            zerado_motivo: zeradoMotivo,
             status: 'enviado',
             origem: 'sim_csv',
             sim_os: osNum,

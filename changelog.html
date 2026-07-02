@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.15.0</span>
+            <span class="badge-date">02/07/2026</span>
+          </div>
+          <div class="changelog-title">Não cumulatividade: Relatório Técnico (alta) × Vistoria (item 13), paridade SIM e rastreabilidade da zeragem</div>
+          <ul class="changelog-changes">
+            <li><strong>Nova regra: Relatório Técnico de Inspeção, alta complexidade, não cumulativo com vistoria (Anexo VII, item 13)</strong> — igual às regras já existentes de Plantão (item 9) e Operação Fiscal (item 18), quando o mesmo fiscal tem, no mesmo dia, um relatório técnico de alta complexidade (<code>REL</code>, importado do VISA) e uma vistoria (<code>VIS</code>), a vistoria entra com pontos zerados. Como <code>REL</code> só existe via importação (nunca lançamento manual), a checagem ocorre inteiramente em <code>js/visa-import.js</code>, com pré-ordenação estável do CSV para garantir que relatórios de alta complexidade sejam processados antes das vistorias do mesmo dia dentro da mesma importação.</li>
+            <li><strong>Correção: Plantão × Vistoria (item 9) não cobria auditorias do SIM</strong> — a não cumulatividade entre Plantão Fiscal manual e vistoria só zerava e bloqueava vistorias importadas do <strong>VISA</strong>; uma vistoria do <strong>SIM</strong> no mesmo dia de um plantão manual não era afetada. <code>js/sim-import.js</code> agora também zera a vistoria do SIM nesse caso, e o bloqueio de lançar Plantão manual em <code>lancamento.html</code>/<code>meus-lancamentos.html</code> passa a considerar vistorias de ambas as origens (<code>ehVistoriaQualquer</code>, antes restrito a <code>ehVistoriaImportada</code>/só VISA).</li>
+            <li><strong>Rastreabilidade da zeragem automática</strong> — até aqui, quando uma vistoria era zerada por não cumulatividade durante a importação, o único registro era um log temporário visível apenas a quem executava a importação; o fiscal dono do lançamento via só "0 pontos", sem explicação. Lançamentos de vistoria zerados por esta regra agora gravam o motivo em <code>zerado_motivo</code>, exibido como um ícone ⚠️ com tooltip ao lado dos Pontos Requeridos em <code>meus-lancamentos.html</code> e <code>conferencia.html</code>.</li>
+            <li><strong>Revalidação na homologação</strong> — <code>conferencia.html</code> não reconferia a regra de não cumulatividade ao homologar; um administrador podia digitar pontuação maior que zero para uma vistoria que deveria estar zerada. <code>homologar()</code> agora chama a nova função <code>motivoNaoCumulatividadeVistoria()</code> (<code>js/visa-import.js</code>) antes de aceitar, bloqueando a homologação com pontos > 0 quando há conflito.</li>
+            <li><strong>Fora do escopo desta versão</strong> — a correção retroativa de dados históricos (<code>corrige-plantao.html</code>) permanece uma ferramenta pontual, restrita a vistorias do VISA em Junho/2026; não foi estendida para SIM/OPF/REL.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.14.12</span>
             <span class="badge-date">01/07/2026</span>
           </div>
