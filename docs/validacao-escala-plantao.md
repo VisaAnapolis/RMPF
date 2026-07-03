@@ -187,16 +187,21 @@ lançado (item 6, 48 pts).
 
 ### 4.4. Validação 3 — homologação (`conferencia.html`)
 
+> **Ajuste de 03/07/2026 (pós-implantação):** a pedido da gestão, os conflitos
+> na homologação **não bloqueiam** mais — o administrador é **avisado** e
+> decide caso a caso (confirmação), podendo ajustar a pontuação homologada.
+
 - **PLT manual:** ao homologar, checar `fiscalEscaladoNoDia`; se
-  `nao_escalado`, **bloquear** a homologação com a mensagem *"fiscal não consta
-  na escala de plantão da gerência (VISA) em DD/MM/AAAA"*. Exceções legítimas
-  (substituição de última hora) se resolvem atualizando a escala no VISA antes
-  de homologar — mantém a escala como fonte única.
+  `nao_escalado`, exibir confirmação *"fiscal não consta na escala de plantão
+  da gerência (VISA) em DD/MM/AAAA — homologar mesmo assim?"*. Exceções
+  legítimas (substituição de última hora) podem ser homologadas diretamente,
+  ou a escala é atualizada no VISA antes.
 - **Vistorias:** `motivoNaoCumulatividadeVistoria` (`js/visa-import.js:159`)
   ganha a checagem da escala, retornando o motivo *"fiscal escalado pela
-  gerência para plantão no mesmo dia (Anexo VII, item 9)"* — assim a homologação
-  de vistoria com pontos > 0 também é bloqueada quando o fiscal estiver
-  escalado na data (mesmo padrão do PLT manual hoje).
+  gerência para plantão no mesmo dia (Anexo VII, item 9)"* — ao homologar
+  vistoria com pontos > 0 em conflito, o admin é avisado de que pela regra a
+  pontuação seria zero e confirma (ou não) a homologação com os pontos
+  informados.
 
 ### 4.5. Arquivos alterados
 
