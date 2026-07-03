@@ -441,6 +441,84 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Alerta de pontuação zerada por não cumulatividade
+// ─────────────────────────────────────────────────────────────
+// A importação grava `zerado_motivo` quando a vistoria é zerada (Plantão
+// item 9 — manual ou fiscal escalado pela gerência —, OPF item 18, REL-alta
+// item 13). O ícone ⚠️ ao lado dos Pontos Requeridos é CLICÁVEL e abre um
+// modal com o motivo e o dispositivo legal — antes era apenas um tooltip via
+// `title` (cursor:help), que vira um "?" no desktop e não abre nada no
+// celular. Mesmo padrão de modal único + delegação do alerta de prazo acima.
+
+// HTML do ícone ⚠️ (só quando o lançamento tem zerado_motivo).
+// Os dados do modal viajam no próprio elemento via data-* (sem lookup externo).
+function zeradoWarningHtml(m) {
+  if (!m || !m.zerado_motivo) return '';
+  return ` <span class="zerado-alerta" role="button" tabindex="0"` +
+    ` style="cursor:pointer;color:var(--amar)"` +
+    ` title="Pontuação zerada — clique para detalhes"` +
+    ` data-motivo="${escHtml(m.zerado_motivo)}"` +
+    ` data-dispositivo="${escHtml(m.dispositivo_legal || '')}">⚠️</span>`;
+}
+
+// Preenche e exibe o modal a partir do dataset do ícone clicado.
+function abrirZeradoMotivo(ds) {
+  _initZeradoModal();
+  const modal = document.getElementById('modal-zerado');
+  if (!modal) return;
+  modal.querySelector('#zr-body').innerHTML =
+    `<p style="margin:0 0 12px">Este lançamento teve a pontuação zerada por não cumulatividade.</p>` +
+    `<ul style="list-style:none;padding:0;margin:0;line-height:1.9">` +
+    `<li><strong>Motivo:</strong> ${escHtml(ds.motivo || '—')}</li>` +
+    (ds.dispositivo ? `<li><strong>Dispositivo legal:</strong> ${escHtml(ds.dispositivo)}</li>` : '') +
+    `</ul>`;
+  modal.style.display = 'flex';
+}
+
+// Injeta o markup do modal (uma vez) e registra os fechamentos.
+function _initZeradoModal() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('modal-zerado')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    `<div id="modal-zerado" class="modal-backdrop" style="display:none">` +
+    `<div class="modal" style="max-width:480px">` +
+    `<div class="modal-header"><span>⚠️ Pontuação zerada</span>` +
+    `<button class="modal-close" id="zr-close" aria-label="Fechar">✕</button></div>` +
+    `<div class="modal-body" id="zr-body"></div>` +
+    `<div class="modal-footer"><button class="btn btn-default" id="zr-close2">Fechar</button></div>` +
+    `</div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const modal = document.getElementById('modal-zerado');
+  const hide = () => { modal.style.display = 'none'; };
+  document.getElementById('zr-close').addEventListener('click', hide);
+  document.getElementById('zr-close2').addEventListener('click', hide);
+  modal.addEventListener('click', (e) => { if (e.target === modal) hide(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') hide();
+  });
+}
+
+// Ativação por clique ou Enter/Espaço em qualquer .zerado-alerta (delegação).
+function _onZeradoAlertaActivate(e) {
+  const el = e.target && e.target.closest ? e.target.closest('.zerado-alerta') : null;
+  if (!el) return;
+  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  abrirZeradoMotivo(el.dataset);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', _onZeradoAlertaActivate);
+  document.addEventListener('keydown', _onZeradoAlertaActivate);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initZeradoModal);
+  } else {
+    _initZeradoModal();
+  }
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -473,3 +551,5 @@ window.periodosSeSobrepoem      = periodosSeSobrepoem;
 window.normalizarNome           = normalizarNome;
 window.prazoWarningHtml          = prazoWarningHtml;
 window.abrirForaPrazo            = abrirForaPrazo;
+window.zeradoWarningHtml         = zeradoWarningHtml;
+window.abrirZeradoMotivo         = abrirZeradoMotivo;
