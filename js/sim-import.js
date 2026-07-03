@@ -44,7 +44,7 @@ function _aplicarManualNoMapaPontosSim(mapa, manual, delta) {
   mapa.set(dia, (mapa.get(dia) || 0) + (delta * pontos));
 }
 
-async function _getEstadoPontosSim(cache, emailFiscal, mes, ano) {
+async function _getEstadoPontosSim(cache, emailFiscal, mes, ano, nomeFiscal) {
   const key = `${emailFiscal}::${mes}::${ano}`;
   if (!cache.has(key)) {
     const docs = await window.db_getManuais(emailFiscal, mes, ano);
@@ -55,6 +55,14 @@ async function _getEstadoPontosSim(cache, emailFiscal, mes, ano) {
       byDia,
       plantaoDatas: window.datasComPlantaoManual ? window.datasComPlantaoManual(docs) : new Set(),
       opfDatas: window.datasComOpfManual ? window.datasComOpfManual(docs) : new Set(),
+      // Datas em que o fiscal está escalado para plantão pela gerência
+      // (escala do VISA, coleção `plantao`): zeram vistorias do dia mesmo
+      // sem PLT manual lançado, para forçar o cumprimento da escala. Set
+      // vazio quando o mês não tem escala publicada ou em falha de leitura
+      // (fail-open — js/plantao-escala.js).
+      escalaDatas: (typeof window.datasEscaladoNoMes === 'function' && nomeFiscal)
+        ? await window.datasEscaladoNoMes(nomeFiscal, mes, ano)
+        : new Set(),
     });
   }
   return cache.get(key);
@@ -104,6 +112,12 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
     const fiscaisValidos = new Set();
     for (const f of (allFiscais || [])) {
       if (f.email) fiscaisValidos.add(String(f.email).toLowerCase());
+    }
+    // E-mail → nome cadastrado (coleção usuarios). Usado no match contra a
+    // escala de plantão da gerência, que registra os fiscais por nome completo.
+    const emailNomeMap = new Map();
+    for (const f of (allFiscais || [])) {
+      if (f.email && f.nome) emailNomeMap.set(f.email, f.nome);
     }
 
     const mesStr = String(mes).padStart(2, '0');
@@ -167,7 +181,9 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
         // no lugar do Item 1 (produtivo) quando pontosOs acaba em zero.
         let itemDecretoZerado = null;
         if (dataISO) {
-          const estado = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
+          const estado = await _getEstadoPontosSim(
+            pontosEstadoCache, emailFiscal, mes, ano,
+            emailNomeMap.get(emailFiscal) || nomeFiscalOs);
           if (estado.plantaoDatas && estado.plantaoDatas.has(dataISO)) {
             pontosOs = 0;
             itemDecretoZerado = 9;
@@ -175,6 +191,19 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             onProgress(
               `⚠️ OS ${osNum} — ${nomeFiscalOs}: vistoria zerada — ` +
               `plantão fiscal manual em ${fmtData(dataISO)}.`,
+              'warn'
+            );
+          } else if (estado.escalaDatas && estado.escalaDatas.has(dataISO)) {
+            // Mesmo sem PLT manual lançado, o fiscal está escalado pela
+            // gerência para plantão nesta data (escala do VISA) — a vistoria
+            // do dia não é cumulativa (Anexo VII, item 9), forçando o
+            // cumprimento da escala.
+            pontosOs = 0;
+            itemDecretoZerado = 9;
+            zeradoMotivo = `Fiscal escalado pela gerência para plantão fiscal em ${fmtData(dataISO)} (escala de plantão do VISA) — não cumulativo com vistoria (Anexo VII, item 9).`;
+            onProgress(
+              `⚠️ OS ${osNum} — ${nomeFiscalOs}: vistoria zerada — ` +
+              `fiscal escalado pela gerência para plantão fiscal em ${fmtData(dataISO)} (escala VISA).`,
               'warn'
             );
           } else if (estado.opfDatas && estado.opfDatas.has(dataISO)) {
