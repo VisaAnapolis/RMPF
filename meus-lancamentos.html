@@ -272,6 +272,7 @@
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
+<script src="js/plantao-escala.js"></script>
 <script src="js/visa-import.js"></script>
 <script>
   let _user = null;
@@ -497,6 +498,17 @@
     return vistorias.length ? vistorias.length : null;
   }
 
+  // Bloqueia mover/editar um Plantão Fiscal (PLT) para data em que o fiscal
+  // não consta na escala de plantão da gerência (coleção `plantao` do VISA).
+  // Mês sem escala publicada ou falha de leitura não bloqueia (fail-open).
+  async function bloqueioPlantaoForaEscala(idManual, dataISO) {
+    const m = _manuais.find(x => x.id === idManual);
+    if (!m || m.tipo_codigo !== 'PLT') return false;
+    if (typeof window.fiscalEscaladoNoDia !== 'function') return false;
+    const escala = await window.fiscalEscaladoNoDia(_user.nome || '', dataISO);
+    return escala.status === 'nao_escalado';
+  }
+
   // Bloqueia mover/editar uma Operação Fiscal (OPF) para data com vistoria(s)
   // importada(s) (VISA/SIM). Decreto item 18: OPF não é cumulativa com vistoria.
   async function bloqueioOpfComVistoria(idManual, dataISO) {
@@ -532,6 +544,13 @@
         document.getElementById('edit-alert').innerHTML = alerta('danger',
           `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação. ` +
           `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisEdit}</strong> vistoria(s) importada(s) que geram pontos.`);
+        return;
+      }
+      if (await bloqueioPlantaoForaEscala(id, data)) {
+        document.getElementById('edit-alert').innerHTML = alerta('danger',
+          `🚫 Você não consta na escala de plantão da gerência (VISA) no dia <strong>${fmtData(data)}</strong>. ` +
+          `O Plantão fiscal só é permitido para o fiscal escalado na data — havendo troca ou substituição, ` +
+          `solicite à gerência a atualização da escala.`);
         return;
       }
       const qtdVisOpfEdit = await bloqueioOpfComVistoria(id, data);
@@ -643,6 +662,13 @@
         document.getElementById('corrigir-alert').innerHTML = alerta('danger',
           `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação. ` +
           `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisCorr}</strong> vistoria(s) importada(s) que geram pontos.`);
+        return;
+      }
+      if (await bloqueioPlantaoForaEscala(id, data)) {
+        document.getElementById('corrigir-alert').innerHTML = alerta('danger',
+          `🚫 Você não consta na escala de plantão da gerência (VISA) no dia <strong>${fmtData(data)}</strong>. ` +
+          `O Plantão fiscal só é permitido para o fiscal escalado na data — havendo troca ou substituição, ` +
+          `solicite à gerência a atualização da escala.`);
         return;
       }
       const qtdVisOpfCorr = await bloqueioOpfComVistoria(id, data);

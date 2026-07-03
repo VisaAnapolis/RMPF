@@ -208,6 +208,7 @@
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
+<script src="js/plantao-escala.js"></script>
 <script src="js/visa-import.js"></script>
 <script src="js/sim-import.js"></script>
 <script src="js/visa-auto-import.js"></script>
@@ -465,11 +466,34 @@
       return;
     }
 
+    // ── Plantão manual só é homologado se o fiscal estava escalado ─────────
+    // Escala da gerência (coleção `plantao` do VISA). Mês sem escala publicada
+    // ou falha de leitura não bloqueia (fail-open); exceções legítimas
+    // (substituição de última hora) se resolvem atualizando a escala no VISA
+    // antes de homologar.
+    if (status === 'aceito' && manual && manual.tipo_codigo === 'PLT'
+        && manual.origem !== 'visa_csv'
+        && typeof window.fiscalEscaladoNoDia === 'function') {
+      const nomeFiscal = manual.fiscal_nome
+        || (typeof window.nomeFiscalPorEmail === 'function'
+              ? await window.nomeFiscalPorEmail(manual.fiscal_email)
+              : null);
+      const escala = await window.fiscalEscaladoNoDia(nomeFiscal || '', manual.data);
+      if (escala.status === 'nao_escalado') {
+        document.getElementById('hom-alert').innerHTML = alerta('warn',
+          `🚫 Não é possível homologar: o fiscal não consta na escala de plantão da gerência (VISA) ` +
+          `em ${fmtData(manual.data)}. Se houve substituição autorizada, atualize a escala no VISA ` +
+          `antes de homologar.`);
+        return;
+      }
+    }
+
     // ── Revalida não cumulatividade antes de homologar com pontos > 0 ──────
     // Um Plantão/OPF manual ou um Relatório Técnico (alta) importado pode ter
     // sido lançado DEPOIS que esta vistoria entrou em conferência — sem esta
     // checagem, o admin poderia homologar pontos que deveriam estar zerados
-    // (Anexo VII, itens 9/13/18).
+    // (Anexo VII, itens 9/13/18). A checagem inclui a escala de plantão da
+    // gerência (fiscal escalado na data também zera a vistoria — item 9).
     if (status === 'aceito' && manual && manual.tipo_codigo === 'VIS' && Number(ponHom) > 0
         && typeof window.motivoNaoCumulatividadeVistoria === 'function') {
       const motivoConflito = await window.motivoNaoCumulatividadeVistoria(manual.fiscal_email, manual.data, manual.id);

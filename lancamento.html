@@ -145,6 +145,7 @@
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
+<script src="js/plantao-escala.js"></script>
 <script src="js/visa-import.js"></script>
 <script>
   function showAlert(type, msg) {
@@ -353,6 +354,22 @@
           `vistoria(s) importada(s) que geram pontos.`);
         btns.forEach(b => { b.disabled = false; });
         return;
+      }
+
+      // ── Plantão só pode ser lançado por quem está na escala da gerência ──
+      // (coleção `plantao` do VISA — mesma base Firebase). Mês sem escala
+      // publicada ou falha de leitura não bloqueia (fail-open); o bloqueio
+      // ocorre apenas quando a escala existe e o fiscal não consta na data.
+      if (typeof window.fiscalEscaladoNoDia === 'function') {
+        const escala = await window.fiscalEscaladoNoDia(user.nome || '', data);
+        if (escala.status === 'nao_escalado') {
+          showAlert('danger',
+            `🚫 Você não consta na escala de plantão da gerência (VISA) no dia <strong>${fmtData(data)}</strong>. ` +
+            `O lançamento de Plantão fiscal só é permitido para o fiscal escalado na data. ` +
+            `Havendo troca ou substituição, solicite à gerência a atualização da escala antes de lançar.`);
+          btns.forEach(b => { b.disabled = false; });
+          return;
+        }
       }
     }
 

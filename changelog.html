@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.16.1</span>
+            <span class="badge-date">03/07/2026</span>
+          </div>
+          <div class="changelog-title">Validação da escala de plantão da gerência (VISA) — lançamento manual e importações</div>
+          <ul class="changelog-changes">
+            <li><strong>Plantão fiscal (PLT) só para quem está na escala</strong> — o lançamento manual em <code>lancamento.html</code> (e a edição/correção em <code>meus-lancamentos.html</code>) passa a ser bloqueado quando o fiscal <em>não consta</em> na escala de plantão gerenciada pela gerência no VISA (coleção <code>plantao/AAAA-MM</code>, mesma base Firebase) na data informada. Objetivo: forçar o cumprimento da escala. Em caso de troca/substituição, a gerência atualiza a escala no VISA antes do lançamento.</li>
+            <li><strong>Importação VISA/SIM zera vistorias em dia de escala</strong> — além da zeragem já existente por PLT manual, as vistorias importadas passam a ser zeradas também quando o fiscal está <em>escalado</em> para plantão na data, mesmo sem PLT manual lançado, gravando <code>zerado_motivo</code> próprio (<em>"Fiscal escalado pela gerência para plantão fiscal em DD/MM/AAAA (escala de plantão do VISA) — não cumulativo com vistoria (Anexo VII, item 9)."</em>) e o mesmo <code>dispositivo_legal</code> do item 9.</li>
+            <li><strong>Homologação revalida a escala</strong> — em <code>conferencia.html</code>, homologar um PLT manual de fiscal fora da escala é bloqueado, e a revalidação de não cumulatividade de vistorias (<code>motivoNaoCumulatividadeVistoria</code>) passa a considerar também o fiscal escalado na data.</li>
+            <li><strong>Fail-open</strong> — mês sem escala publicada no Firestore (ou falha de leitura) não bloqueia lançamentos nem zera importações; as validações só agem quando a escala do mês existe. Novo módulo <code>js/plantao-escala.js</code> (leitura com cache — 1 leitura por mês — e match por nome completo com a mesma normalização da importação). Plano e decisões em <code>docs/validacao-escala-plantao.md</code>.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.16.0</span>
             <span class="badge-date">02/07/2026</span>
           </div>

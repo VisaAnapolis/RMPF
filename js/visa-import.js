@@ -39,7 +39,7 @@ function _aplicarManualNoMapaPontosVisa(mapa, manual, delta) {
   mapa.set(dia, (mapa.get(dia) || 0) + (delta * pontos));
 }
 
-async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano) {
+async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano, nomeFiscal) {
   const key = `${emailFiscal}::${mes}::${ano}`;
   if (!cache.has(key)) {
     const docs = await window.db_getManuais(emailFiscal, mes, ano);
@@ -51,6 +51,14 @@ async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano) {
       plantaoDatas: datasComPlantaoManual(docs),
       opfDatas: datasComOpfManual(docs),
       relAltaDatas: datasComRelAltaImportada(docs),
+      // Datas em que o fiscal está escalado para plantão pela gerência
+      // (escala do VISA, coleção `plantao`): zeram vistorias do dia mesmo
+      // sem PLT manual lançado, para forçar o cumprimento da escala. Set
+      // vazio quando o mês não tem escala publicada ou em falha de leitura
+      // (fail-open — js/plantao-escala.js).
+      escalaDatas: (typeof window.datasEscaladoNoMes === 'function' && nomeFiscal)
+        ? await window.datasEscaladoNoMes(nomeFiscal, mes, ano)
+        : new Set(),
     });
   }
   return cache.get(key);
@@ -169,6 +177,19 @@ async function motivoNaoCumulatividadeVistoria(fiscalEmail, dataISO, excluirId =
     if (ehPlantaoManual(m))    return 'plantão fiscal manual no mesmo dia (Anexo VII, item 9)';
     if (ehOpfManual(m))        return 'operação fiscal manual no mesmo dia (Anexo VII, item 18)';
     if (ehRelAltaImportada(m)) return 'relatório técnico de inspeção (alta complexidade) no mesmo dia (Anexo VII, item 13)';
+  }
+  // Fiscal escalado pela gerência para plantão na data (escala do VISA) também
+  // torna a vistoria não cumulativa (item 9), mesmo sem PLT manual lançado.
+  // Fail-open: sem escala publicada/nome não resolvido, não há conflito.
+  if (typeof window.fiscalEscaladoNoDia === 'function' &&
+      typeof window.nomeFiscalPorEmail === 'function') {
+    const nome = await window.nomeFiscalPorEmail(fiscalEmail);
+    if (nome) {
+      const escala = await window.fiscalEscaladoNoDia(nome, dataISO);
+      if (escala.status === 'escalado') {
+        return 'fiscal escalado pela gerência para plantão fiscal no mesmo dia — escala de plantão do VISA (Anexo VII, item 9)';
+      }
+    }
   }
   return null;
 }
@@ -687,6 +708,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     for (const f of (allFiscais || [])) {
       if (f.nome) fiscalMap.set(normNomeVisa(f.nome), f.email || f.id);
     }
+    // E-mail → nome cadastrado (coleção usuarios). Usado no match contra a
+    // escala de plantão da gerência, que registra os fiscais por nome completo.
+    const emailNomeMap = new Map();
+    for (const f of (allFiscais || [])) {
+      if ((f.email || f.id) && f.nome) emailNomeMap.set(f.email || f.id, f.nome);
+    }
 
     const mesStr = String(mes).padStart(2, '0');
     const anoStr = String(ano);
@@ -934,7 +961,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
           try {
             const existing = await window.db_getVISAManual(controleVisa, emailFiscal, alvo.cnae);
-            const estadoPontos = await _getEstadoPontosVisa(pontosEstadoCache, emailFiscal, mes, ano);
+            const estadoPontos = await _getEstadoPontosVisa(
+              pontosEstadoCache, emailFiscal, mes, ano,
+              emailNomeMap.get(emailFiscal) || nomeFiscalCsv);
             let pontosFiscal = pontosFinalA;
             let zeradoMotivo = null;
             // Item do Anexo VII que REJEITA a pontuação (citado em dispositivo_legal
@@ -955,6 +984,19 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 onProgress(
                   `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
                   `plantão fiscal manual em ${fmtData(dataISO)}.`,
+                  'warn'
+                );
+              } else if (estadoPontos.escalaDatas.has(dataISO)) {
+                // Mesmo sem PLT manual lançado, o fiscal está escalado pela
+                // gerência para plantão nesta data (escala do VISA) — a
+                // vistoria do dia não é cumulativa (Anexo VII, item 9),
+                // forçando o cumprimento da escala.
+                pontosFiscal = 0;
+                itemDecretoZerado = 9;
+                zeradoMotivo = `Fiscal escalado pela gerência para plantão fiscal em ${fmtData(dataISO)} (escala de plantão do VISA) — não cumulativo com vistoria (Anexo VII, item 9).`;
+                onProgress(
+                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
+                  `fiscal escalado pela gerência para plantão fiscal em ${fmtData(dataISO)} (escala VISA).`,
                   'warn'
                 );
               } else if (estadoPontos.opfDatas.has(dataISO)) {
