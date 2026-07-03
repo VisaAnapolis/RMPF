@@ -466,11 +466,11 @@
       return;
     }
 
-    // ── Plantão manual só é homologado se o fiscal estava escalado ─────────
+    // ── Plantão manual fora da escala: avisa e o admin decide ──────────────
     // Escala da gerência (coleção `plantao` do VISA). Mês sem escala publicada
-    // ou falha de leitura não bloqueia (fail-open); exceções legítimas
-    // (substituição de última hora) se resolvem atualizando a escala no VISA
-    // antes de homologar.
+    // ou falha de leitura não avisa (fail-open). O conflito NÃO bloqueia a
+    // homologação: o admin é avisado e decide caso a caso (ex.: substituição
+    // de última hora ainda não refletida na escala).
     if (status === 'aceito' && manual && manual.tipo_codigo === 'PLT'
         && manual.origem !== 'visa_csv'
         && typeof window.fiscalEscaladoNoDia === 'function') {
@@ -480,27 +480,30 @@
               : null);
       const escala = await window.fiscalEscaladoNoDia(nomeFiscal || '', manual.data);
       if (escala.status === 'nao_escalado') {
-        document.getElementById('hom-alert').innerHTML = alerta('warn',
-          `🚫 Não é possível homologar: o fiscal não consta na escala de plantão da gerência (VISA) ` +
-          `em ${fmtData(manual.data)}. Se houve substituição autorizada, atualize a escala no VISA ` +
-          `antes de homologar.`);
-        return;
+        const okAdm = confirm(
+          `⚠️ O fiscal NÃO consta na escala de plantão da gerência (VISA) em ${fmtData(manual.data)}.\n\n` +
+          `Se houve substituição autorizada, o ideal é atualizar a escala no VISA.\n\n` +
+          `Deseja homologar este Plantão fiscal mesmo assim?`);
+        if (!okAdm) return;
       }
     }
 
     // ── Revalida não cumulatividade antes de homologar com pontos > 0 ──────
     // Um Plantão/OPF manual ou um Relatório Técnico (alta) importado pode ter
-    // sido lançado DEPOIS que esta vistoria entrou em conferência — sem esta
-    // checagem, o admin poderia homologar pontos que deveriam estar zerados
-    // (Anexo VII, itens 9/13/18). A checagem inclui a escala de plantão da
-    // gerência (fiscal escalado na data também zera a vistoria — item 9).
+    // sido lançado DEPOIS que esta vistoria entrou em conferência. A checagem
+    // inclui a escala de plantão da gerência (fiscal escalado na data também
+    // zera a vistoria — item 9). O conflito NÃO bloqueia a homologação: o
+    // admin é avisado (Anexo VII, itens 9/13/18) e decide caso a caso qual
+    // pontuação homologar.
     if (status === 'aceito' && manual && manual.tipo_codigo === 'VIS' && Number(ponHom) > 0
         && typeof window.motivoNaoCumulatividadeVistoria === 'function') {
       const motivoConflito = await window.motivoNaoCumulatividadeVistoria(manual.fiscal_email, manual.data, manual.id);
       if (motivoConflito) {
-        document.getElementById('hom-alert').innerHTML = alerta('warn',
-          `🚫 Não é possível homologar pontuação maior que zero: há ${motivoConflito}.`);
-        return;
+        const okAdm = confirm(
+          `⚠️ Há ${motivoConflito}.\n\n` +
+          `Pela regra de não cumulatividade, esta vistoria seria homologada com pontuação ZERO.\n\n` +
+          `Deseja homologar mesmo assim com ${Number(ponHom)} ponto(s)?`);
+        if (!okAdm) return;
       }
     }
 

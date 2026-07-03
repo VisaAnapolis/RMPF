@@ -367,9 +367,9 @@ Regra: **Plantão fiscal não é cumulativo com a pontuação das vistorias real
 | Situação | Comportamento |
 |---|---|
 | Plantão manual (PLT) lançado **antes** da importação | Ao importar, as vistorias (`VIS`) do VISA e/ou do SIM naquela data entram com **pontos = 0** automaticamente, e o motivo é gravado em `zerado_motivo`. Log: *"vistoria zerada — plantão fiscal manual em DD/MM"*. |
-| Fiscal **escalado** para plantão pela gerência na data (escala do VISA, coleção `plantao/AAAA-MM`) — mesmo **sem** PLT manual lançado | Ao importar, as vistorias (VISA/SIM) naquela data entram com **pontos = 0**, com `zerado_motivo` próprio citando a escala e o mesmo `dispositivo_legal` do item 9. Log: *"vistoria zerada — fiscal escalado pela gerência para plantão fiscal em DD/MM (escala VISA)"*. Fail-open: mês sem escala publicada não zera nada. Além disso, o **lançamento manual de PLT é bloqueado** quando o fiscal não consta na escala do dia (`lancamento.html`, edição em `meus-lancamentos.html` e homologação em `conferencia.html`). Detalhes: `docs/validacao-escala-plantao.md`. |
+| Fiscal **escalado** para plantão pela gerência na data (escala do VISA, coleção `plantao/AAAA-MM`) — mesmo **sem** PLT manual lançado | Ao importar, as vistorias (VISA/SIM) naquela data entram com **pontos = 0**, com `zerado_motivo` próprio citando a escala e o mesmo `dispositivo_legal` do item 9. Log: *"vistoria zerada — fiscal escalado pela gerência para plantão fiscal em DD/MM (escala VISA)"*. Fail-open: mês sem escala publicada não zera nada. Além disso, o **lançamento manual de PLT é bloqueado** quando o fiscal não consta na escala do dia (`lancamento.html` e edição em `meus-lancamentos.html`); na homologação (`conferencia.html`) o conflito **avisa o admin**, que decide caso a caso. Detalhes: `docs/validacao-escala-plantao.md`. |
 | Vistorias importadas **antes** + tentativa de lançar plantão manual | **Bloqueado** em `lancamento.html` (e ao editar/corrigir em `meus-lancamentos.html`) com a mensagem *"Impossível lançar plantão em data com vistoria(s) importada(s) com pontuação"* — **apenas** quando há vistorias importadas (VISA ou SIM) que **geram pontos** (`pontos > 0`) na data. Vistorias zeradas (ex.: origem da demanda "PLANTÃO FISCAL", que já entra com `pontos = 0`) **não bloqueiam**, pois não há pontuação a não cumular. |
-| Vistoria já homologada (`aceito`/`fechado`) | **Não é zerada** automaticamente — só reportada. O admin decide via conferência; `conferencia.html` revalida a regra e bloqueia a homologação de pontos > 0 quando ainda há conflito. |
+| Vistoria já homologada (`aceito`/`fechado`) | **Não é zerada** automaticamente — só reportada. O admin decide via conferência; `conferencia.html` revalida a regra ao homologar pontos > 0 e, havendo conflito, **avisa o admin**, que decide caso a caso (pode ajustar a pontuação homologada). |
 
 **Identificação:**
 - Plantão manual → `tipo_codigo === 'PLT'` e `origem !== 'visa_csv'` (controle `PLT-AAAA-MM-NNN`).
@@ -404,7 +404,7 @@ Toda vistoria (VISA ou SIM) zerada pelas regras acima (Plantão item 9, OPF item
 | Chave do documento | `visa_{CONTROLE}_{email_normalizado}` |
 | Re-importação | Sobrescreve se não homologado; ignora se homologado |
 | Edição pelo fiscal | Proibida para `origem: 'visa_csv'` |
-| Homologação | Admin homologa individualmente por fiscal; revalida não cumulatividade antes de aceitar pontos > 0 |
+| Homologação | Admin homologa individualmente por fiscal; revalida não cumulatividade antes de aceitar pontos > 0 (aviso com decisão caso a caso do admin) |
 | Fonte CNAE | `data/cnae.csv` do VISA, carregado em memória a cada importação |
 | Descrição | `Vistoria VISA — OS X — CNAE Y — [descrição]` |
 | Controle RMPF | `VISA-{CONTROLE do CSV}` |
