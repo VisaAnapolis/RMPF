@@ -226,7 +226,7 @@
       : '';
     const changelog = `<a href="changelog.html" class="sidebar-link${cur==='changelog.html'?' active':''}"><span class="icon">📜</span>Changelog</a>`;
     const versao = `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
-    return base + admin + changelog + versao;
+    return base + admin + changelog + visaAppSidebarLink() + versao;
   }
 
   function buildSels(mesId, anoId) {

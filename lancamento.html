@@ -35,6 +35,7 @@
     <a href="meus-lancamentos.html"class="sidebar-link"><span class="icon">📋</span>Meus Lançamentos</a>
     <a href="ocorrencias.html"     class="sidebar-link"><span class="icon">📌</span>Ocorrências</a>
     <a href="changelog.html"       class="sidebar-link"><span class="icon">📜</span>Changelog</a>
+    <span id="sidebar-visa-link"></span>
     <div class="sidebar-version">v<span id="sidebar-version"></span></div>
   </nav>
 
@@ -148,6 +149,8 @@
 <script src="js/plantao-escala.js"></script>
 <script src="js/visa-import.js"></script>
 <script>
+  document.getElementById('sidebar-visa-link').outerHTML = visaAppSidebarLink();
+
   function showAlert(type, msg) {
     document.getElementById('alert-area').innerHTML = alerta(type, msg);
     window.scrollTo(0, 0);

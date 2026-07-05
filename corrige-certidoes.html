@@ -155,7 +155,7 @@
     const nav = document.getElementById('sidebar');
     nav.innerHTML = links.map(l =>
       `<a class="sidebar-link${location.pathname.endsWith(l.href)?'  sidebar-link--active':''}" href="${l.href}">${l.icon} ${l.label}</a>`
-    ).join('') + `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
+    ).join('') + visaAppSidebarLink() + `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
   }
 
   const hamburger = document.getElementById('hamburger');

@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.17.0</span>
+            <span class="badge-date">05/07/2026</span>
+          </div>
+          <div class="changelog-title">Link "APP VISA" no menu lateral (navegação entre os apps)</div>
+          <ul class="changelog-changes">
+            <li><strong>Novo item 🏥 APP VISA no fim do sidebar</strong> — todas as páginas com menu lateral ganham um link direto para o app VISA, separado dos itens internos por um filete (<code>.sidebar-link--app-externo</code> em <code>css/rmpf.css</code>). O destino é montado por <code>visaAppSidebarLink()</code> (novo helper em <code>js/utils.js</code>): <code>../APP/</code> na hospedagem <code>visaanapolis.github.io</code> e <code>../VISA/</code> na <code>garrado.github.io</code>/dev local — usuário já autenticado cai direto no dashboard do VISA.</li>
+            <li><strong>Recíproca no VISA</strong> — o sidebar do VISA (v2.22.0) ganhou o item "RMPF (Produtividade)" na seção Operacional, apontando de volta para cá.</li>
+            <li><strong>Arquivos</strong> — <code>js/utils.js</code> (helper), <code>css/rmpf.css</code> (estilo do link externo), páginas com sidebar dinâmico (<code>dashboard</code>, <code>ocorrencias</code>, <code>conferencia</code>, <code>changelog</code>, <code>admin</code>, <code>parametrizacao</code>, <code>corrige-*</code>) e estático (<code>lancamento</code>, <code>meus-lancamentos</code>, <code>fechamento</code>); <code>js/version.js</code> — 1.17.0; <code>service-worker.js</code> — <code>rmpf-v1.17.0</code>.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.16.1</span>
             <span class="badge-date">03/07/2026</span>
           </div>
@@ -940,7 +953,7 @@
     const cur = location.pathname.split('/').pop();
     return links.map(([href,icon,label]) =>
       `<a href="${href}" class="sidebar-link${cur===href?' active':''}"><span class="icon">${icon}</span>${label}</a>`
-    ).join('') + `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
+    ).join('') + visaAppSidebarLink() + `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
   }
 
   requireAuth(user => {
