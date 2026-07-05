@@ -63,6 +63,7 @@
     <span id="sidebar-admin-link"></span>
     <span id="sidebar-param-link"></span>
     <a href="changelog.html"  class="sidebar-link"><span class="icon">📜</span>Changelog</a>
+    <span id="sidebar-visa-link"></span>
     <div class="sidebar-version">v<span id="sidebar-version"></span></div>
   </nav>
 
@@ -228,6 +229,8 @@
 <script src="js/firestore.js"></script>
 <script src="js/guard.js"></script>
 <script>
+  document.getElementById('sidebar-visa-link').outerHTML = visaAppSidebarLink();
+
   let _user      = null;
   let _manuais   = [];
   let _ocorrs    = [];

@@ -131,6 +131,12 @@ input, select, textarea { font-family: var(--font); }
   font-weight: 600;
 }
 .sidebar-link .icon { font-size: 1rem; width: 20px; text-align: center; }
+/* Link para o app irmão (VISA): separado dos itens internos por um filete */
+.sidebar-link--app-externo {
+  margin-top: 10px;
+  border-top: 1px solid var(--cinzaL);
+  padding-top: 12px;
+}
 .sidebar-version {
   margin-top: 10px;
   padding: 8px 18px;

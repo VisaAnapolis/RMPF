@@ -1,5 +1,15 @@
 // js/utils.js
 
+// ── Link cross-app para o VISA no sidebar ────────────────────────────────
+// RMPF e VISA são servidos na mesma origem do GitHub Pages: o VISA fica em
+// /APP/ na hospedagem visaanapolis.github.io e em /VISA/ na garrado.github.io
+// (idem em dev local com as pastas irmãs). O index.html do VISA redireciona
+// usuário já autenticado direto para o dashboard de lá.
+function visaAppSidebarLink() {
+  const base = location.hostname.indexOf('visaanapolis') !== -1 ? '../APP/' : '../VISA/';
+  return `<a href="${base}index.html" class="sidebar-link sidebar-link--app-externo"><span class="icon">🏥</span>APP VISA</a>`;
+}
+
 const TABELA_PONTUACAO = [
   { item: 1,  complexidade: "Alta",  pontos: 48, descricao: "Vistoria ou atendimento a denúncia por estabelecimento" },
   { item: 2,  complexidade: "Média", pontos: 12, descricao: "Vistoria ou atendimento a denúncia por estabelecimento" },
@@ -553,3 +563,4 @@ window.prazoWarningHtml          = prazoWarningHtml;
 window.abrirForaPrazo            = abrirForaPrazo;
 window.zeradoWarningHtml         = zeradoWarningHtml;
 window.abrirZeradoMotivo         = abrirZeradoMotivo;
+window.visaAppSidebarLink        = visaAppSidebarLink;
