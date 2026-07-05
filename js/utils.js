@@ -1,13 +1,23 @@
 // js/utils.js
 
 // ── Link cross-app para o VISA no sidebar ────────────────────────────────
-// RMPF e VISA são servidos na mesma origem do GitHub Pages: o VISA fica em
-// /APP/ na hospedagem visaanapolis.github.io e em /VISA/ na garrado.github.io
-// (idem em dev local com as pastas irmãs). O index.html do VISA redireciona
-// usuário já autenticado direto para o dashboard de lá.
+// Aponta sempre para a hospedagem oficial do VISA (garrado.github.io/VISA),
+// independentemente de onde o RMPF está sendo servido. O index.html do VISA
+// redireciona usuário já autenticado direto para o dashboard de lá.
+// Quando o RMPF roda como PWA instalado (standalone), o link recebe
+// target="_blank": a navegação é entregue ao sistema, que abre o PWA do VISA
+// se instalado (no Android o WebAPK captura URLs do próprio escopo) ou cai no
+// navegador. No navegador, navegação normal na mesma guia.
 function visaAppSidebarLink() {
-  const base = location.hostname.indexOf('visaanapolis') !== -1 ? '../APP/' : '../VISA/';
-  return `<a href="${base}index.html" class="sidebar-link sidebar-link--app-externo"><span class="icon">🏥</span>APP VISA</a>`;
+  const url = 'https://garrado.github.io/VISA/index.html';
+  let pwa = false;
+  try {
+    pwa = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+          window.navigator.standalone === true ||
+          document.referrer.indexOf('android-app://') === 0;
+  } catch (e) {}
+  const alvo = pwa ? ' target="_blank" rel="noopener"' : '';
+  return `<a href="${url}"${alvo} class="sidebar-link sidebar-link--app-externo"><span class="icon">🏥</span>APP VISA</a>`;
 }
 
 const TABELA_PONTUACAO = [
