@@ -44,13 +44,25 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.17.1</span>
+            <span class="badge-date">05/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção do link "APP VISA" — destino fixo + abertura conforme o contexto (PWA/navegador)</div>
+          <ul class="changelog-changes">
+            <li><strong>Destino fixo na hospedagem oficial do VISA</strong> — o link da v1.17.0 escolhia o caminho pela hospedagem e apontava para o lugar errado. Agora <code>visaAppSidebarLink()</code> aponta sempre para <code>https://garrado.github.io/VISA</code>, independentemente de onde o RMPF é servido.</li>
+            <li><strong>PWA abre PWA, navegador abre navegador</strong> — quando o RMPF roda como PWA instalado (modo standalone), o link sai com <code>target="_blank"</code>: a navegação é entregue ao sistema, que no Android abre o PWA do VISA se instalado no dispositivo. No iOS, por limitação da Apple (não há roteamento de URL para PWA), o link abre no navegador. No navegador, navegação normal na mesma guia.</li>
+            <li><strong>Arquivos</strong> — <code>js/utils.js</code> (URL fixa + detecção de modo PWA); <code>js/version.js</code> — 1.17.1; <code>service-worker.js</code> — <code>rmpf-v1.17.1</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.17.0</span>
             <span class="badge-date">05/07/2026</span>
           </div>
           <div class="changelog-title">Link "APP VISA" no menu lateral (navegação entre os apps)</div>
           <ul class="changelog-changes">
-            <li><strong>Novo item 🏥 APP VISA no fim do sidebar</strong> — todas as páginas com menu lateral ganham um link direto para o app VISA, separado dos itens internos por um filete (<code>.sidebar-link--app-externo</code> em <code>css/rmpf.css</code>). O destino é montado por <code>visaAppSidebarLink()</code> (novo helper em <code>js/utils.js</code>) e aponta para a hospedagem oficial do VISA (<code>garrado.github.io/VISA</code>) — usuário já autenticado cai direto no dashboard de lá.</li>
-            <li><strong>PWA abre PWA, navegador abre navegador</strong> — quando o RMPF roda como PWA instalado (modo standalone), o link sai com <code>target="_blank"</code>: a navegação é entregue ao sistema, que abre o PWA do VISA se instalado no dispositivo (ou o navegador). No navegador, navegação normal.</li>
+            <li><strong>Novo item 🏥 APP VISA no fim do sidebar</strong> — todas as páginas com menu lateral ganham um link direto para o app VISA, separado dos itens internos por um filete (<code>.sidebar-link--app-externo</code> em <code>css/rmpf.css</code>). O destino é montado por <code>visaAppSidebarLink()</code> (novo helper em <code>js/utils.js</code>): <code>../APP/</code> na hospedagem <code>visaanapolis.github.io</code> e <code>../VISA/</code> na <code>garrado.github.io</code>/dev local — usuário já autenticado cai direto no dashboard do VISA.</li>
             <li><strong>Recíproca no VISA</strong> — o sidebar do VISA (v2.22.0) ganhou o item "RMPF (Produtividade)" na seção Operacional, apontando de volta para cá.</li>
             <li><strong>Arquivos</strong> — <code>js/utils.js</code> (helper), <code>css/rmpf.css</code> (estilo do link externo), páginas com sidebar dinâmico (<code>dashboard</code>, <code>ocorrencias</code>, <code>conferencia</code>, <code>changelog</code>, <code>admin</code>, <code>parametrizacao</code>, <code>corrige-*</code>) e estático (<code>lancamento</code>, <code>meus-lancamentos</code>, <code>fechamento</code>); <code>js/version.js</code> — 1.17.0; <code>service-worker.js</code> — <code>rmpf-v1.17.0</code>.</li>
           </ul>
