@@ -4,10 +4,12 @@
 // Aponta sempre para a hospedagem oficial do VISA (garrado.github.io/VISA),
 // independentemente de onde o RMPF está sendo servido. O index.html do VISA
 // redireciona usuário já autenticado direto para o dashboard de lá.
-// Quando o RMPF roda como PWA instalado (standalone), o link recebe
-// target="_blank": a navegação é entregue ao sistema, que abre o PWA do VISA
-// se instalado (no Android o WebAPK captura URLs do próprio escopo) ou cai no
-// navegador. No navegador, navegação normal na mesma guia.
+// Só o Android em modo PWA recebe target="_blank": lá a navegação é entregue
+// ao sistema, que abre o PWA do VISA se instalado (o WebAPK captura as URLs
+// do próprio escopo). O iOS não tem roteamento URL→PWA — o _blank alternava
+// para o Safari; sem target, a página do VISA abre no painel interno do
+// próprio app, mantendo o usuário no contexto. No navegador (qualquer
+// plataforma), navegação normal na mesma guia.
 function visaAppSidebarLink() {
   const url = 'https://garrado.github.io/VISA/index.html';
   let pwa = false;
@@ -16,7 +18,8 @@ function visaAppSidebarLink() {
           window.navigator.standalone === true ||
           document.referrer.indexOf('android-app://') === 0;
   } catch (e) {}
-  const alvo = pwa ? ' target="_blank" rel="noopener"' : '';
+  const android = /android/i.test(navigator.userAgent || '');
+  const alvo = (pwa && android) ? ' target="_blank" rel="noopener"' : '';
   return `<a href="${url}"${alvo} class="sidebar-link sidebar-link--app-externo"><span class="icon">🏥</span>APP VISA</a>`;
 }
 

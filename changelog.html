@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.17.2</span>
+            <span class="badge-date">05/07/2026</span>
+          </div>
+          <div class="changelog-title">Link "APP VISA" no iOS — abre dentro do próprio app, sem pular para o Safari</div>
+          <ul class="changelog-changes">
+            <li><strong>iOS não alterna mais para o Safari</strong> — na v1.17.1, clicar no link APP VISA a partir do PWA instalado no iPhone/iPad abria o Safari (o <code>target="_blank"</code> força a troca de app). Agora o <code>target="_blank"</code> é aplicado apenas no Android em modo PWA — única plataforma onde o sistema realmente roteia a URL para o PWA do VISA instalado. No iOS, o link navega sem target e a página do VISA abre no painel interno do próprio app, mantendo o usuário no contexto (basta tocar em "Concluído"/voltar para retornar).</li>
+            <li><strong>Limitação da plataforma Apple</strong> — o iOS não oferece nenhum mecanismo para uma página web abrir outro PWA instalado (não há roteamento URL→PWA como o WebAPK do Android); o painel interno é o comportamento mais próximo possível de "abrir o app".</li>
+            <li><strong>Arquivos</strong> — <code>js/utils.js</code> (target=_blank só em Android+PWA); <code>js/version.js</code> — 1.17.2; <code>service-worker.js</code> — <code>rmpf-v1.17.2</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.17.1</span>
             <span class="badge-date">05/07/2026</span>
           </div>
