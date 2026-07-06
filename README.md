@@ -3,7 +3,7 @@ Relatório Mensal de Produtividade Fiscal
 
 ## 🔄 Mirror automático → visaanapolis/RMPF
 
-O workflow `.github/workflows/mirror.yml` sincroniza automaticamente todo push em `garrado/RMPF` para `visaanapolis/RMPF`.
+O workflow `.github/workflows/mirror.yml` sincroniza automaticamente `garrado/RMPF` para `visaanapolis/RMPF`. Ele roda **logo após cada deploy do GitHub Pages** (encadeado ao término do workflow `pages-build-deployment` em `main` via `workflow_run`), de modo que qualquer deploy — inclusive re-runs e rebuilds manuais, não só pushes — dispara o espelhamento. Também pode ser disparado manualmente (`workflow_dispatch`).
 
 ### Configuração (usa PAT — muito mais simples que SSH)
 
