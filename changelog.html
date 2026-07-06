@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.18.0</span>
+            <span class="badge-date">06/07/2026</span>
+          </div>
+          <div class="changelog-title">Flag em Parametrização: liga/desliga a pontuação por área (alimentos alta complexidade) na importação VISA</div>
+          <ul class="changelog-changes">
+            <li><strong>Novo flag em Parametrização</strong> — card "📐 Produtividade — Pontuação por Área (Alimentos Alta Complexidade)" (<code>parametrizacao.html</code>), na mesma seção do card "Produtividade — Fiscais de 30 Horas". Controla se a importação dos CSVs de inspeções do VISA aplica a regra de pontuação reduzida por metragem (≤ 100 m² → 8 | &gt; 100 e &lt; 400 m² → 16 | ≥ 400 m² ou sem área → 48) aos CNAEs de alta complexidade da área de alimentos (equipes IA/AG). Persistido em <code>app_config/visa_area_alimentacao</code> no Firestore, seguindo o mesmo padrão do flag de 30 horas.</li>
+            <li><strong>Ligado por padrão</strong> — o comportamento atual da importação é preservado (regra aplicada). Quando <strong>inativo</strong>, os CNAEs de alta de alimentação pontuam 48 fixo, como qualquer alta complexidade (Item 1 do Anexo VII): o <code>taxa.csv</code> não é consultado, <code>visa_area</code> fica nulo e o dispositivo legal cita o Item 1 (não o Item 4). A importação registra no log quando a regra está desativada, e a mudança vale a partir da importação seguinte.</li>
+            <li><strong>Arquivos</strong> — <code>parametrizacao.html</code> (card + script); <code>js/firestore.js</code> (<code>db_getVisaAreaAlimentacaoConfig</code>/<code>db_updateVisaAreaAlimentacaoConfig</code>); <code>js/visa-import.js</code> (gate <code>regraAreaAlimentacaoAtiva</code> na expansão de candidatos); <code>docs/integracao-visa-rmpf.md</code>; <code>js/version.js</code> — 1.18.0; <code>service-worker.js</code> — <code>rmpf-v1.18.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.17.2</span>
             <span class="badge-date">05/07/2026</span>
           </div>

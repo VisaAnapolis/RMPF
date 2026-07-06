@@ -152,6 +152,13 @@ O valor ajustado **entra na seleção gulosa do teto de 48** (é o ponto real do
 CNAE em todo o fluxo). CNAEs que não sejam alta de alimentação mantêm a
 pontuação por complexidade (alta=48, média=12, baixa=6).
 
+A aplicação da regra é controlada por um **flag em Parametrização**
+(`parametrizacao.html`, card "Produtividade — Pontuação por Área (Alimentos
+Alta Complexidade)"), persistido em `app_config/visa_area_alimentacao` no
+Firestore e lido no início de cada importação. **Ligado por padrão**; quando
+desligado, os CNAEs de alta de alimentação pontuam 48 fixo como qualquer alta
+(Item 1), o `taxa.csv` não é consultado e `visa_area` fica nulo.
+
 #### Cadeia de junção da área
 
 A área não está no `inspecoes.csv`; é obtida encadeando 3 arquivos do VISA:

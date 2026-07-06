@@ -851,6 +851,26 @@ async function db_updateFiscais30hConfig(ativo) {
   });
 }
 
+// ── App Config / VISA — Pontuação por Área (Alimentação Alta) ──
+// Liga/desliga a regra de pontuação reduzida por metragem (8/16/48) para os
+// CNAEs de alta complexidade da área de alimentação (equipes IA/AG) na
+// importação do CSV de inspeções (js/visa-import.js). Ligado por padrão —
+// quando desligado, a alta de alimentação pontua 48 fixo como qualquer alta.
+
+async function db_getVisaAreaAlimentacaoConfig() {
+  const doc = await window.db.collection('app_config').doc('visa_area_alimentacao').get();
+  if (!doc.exists) return { ativo: true };
+  const d = doc.data();
+  return { ativo: d.ativo !== false };
+}
+
+async function db_updateVisaAreaAlimentacaoConfig(ativo) {
+  await window.db.collection('app_config').doc('visa_area_alimentacao').set({
+    ativo: Boolean(ativo),
+    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
 // ── App Config / Notificações Push ─────────────────────────
 // Configuração das notificações push, persistida em app_config/notif_config.
 // Lida por initFCM (js/firebase-config.js):
@@ -1275,6 +1295,8 @@ window.db_getDeadlineConfig     = db_getDeadlineConfig;
 window.db_updateDeadlineConfig  = db_updateDeadlineConfig;
 window.db_getFiscais30hConfig   = db_getFiscais30hConfig;
 window.db_updateFiscais30hConfig = db_updateFiscais30hConfig;
+window.db_getVisaAreaAlimentacaoConfig    = db_getVisaAreaAlimentacaoConfig;
+window.db_updateVisaAreaAlimentacaoConfig = db_updateVisaAreaAlimentacaoConfig;
 window.db_getNotifConfig        = db_getNotifConfig;
 window.db_updateNotifConfig     = db_updateNotifConfig;
 window.db_validateDeadlineReleaseDate = db_validateDeadlineReleaseDate;
