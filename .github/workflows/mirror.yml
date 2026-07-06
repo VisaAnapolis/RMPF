@@ -42,16 +42,51 @@ jobs:
             exit 1
           fi
           echo "✅ Mirror sincronizado."
-      - name: Trigger Pages rebuild in VisaAnapolis/RMPF
+      - name: Garantir deploy do Pages corporativo
+        env:
+          MIRROR_PAT: ${{ secrets.MIRROR_PAT }}
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            -H "Authorization: Bearer ${{ secrets.MIRROR_PAT }}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/VisaAnapolis/RMPF/pages/builds)
-          echo "Pages rebuild status: $STATUS"
-          if [ "$STATUS" != "201" ] && [ "$STATUS" != "200" ]; then
-            echo "::warning::Pages rebuild retornou HTTP $STATUS"
-          else
-            echo "✅ Pages rebuild disparado com sucesso."
-          fi
+          SHA=$(cd repo-mirror && git rev-parse refs/heads/main)
+          API="https://api.github.com/repos/VisaAnapolis/RMPF"
+
+          gh_api() {
+            curl -s \
+              -H "Authorization: Bearer $MIRROR_PAT" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$@"
+          }
+
+          # Estado consolidado dos builds do Pages para o commit espelhado:
+          # success (algum deploy publicou), pending (ainda rodando ou nenhum
+          # apareceu) ou failed (todos terminaram sem sucesso).
+          state() {
+            gh_api "$API/actions/runs?head_sha=$SHA&per_page=100" \
+              | jq -r '[.workflow_runs[]? | select(.path == "dynamic/pages/pages-build-deployment")]
+                       | if any(.[]; .conclusion == "success") then "success"
+                         elif any(.[]; .status != "completed") or length == 0 then "pending"
+                         else "failed" end'
+          }
+
+          for TENTATIVA in 1 2 3; do
+            echo "Tentativa $TENTATIVA/3: aguardando deploy do Pages corporativo para $SHA..."
+            for _ in $(seq 1 36); do
+              S=$(state || echo pending)
+              if [ "$S" = "success" ]; then
+                echo "✅ Site corporativo publicado com o commit espelhado."
+                exit 0
+              fi
+              if [ "$S" = "failed" ]; then
+                break
+              fi
+              sleep 10
+            done
+            if [ "$TENTATIVA" -lt 3 ]; then
+              echo "Deploy não concluiu com sucesso; solicitando novo build do Pages corporativo..."
+              HTTP=$(gh_api -o /dev/null -w "%{http_code}" -X POST "$API/pages/builds")
+              echo "Pedido de rebuild: HTTP $HTTP"
+              sleep 15
+            fi
+          done
+          echo "::error::Deploy do Pages corporativo não concluiu com sucesso após 3 tentativas. O site https://visaanapolis.github.io/RMPF/ pode estar desatualizado — veja https://github.com/VisaAnapolis/RMPF/actions"
+          exit 1
