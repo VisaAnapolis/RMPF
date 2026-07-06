@@ -220,6 +220,8 @@ function complexToItem(complexidade) {
 // \u00e9 de alta complexidade dessas equipes, a pontua\u00e7\u00e3o deixa de ser 48 fixo e passa
 // a depender da \u00e1rea f\u00edsica do estabelecimento (taxa.csv, via regulados.csv):
 //   \u2264 100 m\u00b2 \u2192 8 | > 100 e < 400 m\u00b2 \u2192 16 | \u2265 400 m\u00b2 \u2192 48 | sem \u00e1rea \u2192 48 (m\u00e1xima)
+// A aplicação da regra é controlada pelo flag app_config/visa_area_alimentacao
+// (parametrizacao.html); desligado, esses CNAEs pontuam 48 fixo (alta padrão).
 const EQUIPES_ALIMENTACAO_VISA = ['IA', 'AG'];
 
 function ehAlimentacaoAlta(complexidade, equipe) {
@@ -455,6 +457,21 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
   await window.db_acquireVisaImportLock(mes, ano, fiscalEmail, fiscalNome || fiscalEmail);
 
   try {
+    // ── Flag da pontuação por área (alimentação alta) ──
+    // Parametrização (app_config/visa_area_alimentacao, parametrizacao.html):
+    // quando desligado, os CNAEs de alta complexidade de alimentação pontuam
+    // 48 fixo (Item 1), sem consultar a metragem do taxa.csv. Ligado por padrão.
+    let regraAreaAlimentacaoAtiva = true;
+    try {
+      regraAreaAlimentacaoAtiva = (await window.db_getVisaAreaAlimentacaoConfig()).ativo;
+    } catch (err) {
+      onProgress('⚠️ Não foi possível ler a configuração da pontuação por área (alimentos) — regra mantida ativa.', 'warn');
+      console.error('Failed to load visa_area_alimentacao config:', err);
+    }
+    if (!regraAreaAlimentacaoAtiva) {
+      onProgress('ℹ️ Pontuação por área (alimentos alta complexidade) desativada na Parametrização — esses CNAEs pontuam 48 fixo.', 'info');
+    }
+
     onProgress('🔄 Buscando CSV de inspeções do VISA...', 'info');
 
     const text = await window.fetchGitHubCSV('data/inspecoes.csv');
@@ -870,7 +887,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         // Para esses CNAEs, a pontuação depende da área física do regulado
         // (taxa.csv). Resolve a área uma única vez (carrega o taxa.csv só agora,
         // de forma preguiçosa) e ajusta os pontos antes da seleção do teto.
-        if (candidatos.some(c => ehAlimentacaoAlta(c.complexidade, c.equipe))) {
+        // Aplicada somente com o flag da Parametrização ativo (regraAreaAlimentacaoAtiva);
+        // desligado, esses CNAEs seguem com os 48 fixos de alta complexidade.
+        if (regraAreaAlimentacaoAtiva && candidatos.some(c => ehAlimentacaoAlta(c.complexidade, c.equipe))) {
           const areaRegulado = await resolverAreaRegulado(codigoRegulado);
           for (const c of candidatos) {
             if (ehAlimentacaoAlta(c.complexidade, c.equipe)) {

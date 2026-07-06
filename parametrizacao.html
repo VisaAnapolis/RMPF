@@ -410,6 +410,30 @@
       <div id="fiscais-30h-log" style="margin-top:12px"></div>
     </div>
 
+    <!-- ── Produtividade — Pontuação por Área (Alimentos Alta Complexidade) ── -->
+    <div class="card" id="card-visa-area-alimentacao">
+      <div class="card-title">📐 Produtividade — Pontuação por Área (Alimentos Alta Complexidade)</div>
+      <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
+        Na importação dos CSVs de inspeções do VISA, os CNAEs de <strong>alta complexidade</strong>
+        da área de <strong>alimentos</strong> (equipes IA/AG) têm a pontuação reduzida conforme a
+        metragem do estabelecimento (<code>taxa.csv</code>): ≤ 100 m² → 8 pts | &gt; 100 e &lt; 400 m² → 16 pts |
+        ≥ 400 m² ou sem área cadastrada → 48 pts. Quando <strong>inativo</strong>, a regra é ignorada e
+        esses CNAEs pontuam 48 fixo, como qualquer alta complexidade (Item 1 do Anexo VII).
+      </p>
+      <div class="form-row cols-2" style="max-width:280px;margin-bottom:14px;align-items:flex-end">
+        <div class="form-group">
+          <label class="form-label">
+            <input type="checkbox" id="visa-area-alimentacao-ativo" style="width:18px;height:18px;cursor:pointer">
+            Ativo
+          </label>
+        </div>
+      </div>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-save-visa-area-alimentacao" type="button">💾 Salvar Configuração</button>
+      </div>
+      <div id="visa-area-alimentacao-log" style="margin-top:12px"></div>
+    </div>
+
     <!-- ── Notificações Push ── -->
     <div class="card" id="card-notif-config">
       <div class="card-title">🔔 Notificações Push</div>
@@ -1267,6 +1291,39 @@
           await window.db_updateFiscais30hConfig(ativo);
           logEl.innerHTML = alerta('ok',
             `✅ Configuração salva. Status: <strong>${ativo ? 'Ativo' : 'Inativo'}</strong>.`
+          );
+        } catch(e) {
+          logEl.innerHTML = alerta('danger', '🚨 Erro ao salvar: ' + escHtml(e.message));
+        } finally {
+          btnSalvar.disabled = false;
+        }
+      });
+    })();
+
+    // ── Produtividade — Pontuação por Área (Alimentos Alta Complexidade) ──
+    (async () => {
+      const chkAtivo  = document.getElementById('visa-area-alimentacao-ativo');
+      const btnSalvar = document.getElementById('btn-save-visa-area-alimentacao');
+      const logEl     = document.getElementById('visa-area-alimentacao-log');
+
+      try {
+        const config = await window.db_getVisaAreaAlimentacaoConfig();
+        chkAtivo.checked = config.ativo;
+      } catch(e) {
+        logEl.innerHTML = alerta('warn', '⚠️ Não foi possível carregar a configuração: ' + escHtml(e.message));
+      }
+
+      btnSalvar.addEventListener('click', async () => {
+        const ativo = chkAtivo.checked;
+
+        btnSalvar.disabled = true;
+        logEl.innerHTML = alerta('info', '⏳ Salvando configuração…');
+
+        try {
+          await window.db_updateVisaAreaAlimentacaoConfig(ativo);
+          logEl.innerHTML = alerta('ok',
+            `✅ Configuração salva. Status: <strong>${ativo ? 'Ativo' : 'Inativo'}</strong>. ` +
+            'Vale a partir da próxima importação do CSV de inspeções.'
           );
         } catch(e) {
           logEl.innerHTML = alerta('danger', '🚨 Erro ao salvar: ' + escHtml(e.message));
