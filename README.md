@@ -5,6 +5,8 @@ Relatório Mensal de Produtividade Fiscal
 
 O workflow `.github/workflows/mirror.yml` sincroniza automaticamente todo push em `garrado/RMPF` para `visaanapolis/RMPF`.
 
+Após espelhar, o workflow acompanha o build do GitHub Pages em `visaanapolis/RMPF` até ele publicar. Se o deploy corporativo falhar (ex.: erro transitório do GitHub), ele solicita novos builds automaticamente (até 3 tentativas) e, se mesmo assim não publicar, o job falha — ou seja, basta olhar o Actions de `garrado/RMPF`: verde significa código **e site** corporativos atualizados.
+
 ### Configuração (usa PAT — muito mais simples que SSH)
 
 **Passo 1 — Criar o Personal Access Token na conta `visaanapolis`**
