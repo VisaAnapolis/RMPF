@@ -220,8 +220,6 @@ async function maybeShowFCMInviteModal(email, jaRecusou = false) {
       await window.db.collection('usuarios').doc(email).set({
         rmpf_notifPermissao:    'default',
         rmpf_notifDiag:         'convite_recusado',
-        rmpf_notifAtualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-        rmpf_notifDiagEm:       firebase.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
       if (window.currentUser) window.currentUser.rmpf_notifDiag = 'convite_recusado';
     } catch (e) {
@@ -408,7 +406,6 @@ async function _registerFcmServiceWorker() {
  * worker do RMPF) e o persiste em campos EXCLUSIVOS do RMPF no Firestore:
  *   - usuarios/{email}.rmpf_fcmTokens        (array de tokens deste app)
  *   - usuarios/{email}.rmpf_notifPermissao   ('granted' | 'denied' | 'default')
- *   - usuarios/{email}.rmpf_notifAtualizadoEm (timestamp da última atualização)
  *
  * A coleção `usuarios` é compartilhada entre RMPF, VISA e AUDITORIA; portanto
  * NUNCA tocamos em campos de outros apps (ex.: fcm_token do VISA). Todos os
@@ -439,8 +436,7 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
     const salvarPermissao = async (estado) => {
       try {
         await userRef.set({
-          rmpf_notifPermissao:    estado,
-          rmpf_notifAtualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+          rmpf_notifPermissao: estado,
         }, { merge: true });
       } catch (e) {
         console.warn('[FCM] Falha ao salvar estado de permissão:', e);
@@ -457,8 +453,7 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
     const salvarDiag = async (motivo) => {
       try {
         await userRef.set({
-          rmpf_notifDiag:         motivo,
-          rmpf_notifDiagEm:       firebase.firestore.FieldValue.serverTimestamp(),
+          rmpf_notifDiag: motivo,
         }, { merge: true });
       } catch (e) {
         console.warn('[FCM] Falha ao salvar diagnóstico:', e);
@@ -491,10 +486,8 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
         _fcmDefaultStateSaved = true;
         try {
           await userRef.set({
-            rmpf_notifPermissao:    'default',
-            rmpf_notifDiag:         'convite_pendente',
-            rmpf_notifAtualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
-            rmpf_notifDiagEm:       firebase.firestore.FieldValue.serverTimestamp(),
+            rmpf_notifPermissao: 'default',
+            rmpf_notifDiag:      'convite_pendente',
           }, { merge: true });
         } catch (e) {
           console.warn('[FCM] Falha ao registrar estado "default":', e);
@@ -556,8 +549,7 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
     console.warn('[FCM] initFCM erro:', e);
     try {
       await window.db.collection('usuarios').doc(email).set({
-        rmpf_notifDiag:   'erro:' + (e && e.message ? e.message : String(e)),
-        rmpf_notifDiagEm: firebase.firestore.FieldValue.serverTimestamp(),
+        rmpf_notifDiag: 'erro:' + (e && e.message ? e.message : String(e)),
       }, { merge: true });
     } catch (_) { /* noop */ }
   }
