@@ -44,6 +44,18 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.18.1</span>
+            <span class="badge-date">08/07/2026</span>
+          </div>
+          <div class="changelog-title">Higienização da coleção de usuários: fim da gravação de campos de diagnóstico que ninguém lê</div>
+          <ul class="changelog-changes">
+            <li><strong>Campos write-only removidos do registro de acesso/notificações</strong> — auditoria conjunta VISA+RMPF (jul/2026) mostrou que <code>rmpf_userAgent</code>, <code>rmpf_notifAtualizadoEm</code> e <code>rmpf_notifDiagEm</code> eram gravados a cada login/registro de push mas nunca lidos por nenhum dos apps. O RMPF deixa de gravá-los; o script de manutenção do VISA (<code>limpar-lixo-usuarios.js</code>) apaga os valores legados da coleção <code>usuarios</code>. Nenhuma funcionalidade visível muda: o painel admin continua exibindo permissão, diagnóstico (<code>rmpf_notifDiag</code>), versão, navegador, SO, modo de acesso e tela.</li>
+            <li><strong>Arquivos</strong> — <code>js/guard.js</code> e <code>index.html</code> (registro de acesso sem <code>rmpf_userAgent</code>); <code>js/firebase-config.js</code> (notificações sem timestamps write-only); <code>js/version.js</code> — 1.18.1; <code>service-worker.js</code> — <code>rmpf-v1.18.1</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.18.0</span>
             <span class="badge-date">06/07/2026</span>
           </div>

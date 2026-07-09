@@ -155,7 +155,6 @@
         firebase.firestore().collection('usuarios').doc(email).update({
           rmpf_ultimoLogin:     firebase.firestore.FieldValue.serverTimestamp(),
           rmpf_appVersion:      APP_VERSION,
-          rmpf_userAgent:       ua,
           rmpf_navegador:       navegador,
           rmpf_versaoNavegador: versaoNavegador,
           rmpf_so:              so,

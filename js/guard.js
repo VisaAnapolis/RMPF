@@ -76,7 +76,8 @@
                 rmpf_ultimoAcesso:    firebase.firestore.FieldValue.serverTimestamp(),
                 rmpf_ultimoLogin:     firebase.firestore.FieldValue.serverTimestamp(),
                 rmpf_appVersion:      window.APP_VERSION || '',
-                rmpf_userAgent:       ua,
+                // rmpf_userAgent removido: nunca foi lido por nenhum app
+                // (auditoria jul/2026); limpar-lixo-usuarios.js apaga o legado
                 rmpf_navegador:       navegador,
                 rmpf_versaoNavegador: versaoNavegador,
                 rmpf_so:              so,
