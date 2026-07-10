@@ -624,3 +624,130 @@ window.fcmOptInClick = async function fcmOptInClick(email) {
     if (btn) _refreshFCMOptInButton(btn);
   }
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Contador de leituras Firestore (client-side) — alimenta o painel
+// "Custo & Leituras" do admin.html do VISA (coleção metrics_reads).
+//
+// O Firestore não expõe ao cliente o total de leituras faturadas; este bloco
+// intercepta os .get() do SDK compat e soma o snap.size de cada consulta que
+// O PRÓPRIO APP faz, acumulando por dia em metrics_reads/{YYYY-MM-DD}:
+//   total, page.<app_página>, col.<coleção>, ctx.<contexto> (via increment).
+// Custo: só GRAVAÇÕES (~1 flush por página/60s — a cota de gravações está em
+// ~8%), ZERO leituras. É uma estimativa POR BAIXO (não vê o mínimo de 1
+// leitura de queries vazias, nem transações); o número oficial continua sendo
+// o do console do Google Cloud. Nunca quebra a página: tudo em try/catch.
+// ═══════════════════════════════════════════════════════════════════════════
+(function () {
+  var FLUSH_MS = 60000;
+  var buf = { total: 0, col: {}, ctx: {} };
+  var sessionTotal = 0;   // acumulado da sessão (mede execuções de import)
+  var ctxAtual = null;    // ex.: 'import_visa' | 'import_sim' | 'ferias_sync'
+  var timer = null;
+  var flushing = false;
+
+  function pageKey() {
+    var p = (location.pathname.split('/').pop() || 'index.html')
+      .replace(/\.html?$/i, '').replace(/[^a-zA-Z0-9_-]/g, '_');
+    return 'rmpf_' + (p || 'index');
+  }
+  function hojeKey() {
+    var d = new Date();
+    return d.getFullYear() + '-' +
+      String(d.getMonth() + 1).padStart(2, '0') + '-' +
+      String(d.getDate()).padStart(2, '0');
+  }
+
+  window.rmCountReads = function (col, n) {
+    n = Number(n) || 0;
+    if (n <= 0) return;
+    sessionTotal += n;
+    buf.total += n;
+    var c = String(col || 'outros');
+    buf.col[c] = (buf.col[c] || 0) + n;
+    if (ctxAtual) buf.ctx[ctxAtual] = (buf.ctx[ctxAtual] || 0) + n;
+    if (!timer) timer = setTimeout(flush, FLUSH_MS);
+  };
+  window.rmSetReadContext = function (ctx) { ctxAtual = ctx || null; };
+  window.rmReadsSession   = function () { return sessionTotal; };
+  window.rmFlushReads     = flush;
+
+  function flush() {
+    if (timer) { clearTimeout(timer); timer = null; }
+    if (flushing || !buf.total || !window.db || !window.firebase) return;
+    var envio = buf;
+    buf = { total: 0, col: {}, ctx: {} };
+    flushing = true;
+    try {
+      var inc = firebase.firestore.FieldValue.increment;
+      var patch = {
+        total: inc(envio.total),
+        page: {},
+        updated_at: firebase.firestore.FieldValue.serverTimestamp(),
+      };
+      patch.page[pageKey()] = inc(envio.total);
+      if (Object.keys(envio.col).length) {
+        patch.col = {};
+        Object.keys(envio.col).forEach(function (k) { patch.col[k] = inc(envio.col[k]); });
+      }
+      if (Object.keys(envio.ctx).length) {
+        patch.ctx = {};
+        Object.keys(envio.ctx).forEach(function (k) { patch.ctx[k] = inc(envio.ctx[k]); });
+      }
+      window.db.collection('metrics_reads').doc(hojeKey())
+        .set(patch, { merge: true })
+        .catch(function () { devolve(envio); })
+        .finally(function () { flushing = false; });
+    } catch (e) {
+      devolve(envio);
+      flushing = false;
+    }
+  }
+  // Falha na gravação (regra/offline): devolve ao buffer para a próxima tentativa.
+  function devolve(envio) {
+    buf.total += envio.total;
+    Object.keys(envio.col).forEach(function (k) { buf.col[k] = (buf.col[k] || 0) + envio.col[k]; });
+    Object.keys(envio.ctx).forEach(function (k) { buf.ctx[k] = (buf.ctx[k] || 0) + envio.ctx[k]; });
+    if (!timer) timer = setTimeout(flush, FLUSH_MS);
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden') flush();
+  });
+  window.addEventListener('pagehide', function () { flush(); });
+
+  // ── Intercepta os .get() do SDK compat (cobre firestore.js, guard.js,
+  //    plantao-escala.js, initFCM — tudo que usa window.db) ──
+  try {
+    var QP = firebase.firestore.Query.prototype;
+    var origQueryGet = QP.get;
+    QP.get = function (opts) {
+      var self = this;
+      return origQueryGet.call(this, opts).then(function (snap) {
+        try { window.rmCountReads(colDaQuery(self), snap.size || 0); } catch (_) {}
+        return snap;
+      });
+    };
+    var DP = firebase.firestore.DocumentReference.prototype;
+    var origDocGet = DP.get;
+    DP.get = function (opts) {
+      var self = this;
+      return origDocGet.call(this, opts).then(function (snap) {
+        try { window.rmCountReads(self.parent && self.parent.id, 1); } catch (_) {}
+        return snap;
+      });
+    };
+  } catch (e) {
+    console.warn('[metrics] Não foi possível interceptar leituras do Firestore:', e);
+  }
+  // Nome da coleção de uma Query: CollectionReference expõe .id; Query filtrada
+  // só via internals (best-effort — se a estrutura mudar, cai em "outros").
+  function colDaQuery(q) {
+    try {
+      if (q && q.id) return q.id;
+      var path = q && q._delegate && q._delegate._query && q._delegate._query.path;
+      if (path && path.segments && path.segments.length) return path.segments[0];
+    } catch (_) {}
+    return 'outros';
+  }
+})();

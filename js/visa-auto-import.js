@@ -146,13 +146,31 @@ async function verificarEImportarVISA(user) {
     const onProgress = (m, t) => _visaAutoMsg(m, t);
     const onProgressBar = (atual, total) => _visaAutoProgress(atual, total);
 
+    // Medição da execução (painel Custo & Leituras): leituras via delta do
+    // contador de sessão (js/firebase-config.js) + duração + resultados.
+    const _runT0 = Date.now();
+    const _runR0 = (typeof window.rmReadsSession === 'function') ? window.rmReadsSession() : 0;
+    if (typeof window.rmSetReadContext === 'function') window.rmSetReadContext('import_visa');
+
     try {
       const r = await window.importarInspecoesVISA({
         fiscalEmail: null, mes, ano, allFiscais, onProgress, onProgressBar,
       });
-      // 5. Persistir o novo SHA só após sucesso
+      // 5. Persistir o novo SHA só após sucesso — junto com o histórico de
+      // execuções (runs, últimos 60) que alimenta o painel de monitoramento.
+      const _runEntry = {
+        tipo: 'visa', ts: new Date().toISOString(),
+        dur_s: Math.round((Date.now() - _runT0) / 1000),
+        leituras: (typeof window.rmReadsSession === 'function') ? (window.rmReadsSession() - _runR0) : null,
+        criados: (r && r.criados) || 0, atualizados: (r && r.atualizados) || 0,
+        ignorados: (r && r.ignorados) || 0, excluidos: (r && r.excluidos) || 0,
+        erros: (r && r.erros) || 0,
+        mes: Number(mes), ano: Number(ano), csv_sha: String(shaAtual).slice(0, 10),
+      };
+      const _runs = (Array.isArray(state.runs) ? state.runs : []).concat(_runEntry).slice(-60);
       await window.db_setImportState({
         visa: { commit_sha: shaAtual, mes: Number(mes), ano: Number(ano), imported_at: new Date().toISOString() },
+        runs: _runs,
       });
       const total = r ? ((r.criados || 0) + (r.atualizados || 0)) : 0;
       _visaAutoProgressHide();
@@ -171,6 +189,7 @@ async function verificarEImportarVISA(user) {
       _visaAutoToastHide(8000);
     }
   } finally {
+    if (typeof window.rmSetReadContext === 'function') window.rmSetReadContext(null);
     _visaAutoRodando = false;
   }
 }
