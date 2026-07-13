@@ -115,7 +115,7 @@
     }
   });
 
-  document.getElementById('btn-logout').addEventListener('click', () => firebase.auth().signOut());
+  document.getElementById('btn-logout').addEventListener('click', () => window.sharedLogout());
 
   // ── Migração ──────────────────────────────────────────────────
   document.getElementById('btn-migrar').addEventListener('click', async () => {

@@ -90,7 +90,7 @@
     }
   });
   document.getElementById('btn-logout').addEventListener('click', () => {
-    firebase.auth().signOut();
+    window.sharedLogout();
   });
 
   // ── Seed data ─────────────────────────────────────────

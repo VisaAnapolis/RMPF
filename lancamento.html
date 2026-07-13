@@ -533,7 +533,7 @@
     document.getElementById('f-data').value = new Date().toISOString().split('T')[0];
 
     document.getElementById('btn-logout').addEventListener('click', () => {
-      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+      window.sharedLogout();
     });
     document.getElementById('hamburger').addEventListener('click', () => {
       document.getElementById('sidebar').classList.toggle('open');

@@ -478,6 +478,26 @@ table.rmpf-table {
 .btn-google:hover { background: var(--cinzaB); box-shadow: var(--shadow); }
 .btn-google svg { width: 20px; height: 20px; }
 
+/* Caixa "computador compartilhado" — destacada para não passar batido */
+.shared-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  margin: 0 0 16px;
+  padding: 13px 14px;
+  border-radius: var(--radius);
+  background: var(--azulP);
+  border: 1.5px solid var(--azul);
+}
+.shared-box input[type=checkbox] {
+  width: 20px; height: 20px; margin-top: 1px; flex: 0 0 auto;
+  cursor: pointer; accent-color: var(--azul);
+}
+.shared-box label { cursor: pointer; font-size: .82rem; line-height: 1.4; }
+.shared-box .sb-title { font-weight: 700; display: block; color: var(--azul); }
+.shared-box .sb-desc { display: block; margin-top: 2px; color: var(--cinzaT); font-size: .74rem; }
+
 /* ── Spinner ── */
 .spinner {
   width: 20px; height: 20px;
