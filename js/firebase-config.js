@@ -20,8 +20,51 @@ if (!firebase.apps.length) {
 
 window.db           = firebase.firestore();
 window.auth         = firebase.auth();
+
+// ── Modo "computador compartilhado" ──────────────────────────────────────────
+// Em computador compartilhado a sessão do app NÃO deve persistir entre pessoas
+// e o "Sair" encerra também a sessão do Google no navegador. A escolha é feita
+// por uma caixa (bem visível) na tela de login (index.html) e guardada em
+// localStorage. Padrão: desktop = compartilhado, para não depender de o usuário
+// lembrar de marcar ("esquecer" resulta no comportamento seguro).
+window.rmpfEhCompartilhado = function () {
+  try {
+    var v = localStorage.getItem('rmpf_shared_device');
+    if (v === '1') return true;
+    if (v === '0') return false;
+    return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  } catch (_) { return false; }
+};
+
+// Persistência conforme o modo: compartilhado → SESSION (morre ao fechar o
+// navegador e não vaza para o próximo usuário); pessoal → LOCAL (mantém login).
+try {
+  var _rmpfPersist = window.rmpfEhCompartilhado()
+    ? firebase.auth.Auth.Persistence.SESSION
+    : firebase.auth.Auth.Persistence.LOCAL;
+  window.auth.setPersistence(_rmpfPersist).catch(function (e) {
+    console.warn('[auth] setPersistence falhou:', e);
+  });
+} catch (e) { console.warn('[auth] setPersistence indisponível:', e); }
+
 window.googleProvider = new firebase.auth.GoogleAuthProvider();
-window.googleProvider.setCustomParameters({ prompt: 'select_account' });
+// Compartilhado força a senha (prompt=login); pessoal só reexibe o seletor.
+window.googleProvider.setCustomParameters({
+  prompt: window.rmpfEhCompartilhado() ? 'login' : 'select_account'
+});
+
+// ── Logout único (todas as páginas e o timeout de inatividade usam este) ──────
+// Em compartilhado, encerra também a sessão do Google no navegador
+// (accounts.google.com/Logout): as contas ficam "Desconectada" e o próximo
+// login exige senha. Em pessoal, volta ao index como antes.
+window.sharedLogout = function () {
+  var compartilhado = window.rmpfEhCompartilhado();
+  function finalizar() {
+    if (compartilhado) window.location.href = 'https://accounts.google.com/Logout';
+    else window.location.href = 'index.html';
+  }
+  return window.auth.signOut().then(finalizar).catch(finalizar);
+};
 
 // ── Firebase Cloud Messaging — captura de token FCM ──────────────────────────
 // Requer que o SDK firebase-messaging-compat.js seja carregado ANTES deste

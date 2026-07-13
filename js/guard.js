@@ -15,9 +15,13 @@
   function resetIdle() {
     clearTimeout(_idleTimer);
     _idleTimer = setTimeout(() => {
-      firebase.auth().signOut().then(() => {
-        window.location.href = 'index.html';
-      });
+      // Mesma regra do "Sair": em computador compartilhado encerra também a
+      // sessão do Google no navegador (ver window.sharedLogout em firebase-config.js).
+      if (typeof window.sharedLogout === 'function') {
+        window.sharedLogout();
+      } else {
+        firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+      }
     }, IDLE_MS);
   }
 

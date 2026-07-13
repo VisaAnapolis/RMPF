@@ -653,7 +653,7 @@
     // funcionem mesmo se getProximaCompetencia demorar ou travar.
     document.getElementById('btn-carregar').addEventListener('click', loadConferencia);
     document.getElementById('btn-logout').addEventListener('click', () => {
-      firebase.auth().signOut().then(() => { window.location.href = 'index.html'; });
+      window.sharedLogout();
     });
     document.getElementById('hamburger').addEventListener('click', () => {
       document.getElementById('sidebar').classList.toggle('open');

@@ -28,6 +28,14 @@
 
       <div id="alert-area"></div>
 
+      <div class="shared-box">
+        <input type="checkbox" id="chk-compartilhado" />
+        <label for="chk-compartilhado">
+          <span class="sb-title">🖥️ Este é um computador compartilhado</span>
+          <span class="sb-desc">Ao sair, encerra a conta Google deste navegador e o próximo acesso pedirá a senha. Deixe <strong>desmarcado</strong> apenas em celular/tablet ou computador pessoal.</span>
+        </label>
+      </div>
+
       <button class="btn-google" id="btn-google">
         <!-- Google G icon -->
         <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
@@ -67,7 +75,7 @@
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (!key.startsWith('firebase:') && key !== VERSION_KEY) keysToRemove.push(key);
+        if (!key.startsWith('firebase:') && key !== VERSION_KEY && key !== 'rmpf_shared_device') keysToRemove.push(key);
       }
       keysToRemove.forEach(function (key) { localStorage.removeItem(key); });
       localStorage.setItem(VERSION_KEY, APP_VERSION);
@@ -127,6 +135,17 @@
     const overlay    = document.getElementById('loading-overlay');
     const loginPage  = document.getElementById('login-page');
     const alertArea  = document.getElementById('alert-area');
+
+    // Caixa "computador compartilhado": reflete a escolha salva neste navegador
+    // (padrão: marcada em desktop). Persistir no toggle garante que firebase-config.js
+    // leia o mesmo modo nas páginas internas.
+    const chkComp = document.getElementById('chk-compartilhado');
+    if (chkComp) {
+      chkComp.checked = window.rmpfEhCompartilhado();
+      chkComp.addEventListener('change', () => {
+        try { localStorage.setItem('rmpf_shared_device', chkComp.checked ? '1' : '0'); } catch (_) {}
+      });
+    }
 
     function showError(msg) {
       alertArea.innerHTML = `<div class="alert alert-danger mb-2"><span class="alert-icon">🚨</span><div>${msg}</div></div>`;
@@ -213,6 +232,16 @@
       const btn = document.getElementById('btn-google');
       btn.disabled = true;
       btn.innerHTML = '<div class="spinner"></div> Aguarde…';
+
+      // Ajusta persistência e prompt do Google conforme o modo, antes do popup.
+      const compartilhado = !!(chkComp && chkComp.checked);
+      try { localStorage.setItem('rmpf_shared_device', compartilhado ? '1' : '0'); } catch (_) {}
+      try {
+        await firebase.auth().setPersistence(
+          compartilhado ? firebase.auth.Auth.Persistence.SESSION : firebase.auth.Auth.Persistence.LOCAL
+        );
+      } catch (e) { console.warn('setPersistence:', e); }
+      window.googleProvider.setCustomParameters({ prompt: compartilhado ? 'login' : 'select_account' });
 
       try {
         const result = await firebase.auth().signInWithPopup(window.googleProvider);
