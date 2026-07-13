@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.19.0</span>
+            <span class="badge-date">13/07/2026</span>
+          </div>
+          <div class="changelog-title">Logout completo da conta Google em computadores compartilhados (opt-in por caixa no login)</div>
+          <ul class="changelog-changes">
+            <li><strong>Problema</strong> — em PCs de uso comum, a pessoa seguinte conseguia entrar sem digitar a senha: a sessão do app persistia (persistência local do Firebase) e o "Sair" só encerrava a sessão do <em>app</em>, nunca a do <strong>Google no navegador</strong>, então o seletor de contas reautenticava direto. A lista de contas memorizadas é do próprio navegador (Chrome/Google) e o app não consegue apagá-la.</li>
+            <li><strong>Caixa "Este é um computador compartilhado" no login</strong> — destacada e <strong>marcada por padrão em desktop</strong> (escolha salva em <code>rmpf_shared_device</code>). Marque em qualquer PC compartilhado; desmarque só no celular/tablet/computador pessoal.</li>
+            <li><strong>Modo compartilhado</strong> — a sessão passa a usar persistência <code>SESSION</code> (não vaza para o próximo usuário e morre ao fechar o navegador), o login força a senha (<code>prompt=login</code>) e o "Sair" — bem como o encerramento por inatividade — faz o <strong>logout completo da conta Google</strong> no navegador (<code>accounts.google.com/Logout</code>). No modo pessoal, a persistência <code>LOCAL</code> permanece inalterada.</li>
+            <li><strong>Também no VISA</strong> — o app da Vigilância Sanitária recebeu exatamente a mesma proteção (VISA v2.27.5).</li>
+            <li><strong>Arquivos</strong> — <code>js/firebase-config.js</code> (sinal do modo, persistência, prompt e <code>window.sharedLogout()</code>); <code>index.html</code> (caixa visível, persistência e prompt no login); <code>js/guard.js</code> (inatividade usa <code>sharedLogout()</code>); páginas com botão "Sair" (dashboard, lancamento, meus-lancamentos, ocorrencias, conferencia, fechamento, parametrizacao, admin, seed-produtividade, migra-email, changelog); <code>css/rmpf.css</code> (<code>.shared-box</code>); <code>js/version.js</code> — 1.19.0; <code>service-worker.js</code> — <code>rmpf-v1.19.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.18.1</span>
             <span class="badge-date">08/07/2026</span>
           </div>
