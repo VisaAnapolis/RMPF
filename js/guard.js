@@ -4,13 +4,16 @@
 
 (function () {
   let _idleTimer = null;
-  // Dispositivos móveis são pessoais (não compartilhados): usa timeout maior (8h).
-  // Desktops compartilhados mantêm 30 min. Override via window.IDLE_TIMEOUT_MS.
-  const _isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-    || window.matchMedia('(pointer: coarse)').matches;
+  // Timeout de inatividade por MODO, não por tipo de tela: 30 min só quando o
+  // navegador foi marcado como "computador compartilhado" (rmpfEhCompartilhado,
+  // definido em firebase-config.js — carregado antes deste arquivo); demais
+  // dispositivos (celular, tablet e desktop PESSOAL) usam 8h. Antes o critério
+  // era mobile×desktop, e desktop pessoal era deslogado a cada 30 min parado.
+  // Override via window.IDLE_TIMEOUT_MS.
+  const _compartilhado = (typeof window.rmpfEhCompartilhado === 'function') && window.rmpfEhCompartilhado();
   const IDLE_MS = (typeof window.IDLE_TIMEOUT_MS === 'number')
     ? window.IDLE_TIMEOUT_MS
-    : (_isMobile ? 8 * 60 * 60 * 1000 : 30 * 60 * 1000);
+    : (_compartilhado ? 30 * 60 * 1000 : 8 * 60 * 60 * 1000);
 
   function resetIdle() {
     clearTimeout(_idleTimer);
