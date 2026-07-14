@@ -25,9 +25,22 @@ window.auth         = firebase.auth();
 // Em computador compartilhado a sessão do app NÃO deve persistir entre pessoas
 // e o "Sair" encerra também a sessão do Google no navegador. A escolha é feita
 // por uma caixa (bem visível) na tela de login (index.html) e guardada em
-// localStorage. Padrão: desktop = compartilhado, para não depender de o usuário
-// lembrar de marcar ("esquecer" resulta no comportamento seguro).
+// localStorage.
+//
+// Sinal EFETIVO: só é compartilhado com escolha explícita '1'. Chave ausente =
+// pessoal. O padrão "desktop → compartilhado" vale apenas para o ESTADO INICIAL
+// da caixa (rmpfPadraoCaixa): quem loga num PC da repartição grava '1' no
+// primeiro login, mas quem nunca escolheu nada não perde a sessão nem sofre o
+// logout completo do Google — em desktop pessoal isso derrubava a conta do
+// navegador inteiro e o app "pedia senha toda hora" (corrigido jul/2026).
 window.rmpfEhCompartilhado = function () {
+  try { return localStorage.getItem('rmpf_shared_device') === '1'; }
+  catch (_) { return false; }
+};
+
+// Estado inicial da caixa na tela de login: escolha salva, se houver; senão,
+// marcada em desktop (o clique de entrar persiste a escolha).
+window.rmpfPadraoCaixa = function () {
   try {
     var v = localStorage.getItem('rmpf_shared_device');
     if (v === '1') return true;
@@ -48,10 +61,11 @@ try {
 } catch (e) { console.warn('[auth] setPersistence indisponível:', e); }
 
 window.googleProvider = new firebase.auth.GoogleAuthProvider();
-// Compartilhado força a senha (prompt=login); pessoal só reexibe o seletor.
-window.googleProvider.setCustomParameters({
-  prompt: window.rmpfEhCompartilhado() ? 'login' : 'select_account'
-});
+// Padrão: só o seletor de contas. O clique de "Entrar" (index.html) eleva para
+// prompt=login (força a senha) quando a caixa "compartilhado" está marcada —
+// decidir aqui no load, antes de a escolha existir, forçava senha à toa em
+// dispositivos pessoais.
+window.googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 // ── Logout único (todas as páginas e o timeout de inatividade usam este) ──────
 // Em compartilhado, encerra também a sessão do Google no navegador

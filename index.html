@@ -136,12 +136,12 @@
     const loginPage  = document.getElementById('login-page');
     const alertArea  = document.getElementById('alert-area');
 
-    // Caixa "computador compartilhado": reflete a escolha salva neste navegador
-    // (padrão: marcada em desktop). Persistir no toggle garante que firebase-config.js
-    // leia o mesmo modo nas páginas internas.
+    // Caixa "computador compartilhado": escolha salva, se houver; senão o PADRÃO
+    // da caixa (marcada em desktop) — que só vira comportamento efetivo quando o
+    // usuário entra (a escolha é persistida no toggle e no clique de entrar).
     const chkComp = document.getElementById('chk-compartilhado');
     if (chkComp) {
-      chkComp.checked = window.rmpfEhCompartilhado();
+      chkComp.checked = window.rmpfPadraoCaixa();
       chkComp.addEventListener('change', () => {
         try { localStorage.setItem('rmpf_shared_device', chkComp.checked ? '1' : '0'); } catch (_) {}
       });
