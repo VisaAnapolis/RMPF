@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.19.1</span>
+            <span class="badge-date">14/07/2026</span>
+          </div>
+          <div class="changelog-title">Login estável em computador pessoal: modo compartilhado só com escolha explícita e falha de rede não desloga mais</div>
+          <ul class="changelog-changes">
+            <li><strong>Modo compartilhado só com escolha explícita</strong> — sem escolha salva, o navegador é tratado como <em>pessoal</em>. Antes, todo desktop sem escolha caía no modo compartilhado: sessão temporária (fechou o navegador, perdeu o login) e o logout completo derrubava a conta Google do navegador inteiro. A caixa da tela de login continua <strong>marcada por padrão em desktop</strong> — o primeiro login num PC da repartição grava a proteção normalmente. (PR #276)</li>
+            <li><strong>Inatividade por modo, não por tipo de tela</strong> — o encerramento por 30 min parado vale só para computador <em>compartilhado</em>; dispositivos pessoais (desktop, celular, tablet) usam 8h. Antes, qualquer desktop era deslogado a cada 30 min de inatividade. (PR #276)</li>
+            <li><strong>Falha de rede na verificação do cadastro não desloga mais</strong> — no <code>index.html</code> (porta de entrada), um engasgo de conexão ao consultar <code>usuarios/{email}</code> caía no mesmo <code>signOut()</code> de "usuário não cadastrado" e destruía a sessão válida. Agora a checagem faz 2 tentativas e, persistindo a falha, <strong>preserva a sessão</strong> e mostra aviso com "Tentar novamente"; o <code>signOut()</code> só ocorre com negação confirmada. O <code>guard.js</code> das páginas internas ganhou a mesma segunda tentativa. (PR #277)</li>
+            <li><strong>Arquivos</strong> — <code>js/firebase-config.js</code> (sinal só com '1', <code>rmpfPadraoCaixa()</code>, prompt no clique); <code>js/guard.js</code> (idle por modo + retry); <code>index.html</code> (retry + preservação de sessão + caixa via <code>rmpfPadraoCaixa</code>); <code>js/version.js</code> — 1.19.1; <code>service-worker.js</code> — <code>rmpf-v1.19.1</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.19.0</span>
             <span class="badge-date">13/07/2026</span>
           </div>
