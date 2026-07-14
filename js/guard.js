@@ -42,10 +42,21 @@
         return;
       }
       try {
-        const snap = await firebase.firestore()
-          .collection('usuarios')
-          .doc(user.email)
-          .get();
+        // 2 tentativas: engasgo transitório de rede não pode derrubar a página —
+        // antes, uma falha única devolvia ao index, que (pior ainda) deslogava.
+        let snap = null;
+        for (let tentativa = 1; tentativa <= 2; tentativa++) {
+          try {
+            snap = await firebase.firestore()
+              .collection('usuarios')
+              .doc(user.email)
+              .get();
+            break;
+          } catch (e) {
+            if (tentativa === 2) throw e;
+            await new Promise(r => setTimeout(r, 800));
+          }
+        }
 
         if (!snap.exists || snap.data().ativo === false) {
           await firebase.auth().signOut();
