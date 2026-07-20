@@ -158,6 +158,36 @@ function datasComRelAltaImportada(manuais) {
   return s;
 }
 
+// ── Regra 48×48 — atividades de dia inteiro (manuais) não cumulativas ────
+// Plantão fiscal (PLT), Operação fiscal (OPF) e Serviços técnicos requisitados
+// pela chefia (SRV) valem 48 pts e representam um DIA INTEIRO de serviço; por
+// isso não são cumulativas ENTRE SI no mesmo dia (Decreto 49.723/2023, Anexo
+// VII). A regra vale apenas para LANÇAMENTOS MANUAIS — atividades importadas
+// (VISA/SIM), inclusive o relatório técnico de alta (REL, 48 pts, só CSV), não
+// entram nesta verificação e não são afetadas por ela.
+const TIPOS_DIA_INTEIRO_MANUAL = ['PLT', 'OPF', 'SRV'];
+
+function ehAtividadeDiaInteiroManual(m) {
+  return !!m && TIPOS_DIA_INTEIRO_MANUAL.includes(m.tipo_codigo) &&
+         m.origem !== 'visa_csv' && m.origem !== 'sim_csv' && m.status !== 'recusado';
+}
+
+// Atividades de dia inteiro (48 pts) já lançadas manualmente numa data para o
+// fiscal — usadas para impedir uma segunda no mesmo dia. `excluirId` ignora o
+// próprio registro (ao editar/mover). Retorna a lista dos lançamentos.
+async function atividadesDiaInteiroNoDia(fiscalEmail, dataISO, excluirId = null) {
+  if (!fiscalEmail || !dataISO) return [];
+  const parts = String(dataISO).split('-');
+  if (parts.length !== 3) return [];
+  const ano = Number(parts[0]);
+  const mes = Number(parts[1]);
+  if (!ano || !mes) return [];
+  const manuais = await window.db_getManuais(fiscalEmail, mes, ano);
+  return manuais.filter(m =>
+    m.id !== excluirId && m.data === dataISO && ehAtividadeDiaInteiroManual(m)
+  );
+}
+
 // ── Motivo de não cumulatividade de uma vistoria num dia (uso avulso) ────
 // Verificação leve (1 consulta), usada fora do fluxo de importação — ex.:
 // revalidar na homologação (conferencia.html) se ainda é seguro aceitar
@@ -1238,4 +1268,6 @@ window.datasComOpfManual        = datasComOpfManual;
 window.vistoriasNoDia           = vistoriasNoDia;
 window.ehRelAltaImportada          = ehRelAltaImportada;
 window.datasComRelAltaImportada    = datasComRelAltaImportada;
+window.ehAtividadeDiaInteiroManual = ehAtividadeDiaInteiroManual;
+window.atividadesDiaInteiroNoDia   = atividadesDiaInteiroNoDia;
 window.motivoNaoCumulatividadeVistoria = motivoNaoCumulatividadeVistoria;

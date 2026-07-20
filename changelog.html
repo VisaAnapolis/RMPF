@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.20.0</span>
+            <span class="badge-date">20/07/2026</span>
+          </div>
+          <div class="changelog-title">Atividades de dia inteiro (48 pts) não cumulativas entre si no lançamento manual</div>
+          <ul class="changelog-changes">
+            <li><strong>Plantão, Operação fiscal e Serviços técnicos não acumulam no mesmo dia</strong> — as três atividades manuais que valem 48 pontos representam um dia inteiro de serviço e passam a ser mutuamente exclusivas na mesma data. Ao tentar lançar a segunda (ex.: Plantão + Operação fiscal, ou Operação fiscal + Serviço técnico), o sistema bloqueia com a mensagem <em>"não são cumulativas entre si no mesmo dia, conforme o Decreto 49.723/2023 (Anexo VII)"</em>. Antes, o sistema somava as duas (48 + 48).</li>
+            <li><strong>Escopo restrito ao lançamento manual</strong> — a regra vale apenas entre atividades <em>digitadas manualmente</em>. As atividades importadas do VISA/SIM (inclusive o relatório técnico de alta, 48 pts, que só existe via CSV) <strong>não</strong> entram nesta verificação e não são afetadas. Certidão (2 pts) e curso/encontro (24 pts) continuam pontuando normalmente.</li>
+            <li><strong>Bloqueio também ao editar/mover</strong> — a mesma verificação foi aplicada em <code>meus-lancamentos.html</code> ao editar ou corrigir a data de um lançamento, evitando que a regra seja contornada movendo a atividade para um dia que já tem outra de 48 pts.</li>
+            <li><strong>Arquivos</strong> — <code>js/visa-import.js</code> (helpers <code>ehAtividadeDiaInteiroManual</code> e <code>atividadesDiaInteiroNoDia</code>); <code>lancamento.html</code> (bloqueio no <code>salvar()</code>); <code>meus-lancamentos.html</code> (<code>bloqueioAtividadeDiaInteiro</code> na edição e correção); <code>docs/integracao-visa-rmpf.md</code> (nova seção 15.4); <code>js/version.js</code> — 1.20.0; <code>service-worker.js</code> — <code>rmpf-v1.20.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.19.1</span>
             <span class="badge-date">14/07/2026</span>
           </div>
