@@ -116,19 +116,22 @@ Para cada linha do CSV filtrada pelo mês/ano:
 ### Teto de 48 pontos por inspeção (Vistoria)
 
 Em uma Vistoria (VIS), os CNAEs-alvo são o **CNAE informado** na inspeção
-(`inspecoes.csv`) somado aos **CNAEs de competência do regulado**
-(`cae.csv` ∩ `cnae.csv`). A **soma dos pontos** desses CNAEs **não pode
+(`inspecoes.csv`) somado aos **CNAEs extras informados pelo fiscal** no VISA
+(`inspecoes_cnae.csv`, vinculado à visita pela coluna `VISITA_CTRL` →
+`CONTROLE` do `inspecoes.csv`). A complexidade/pontuação de cada CNAE extra
+vem do `cnae.csv` (fonte única); extra sem competência no `cnae.csv` é
+ignorado com aviso. A **soma dos pontos** desses CNAEs **não pode
 exceder 48 pontos**. A seleção é feita por **maior pontuação primeiro**
 (em empate, o CNAE informado primeiro), acumulando enquanto a soma ≤ 48;
 os CNAEs que não couberem **não são lançados**.
 
 Exemplos:
 
-| Informado | cae.csv | Lançado | Soma |
+| Informado | inspecoes_cnae.csv | Lançado | Soma |
 |---|---|---|---|
 | 48 (alta) | qualquer | só o informado (48) | 48 |
-| 12 (média) | 4× de 12 | informado + 3 primeiros do cae | 48 |
-| 12 (média) | 1× de 48 | só o do cae (48) | 48 |
+| 12 (média) | 4× de 12 | informado + 3 primeiros extras | 48 |
+| 12 (média) | 1× de 48 | só o extra (48) | 48 |
 
 O teto usa os pontos nominais de complexidade; os zeramentos por plantão
 fiscal e o limite de 24 pts/dia em dia com ocorrência são aplicados depois,
@@ -139,7 +142,7 @@ por fiscal.
 Para CNAEs de **alta complexidade** da **área de alimentação** (equipe `IA` ou
 `AG` na coluna `equipe` do `cnae.csv`), a pontuação **não** é 48 fixo: depende da
 **área física do estabelecimento** (m²). Vale tanto para o CNAE informado (INS)
-quanto para os do regulado (CAE).
+quanto para os extras informados pelo fiscal (CAE).
 
 | Área (m²) | Pontos |
 |---|---|

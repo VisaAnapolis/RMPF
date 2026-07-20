@@ -3,7 +3,7 @@
 
 const VISA_IMPORT_INICIO_MES = 4;
 const VISA_IMPORT_INICIO_ANO = 2026;
-// Teto de pontos somados dos CNAEs (informado + cae.csv) por inspeção VISA.
+// Teto de pontos somados dos CNAEs (informado + inspecoes_cnae.csv) por inspeção VISA.
 const TETO_PONTOS_CNAE_VISA = 48;
 
 // ── Cache de ocorrências aceitas por fiscal/mês ──────────
@@ -660,37 +660,38 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         onProgress(`🧬 ${cnaeMap.size} CNAE(s) de competência carregado(s).`, 'info');
       }
     } catch (err) {
-      onProgress('⚠️ Não foi possível carregar cnae.csv — expansão por CNAE do regulado desabilitada.', 'warn');
+      onProgress('⚠️ Não foi possível carregar cnae.csv — expansão por CNAEs extras desabilitada.', 'warn');
       console.error('Failed to load cnae.csv:', err);
     }
 
-    // ── CNAEs do regulado (data/cae.csv) ─────────────────────
-    // Mapa Codigo(regulado) → Map<CNAE, { cnae, stats }>. Dedup por CNAE;
-    // linhas com Stats "Não Exerce" são excluídas; Subclasse vazia é ignorada.
-    const caeMap = new Map();
+    // ── CNAEs extras por visita (data/inspecoes_cnae.csv) ────
+    // Mapa VISITA_CTRL(controle da visita) → [CNAEs extras], dedup por CNAE.
+    // O próprio fiscal informa no VISA os CNAEs adicionais de cada inspeção;
+    // a coluna CONTROLE do arquivo é o id sequencial da linha (ignorada) e a
+    // COMPLEXIDADE também é ignorada — a fonte única segue sendo o cnae.csv.
+    const inspecoesCnaeMap = new Map();
     try {
-      const caeText = await window.fetchGitHubCSV('data/cae.csv');
-      if (caeText !== null) {
-        const caeParsed = Papa.parse(caeText, {
+      const icText = await window.fetchGitHubCSV('data/inspecoes_cnae.csv');
+      if (icText !== null) {
+        const icParsed = Papa.parse(icText, {
           header: true,
           delimiter: ';',
           skipEmptyLines: true,
           transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
         });
-        for (const r of caeParsed.data) {
-          const cod = String(r['Codigo'] || '').replace(/"/g, '').trim();
-          const sub = String(r['Subclasse'] || '').replace(/"/g, '').trim();
-          if (!cod || !sub) continue;
-          if (normNomeVisa(r['Stats'] || '') === 'NAO EXERCE') continue;
-          if (!caeMap.has(cod)) caeMap.set(cod, new Map());
-          const m = caeMap.get(cod);
-          if (!m.has(sub)) m.set(sub, { cnae: sub, stats: normNomeVisa(r['Stats'] || '') });
+        for (const r of icParsed.data) {
+          const visita = String(r['VISITA_CTRL'] || r['Visita_Ctrl'] || r['visita_ctrl'] || '').replace(/"/g, '').trim();
+          const sub = String(r['SUBCLASSE'] || r['Subclasse'] || r['CNAE'] || r['Cnae'] || '').replace(/"/g, '').trim();
+          if (!visita || !sub) continue;
+          if (!inspecoesCnaeMap.has(visita)) inspecoesCnaeMap.set(visita, []);
+          const list = inspecoesCnaeMap.get(visita);
+          if (!list.includes(sub)) list.push(sub);
         }
-        onProgress(`🏷️ ${caeMap.size} regulado(s) com CNAEs carregado(s).`, 'info');
+        onProgress(`🏷️ ${inspecoesCnaeMap.size} visita(s) com CNAEs extras carregada(s).`, 'info');
       }
     } catch (err) {
-      onProgress('⚠️ Não foi possível carregar cae.csv — usando apenas o CNAE da inspeção.', 'warn');
-      console.error('Failed to load cae.csv:', err);
+      onProgress('⚠️ Não foi possível carregar inspecoes_cnae.csv — usando apenas o CNAE da inspeção.', 'warn');
+      console.error('Failed to load inspecoes_cnae.csv:', err);
     }
 
     // ── Regulados (data/regulados.csv) ───────────────────────
@@ -870,8 +871,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
       // ── CNAEs-alvo da inspeção ───────────────────────────
       // Vistoria (VIS): expande em 1 lançamento por CNAE de competência —
-      // o CNAE informado na inspeção e os CNAEs do regulado (cae.csv ∩ cnae.csv,
-      // exceto "Não Exerce"). A soma dos pontos desses CNAEs não pode exceder
+      // o CNAE informado na inspeção e os CNAEs extras que o fiscal informou
+      // no VISA (inspecoes_cnae.csv, vinculado pelo controle da visita).
+      // A soma dos pontos desses CNAEs não pode exceder
       // TETO_PONTOS_CNAE_VISA (48): seleciona por maior pontuação primeiro
       // (informado primeiro em empate) e NÃO lança os CNAEs que não couberem
       // no teto. Demais tipos seguem com 1 lançamento pelo CNAE da inspeção.
@@ -879,8 +881,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const regInfo = reguladoMap.get(codigoRegulado) || { municipal: '', razao: '' };
       const entregaRaw = String(row['entrega'] || row['Entrega'] || row['ENTREGA'] || '').replace(/"/g, '').trim().toLowerCase();
       const entregaFalse = entregaRaw === 'false' || entregaRaw === '0' || entregaRaw === 'nao' || entregaRaw === 'não';
-      const caeListMap = caeMap.get(codigoRegulado);
-      const caeList = caeListMap ? [...caeListMap.values()] : [];
+      const cnaesExtras = inspecoesCnaeMap.get(controleVisa) || [];
       const alvos = [];
       if (tipoInfo.tipo_codigo === 'VIS' && !entregaFalse) {
         const candidatos = [];
@@ -898,13 +899,16 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             informado: true,
           });
         }
-        // CNAEs de competência do regulado (cae.csv ∩ cnae.csv), exceto o já informado
-        for (const item of caeList) {
-          if (item.cnae === subclasse) continue; // não duplica o informado
-          const info = cnaeMap.get(item.cnae);
-          if (!info) continue; // CNAE sem competência da vigilância → fora
+        // CNAEs extras informados pelo fiscal (inspecoes_cnae.csv), exceto o já informado
+        for (const cnaeExtra of cnaesExtras) {
+          if (cnaeExtra === subclasse) continue; // não duplica o informado
+          const info = cnaeMap.get(cnaeExtra);
+          if (!info) { // CNAE sem competência da vigilância → fora
+            onProgress(`⚠️ CONTROLE ${controleVisa}: CNAE extra ${cnaeExtra} sem competência no cnae.csv — ignorado.`, 'warn');
+            continue;
+          }
           candidatos.push({
-            cnae: item.cnae,
+            cnae: cnaeExtra,
             complexidade: info.complexidade,
             complexidade_origem: info.complexidade_origem || null,
             descricao: info.descricao,
@@ -947,7 +951,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           }
         }
         // Ordena por pontos desc; em empate, informado primeiro (sort estável
-        // mantém a ordem do cae.csv no restante).
+        // mantém a ordem do inspecoes_cnae.csv no restante).
         candidatos.sort((a, b) => (b.pontos - a.pontos) || (Number(b.informado) - Number(a.informado)));
         // Seleção gulosa respeitando o teto de pontos da inspeção (usa os pontos
         // já ajustados pela área).
