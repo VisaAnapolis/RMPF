@@ -3,13 +3,15 @@
 //
 // Substitui o clique manual no botão "Importar Inspeções do CVS": roda em
 // sessão de Administrador, ao carregar a página e a cada ~10 min enquanto o
-// admin estiver logado. Só dispara a importação pesada quando o CSV mudou de
-// fato — comparando o SHA do último commit que tocou data/inspecoes.csv com o
-// estado salvo em app_config/import_state. O lock distribuído (visa_import_locks)
-// evita execuções concorrentes entre vários admins.
+// admin estiver logado. Só dispara a importação pesada quando algum dos CSVs
+// mudou de fato — comparando o SHA do último commit que tocou
+// data/inspecoes.csv e data/inspecoes_cnae.csv (CNAEs extras informados pelo
+// fiscal) com o estado salvo em app_config/import_state. O lock distribuído
+// (visa_import_locks) evita execuções concorrentes entre vários admins.
 
 const VISA_AUTO_IMPORT_INTERVALO_MS = 10 * 60 * 1000; // 10 min
 const VISA_AUTO_IMPORT_ARQUIVO      = 'data/inspecoes.csv';
+const VISA_AUTO_IMPORT_ARQUIVO_CNAE = 'data/inspecoes_cnae.csv';
 
 let _visaAutoRodando = false;
 let _visaAutoTimer   = null;
@@ -121,7 +123,7 @@ async function verificarEImportarVISA(user) {
     }
     if (!window.visaMesAberto(mes, ano)) return;
 
-    // 2. SHA atual do CSV (request barato; lança se não houver token)
+    // 2. SHA atual dos CSVs (requests baratos; lança se não houver token)
     let shaAtual;
     try {
       shaAtual = await window.fetchGitHubFileCommitSha(VISA_AUTO_IMPORT_ARQUIVO);
@@ -131,13 +133,22 @@ async function verificarEImportarVISA(user) {
       return;
     }
     if (!shaAtual) return;
+    // O inspecoes_cnae.csv também altera o resultado da importação (CNAEs
+    // extras por visita). Ausência do arquivo/SHA vira null e não bloqueia.
+    let shaCnae = null;
+    try {
+      shaCnae = (await window.fetchGitHubFileCommitSha(VISA_AUTO_IMPORT_ARQUIVO_CNAE)) || null;
+    } catch (e) {
+      console.warn('[VISA auto-import] Não foi possível obter o SHA do inspecoes_cnae.csv:', e.message);
+    }
 
     // 3. Comparar com o estado salvo
     let state = {};
     try { state = await window.db_getImportState(); } catch (_) {}
     const st = state && state.visa;
-    if (st && st.commit_sha === shaAtual && Number(st.mes) === Number(mes) && Number(st.ano) === Number(ano)) {
-      return; // já importado para esta versão do CSV — nada a fazer
+    if (st && st.commit_sha === shaAtual && (st.commit_sha_cnae || null) === shaCnae &&
+        Number(st.mes) === Number(mes) && Number(st.ano) === Number(ano)) {
+      return; // já importado para esta versão dos CSVs — nada a fazer
     }
 
     // 4. Importar todos os fiscais
@@ -169,7 +180,7 @@ async function verificarEImportarVISA(user) {
       };
       const _runs = (Array.isArray(state.runs) ? state.runs : []).concat(_runEntry).slice(-60);
       await window.db_setImportState({
-        visa: { commit_sha: shaAtual, mes: Number(mes), ano: Number(ano), imported_at: new Date().toISOString() },
+        visa: { commit_sha: shaAtual, commit_sha_cnae: shaCnae, mes: Number(mes), ano: Number(ano), imported_at: new Date().toISOString() },
         runs: _runs,
       });
       const total = r ? ((r.criados || 0) + (r.atualizados || 0)) : 0;

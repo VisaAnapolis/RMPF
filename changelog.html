@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.21.0</span>
+            <span class="badge-date">20/07/2026</span>
+          </div>
+          <div class="changelog-title">CNAEs extras da vistoria informados pelo fiscal (inspecoes_cnae.csv) substituem a expansão pelo cae.csv</div>
+          <ul class="changelog-changes">
+            <li><strong>Fiscal decide os CNAEs extras da inspeção</strong> — na importação do VISA, os CNAEs complementares de uma vistoria deixam de ser derivados automaticamente do cadastro do regulado (<code>cae.csv</code> ∩ <code>cnae.csv</code>) e passam a vir do novo arquivo <code>data/inspecoes_cnae.csv</code>, preenchido pelo próprio fiscal no VISA. O vínculo com a visita é feito pela coluna <code>VISITA_CTRL</code> → <code>CONTROLE</code> do <code>inspecoes.csv</code>. O <code>cae.csv</code> não é mais baixado nem consultado.</li>
+            <li><strong>Regras de pontuação preservadas</strong> — o CNAE informado na inspeção continua entrando normalmente; complexidade/pontos dos extras seguem vindo do <code>cnae.csv</code> (fonte única, com as exceções do decreto), e permanecem o teto de 48 pontos por inspeção, a pontuação por área (alta de alimentação) e a redução por dupla/trio. CNAE extra sem competência no <code>cnae.csv</code> é ignorado com aviso no log de importação. A coluna "Origem CNAE" segue exibindo <code>CAE</code> para os extras.</li>
+            <li><strong>Visita sem extras lança só o informado</strong> — inspeções sem linhas no <code>inspecoes_cnae.csv</code> geram apenas o lançamento do CNAE informado; lançamentos antigos derivados do <code>cae.csv</code> que deixarem de existir são removidos pela limpeza de órfãos na reimportação.</li>
+            <li><strong>Auto-import observa o novo arquivo</strong> — a importação automática (<code>js/visa-auto-import.js</code>) passa a comparar também o SHA do <code>inspecoes_cnae.csv</code> (novo campo <code>commit_sha_cnae</code> em <code>app_config/import_state</code>), reimportando quando o fiscal alterar os CNAEs extras mesmo sem mudança no <code>inspecoes.csv</code>.</li>
+            <li><strong>Arquivos</strong> — <code>js/visa-import.js</code> (carga do <code>inspecoes_cnae.csv</code> e candidatos do bloco VIS); <code>js/visa-auto-import.js</code> (SHA do novo arquivo); <code>docs/integracao-visa-rmpf.md</code> (seção 7 atualizada); <code>js/version.js</code> — 1.21.0; <code>service-worker.js</code> — <code>rmpf-v1.21.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.20.0</span>
             <span class="badge-date">20/07/2026</span>
           </div>
