@@ -400,6 +400,19 @@ Como REL e VIS podem vir de linhas diferentes do mesmo CSV, `rowsFiltradas` é o
 
 Toda vistoria (VISA ou SIM) zerada pelas regras acima (Plantão item 9, OPF item 18, REL-alta item 13) grava a explicação no campo `zerado_motivo`. `meus-lancamentos.html` e `conferencia.html` exibem um ícone ⚠️ com tooltip ao lado dos Pontos Requeridos quando esse campo está presente — antes, a única indicação da zeragem era um log de importação visível apenas a quem executava o import (nunca ao fiscal dono do lançamento).
 
+## 15.4. Atividades de dia inteiro (48 pts) × entre si — lançamento manual
+
+Regra: **Plantão fiscal (PLT), Operação fiscal (OPF) e Serviços técnicos requisitados pela chefia (SRV) valem 48 pontos e representam um dia inteiro de serviço; por isso não são cumulativas entre si no mesmo dia** (Decreto 49.723/2023, Anexo VII). Um fiscal só pode lançar **uma** dessas três atividades por data.
+
+**Abrangência — só lançamentos manuais.** A verificação vale apenas entre atividades **digitadas manualmente**. Atividades importadas (VISA/SIM) não entram na regra e não são afetadas — inclusive o relatório técnico de inspeção de alta complexidade (REL, também 48 pts), que só existe via CSV (`somenteCsv`) e continua com seu tratamento próprio de não cumulatividade contra vistoria (15.2). Certidão (2 pts) e curso/palestra/encontro (24 pts) não são de dia inteiro e continuam pontuando normalmente.
+
+**Tratamento — bloqueio na entrada.** Ao contrário das regras contra vistoria (que *zeram*), esta *bloqueia* o segundo lançamento, com mensagem citando o decreto:
+
+- `lancamento.html` — no `salvar()`, quando `tipo.codigo ∈ {PLT, OPF, SRV}`, checa `atividadesDiaInteiroNoDia(user.email, data)` e bloqueia se já houver outra.
+- `meus-lancamentos.html` — `bloqueioAtividadeDiaInteiro(idManual, dataISO)` aplicado ao editar e ao corrigir/mover a data (o `excluirId` ignora o próprio registro).
+
+**Helpers** (`js/visa-import.js`): `ehAtividadeDiaInteiroManual(m)` (tipo ∈ `TIPOS_DIA_INTEIRO_MANUAL = ['PLT','OPF','SRV']`, origem não importada, status ≠ recusado) e `atividadesDiaInteiroNoDia(fiscalEmail, dataISO, excluirId)`.
+
 ---
 
 ## 16. Regras de Negócio — Resumo Rápido
@@ -418,6 +431,7 @@ Toda vistoria (VISA ou SIM) zerada pelas regras acima (Plantão item 9, OPF item
 | Plantão × Vistoria (item 9) | Por fiscal, VISA + SIM: plantão manual zera vistorias importadas na data; bloqueia plantão posterior **só** se já houver vistorias importadas que geram pontos (`pontos > 0`) |
 | Operação Fiscal × Vistoria (item 18) | Por fiscal, VISA + SIM: OPF manual zera vistorias importadas na data; bloqueia OPF posterior se já houver vistoria na data |
 | Relatório Técnico (alta) × Vistoria (item 13) | Por fiscal, só VISA (REL é `somenteCsv`): relatório técnico de alta complexidade zera vistoria do mesmo dia |
+| Atividades de 48 pts entre si (Anexo VII) | Por fiscal, **só lançamento manual**: Plantão, Operação fiscal e Serviços técnicos (48 pts) não acumulam no mesmo dia — a segunda é **bloqueada** na entrada/edição. Importadas (VISA/SIM), inclusive REL de alta, não entram na regra |
 
 ---
 

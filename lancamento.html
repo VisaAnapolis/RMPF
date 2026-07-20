@@ -390,6 +390,25 @@
       }
     }
 
+    // ── Atividades de dia inteiro (48 pts) não cumulativas entre si ──────────
+    // Plantão fiscal (PLT), Operação fiscal (OPF) e Serviços técnicos (SRV)
+    // valem 48 pts e representam um dia inteiro de serviço; não podem coexistir
+    // no mesmo dia. Vale só entre lançamentos manuais — as atividades importadas
+    // (VISA/SIM) não são afetadas.
+    if (['PLT', 'OPF', 'SRV'].includes(tipo.codigo)) {
+      const diaInteiro = await window.atividadesDiaInteiroNoDia(user.email, data);
+      if (diaInteiro.length) {
+        const existente = diaInteiro[0];
+        showAlert('danger',
+          `🚫 Já existe <strong>${existente.tipo_nome || existente.tipo_codigo}</strong> lançado(a) em ` +
+          `<strong>${fmtData(data)}</strong>. Plantão fiscal, Operação fiscal e Serviços técnicos (48 pontos) ` +
+          `são atividades de dia inteiro e não são cumulativas entre si no mesmo dia, ` +
+          `conforme o Decreto 49.723/2023 (Anexo VII).`);
+        btns.forEach(b => { b.disabled = false; });
+        return;
+      }
+    }
+
     const pontosNum = Number(pontos);
     if (Number.isNaN(pontosNum)) {
       showAlert('warn', 'Informe os pontos corretamente.');
