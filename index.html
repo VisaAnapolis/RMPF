@@ -151,13 +151,19 @@
       alertArea.innerHTML = `<div class="alert alert-danger mb-2"><span class="alert-icon">🚨</span><div>${msg}</div></div>`;
     }
 
-    // ── Escolha do fluxo de login: popup (desktop) × redirect (PWA/iOS) ────────
+    // ── Escolha do fluxo de login: popup (desktop) × OAuth direto (PWA/iOS) ───
     // signInWithPopup NÃO funciona em PWA instalado no iOS: o popup abre num
     // contexto separado (WebKit) que não devolve o resultado à janela standalone,
     // então a Promise nunca resolve nem rejeita e o botão fica preso em
-    // "Aguarde…" (app "só fica rodando"). Também é instável no iOS Safari por
-    // causa da prevenção de rastreamento. Nesses casos usamos signInWithRedirect,
-    // que é uma navegação de topo e retorna via getRedirectResult().
+    // "Aguarde…" (app "só fica rodando").
+    // signInWithRedirect TAMBÉM não funciona: o resultado fica armazenado no
+    // authDomain (visam-3a30b.firebaseapp.com) e o Safari/iOS bloqueia storage
+    // de terceiros — a página volta do Google sem conseguir ler o login
+    // (getRedirectResult() = null) e fica parada na tela de login.
+    // Nesses contextos conduzimos o OAuth do Google MANUALMENTE, com redirect
+    // de volta para ESTA origem (token no fragmento da URL) e conclusão via
+    // signInWithCredential — fluxo 100% first-party (opção documentada pelo
+    // Firebase para browsers que bloqueiam storage de terceiros).
     function _rmpfIsStandalone() {
       try {
         return window.matchMedia('(display-mode: standalone)').matches
@@ -172,6 +178,39 @@
     }
     function _rmpfUsarRedirect() {
       return _rmpfIsStandalone() || _rmpfIsIOS();
+    }
+
+    // Cliente OAuth Web do projeto (o mesmo usado pelo Firebase Auth).
+    // ⚠️ Requisito de console: a URL de retorno (diretório do app, ex.:
+    // https://visaanapolis.github.io/RMPF/ e https://garrado.github.io/RMPF/)
+    // precisa estar cadastrada em "Authorized redirect URIs" deste cliente
+    // (Google Cloud Console → APIs & Services → Credentials → Web client).
+    const GOOGLE_OAUTH_CLIENT_ID = '308899251430-d4gf47537aukhau2rvhgrtp3qnhmdh8p.apps.googleusercontent.com';
+    const OAUTH_STATE_KEY = 'rmpf_oauth_state';
+
+    /** URL do diretório atual (ex.: https://visaanapolis.github.io/RMPF/). */
+    function _rmpfRedirectUri() {
+      return new URL('.', window.location.href).href;
+    }
+
+    /** Sai para o Google (navegação de topo); o retorno traz o token no fragmento. */
+    function _rmpfIniciarLoginOAuth(compartilhado) {
+      let state = '';
+      try {
+        const buf = new Uint8Array(16);
+        crypto.getRandomValues(buf);
+        state = Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem(OAUTH_STATE_KEY, state);
+      } catch (_) {}
+      const params = new URLSearchParams({
+        client_id:     GOOGLE_OAUTH_CLIENT_ID,
+        redirect_uri:  _rmpfRedirectUri(),
+        response_type: 'token',
+        scope:         'openid email profile',
+        prompt:        compartilhado ? 'login' : 'select_account',
+        state:         state,
+      });
+      window.location.href = 'https://accounts.google.com/o/oauth2/v2/auth?' + params.toString();
     }
 
     const GOOGLE_BTN_CONTENT = `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" style="width:20px;height:20px"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg> Entrar com Google`;
@@ -239,27 +278,61 @@
     // como o index é a porta de entrada do app, isso derrubava o login em
     // computador pessoal a cada instabilidade. Agora: 2 tentativas; persistindo
     // a falha, mantém a sessão e mostra aviso com opção de tentar de novo.
-    // ── Conclusão do login por redirect (fluxo PWA/iOS) ───────────────────────
-    // Ao voltar do Google, getRedirectResult() resolve com o usuário autenticado.
-    // O redirecionamento para o dashboard fica a cargo do onAuthStateChanged
-    // abaixo (fonte única da verificação de cadastro); aqui apenas registramos os
-    // dados do dispositivo e surfaceamos eventuais erros do redirect, mantendo o
-    // overlay enquanto o fluxo conclui. Retorna null quando não há redirect
-    // pendente (carregamento normal da página) — nesse caso nada acontece.
-    firebase.auth().getRedirectResult()
-      .then(result => {
-        if (result && result.user) {
-          _gravarDadosDispositivo(result.user.email); // fire-and-forget
-        }
-      })
-      .catch(err => {
-        console.warn('[Login] Falha no login por redirect:', err);
+    // ── Conclusão do login OAuth (fluxo PWA/iOS) ──────────────────────────────
+    // Quando a página carrega de volta do Google, o fragmento da URL traz
+    // #access_token=… (ou #error=…). Concluímos com signInWithCredential; a
+    // verificação de cadastro e o redirecionamento para o dashboard ficam a
+    // cargo do onAuthStateChanged abaixo (fonte única). Sem fragmento
+    // (carregamento normal da página), nada acontece.
+    window.__rmpfOauthProcessing = false;
+    async function _rmpfConcluirLoginOAuth() {
+      const hash = window.location.hash || '';
+      if (hash.indexOf('access_token=') === -1 && hash.indexOf('error=') === -1) return;
+      window.__rmpfOauthProcessing = true; // segura o overlay enquanto conclui
+
+      const frag = new URLSearchParams(hash.substring(1));
+      // Remove o fragmento imediatamente — um reload não deve reprocessar o token
+      try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (_) {}
+
+      let esperado = null;
+      try { esperado = localStorage.getItem(OAUTH_STATE_KEY); localStorage.removeItem(OAUTH_STATE_KEY); } catch (_) {}
+
+      function falhar(msg) {
+        window.__rmpfOauthProcessing = false;
         overlay.style.display = 'none';
         loginPage.style.display = 'flex';
-        showError('Erro ao entrar: ' + (err.message || err.code));
-      });
+        if (msg) showError(msg);
+      }
+
+      const erro  = frag.get('error');
+      const token = frag.get('access_token');
+      if (erro)   return falhar(erro === 'access_denied' ? '' : 'Erro ao entrar: ' + erro);
+      if (!token) return falhar('Erro ao entrar: resposta do Google sem token.');
+      if (esperado && frag.get('state') !== esperado) {
+        return falhar('Erro ao entrar: verificação de segurança falhou. Tente novamente.');
+      }
+
+      try {
+        const compartilhado = window.rmpfEhCompartilhado();
+        await firebase.auth().setPersistence(
+          compartilhado ? firebase.auth.Auth.Persistence.SESSION : firebase.auth.Auth.Persistence.LOCAL
+        );
+        const cred   = firebase.auth.GoogleAuthProvider.credential(null, token);
+        const result = await firebase.auth().signInWithCredential(cred);
+        _gravarDadosDispositivo(result.user.email); // fire-and-forget
+        window.__rmpfOauthProcessing = false;
+        // onAuthStateChanged (abaixo) verifica o cadastro e redireciona.
+      } catch (e) {
+        console.warn('[Login] Falha no signInWithCredential:', e);
+        falhar('Erro ao entrar: ' + (e.message || e.code));
+      }
+    }
+    _rmpfConcluirLoginOAuth();
 
     firebase.auth().onAuthStateChanged(async user => {
+      // Login OAuth em conclusão: mantém o overlay até o signInWithCredential
+      // disparar novo evento com o usuário (ou o fluxo falhar e mostrar erro).
+      if (!user && window.__rmpfOauthProcessing) return;
       if (user && !window.__rmpfVersionReloading) {
         let snap = null, falhaVerificacao = false;
         for (let tentativa = 1; tentativa <= 2; tentativa++) {
@@ -309,10 +382,11 @@
 
       try {
         if (_rmpfUsarRedirect()) {
-          // Em PWA/iOS o popup não devolve o resultado — usa navegação de topo.
-          // A página sai para o Google e retorna via getRedirectResult(); nada
-          // abaixo é executado, então o botão não fica preso em "Aguarde…".
-          await firebase.auth().signInWithRedirect(window.googleProvider);
+          // Em PWA/iOS nem popup nem signInWithRedirect devolvem o resultado —
+          // sai para o Google por navegação de topo; o retorno traz o token no
+          // fragmento da URL e é concluído por _rmpfConcluirLoginOAuth().
+          window.__rmpfAguardandoRetornoOAuth = true;
+          _rmpfIniciarLoginOAuth(compartilhado);
           return;
         }
         const result = await firebase.auth().signInWithPopup(window.googleProvider);
@@ -329,6 +403,23 @@
           showError('Erro ao entrar: ' + (err.message || err.code));
         }
       }
+    });
+
+    // No iOS PWA a página do Google abre numa folha sobre o app e a janela
+    // principal continua nesta tela. Se o usuário voltar sem concluir (tocou no
+    // X da folha), o botão não pode ficar preso em "Aguarde…" — reabilita
+    // quando o app volta a ficar visível sem login em andamento. (Se o login
+    // concluiu na folha, o Firebase sincroniza a sessão entre os contextos e o
+    // onAuthStateChanged desta janela redireciona ao dashboard sozinho.)
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible' || !window.__rmpfAguardandoRetornoOAuth) return;
+      setTimeout(function () {
+        if (firebase.auth().currentUser || window.__rmpfOauthProcessing) return;
+        window.__rmpfAguardandoRetornoOAuth = false;
+        const btn = document.getElementById('btn-google');
+        btn.disabled = false;
+        btn.innerHTML = GOOGLE_BTN_CONTENT;
+      }, 2500);
     });
   </script>
 </body>
