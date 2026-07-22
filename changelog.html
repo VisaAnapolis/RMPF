@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.22.1</span>
+            <span class="badge-date">22/07/2026</span>
+          </div>
+          <div class="changelog-title">Correção: login travado em "Aguarde…" no PWA do iOS</div>
+          <ul class="changelog-changes">
+            <li><strong>PWA do iOS não abria mais — ficava só "rodando"</strong> — ao tocar em "Entrar com Google" no app instalado no iPhone/iPad, o botão ficava preso em <em>"Aguarde…"</em> indefinidamente. O login usava <code>signInWithPopup</code>, que <strong>não funciona em PWA instalado no iOS</strong>: o WebKit abre o popup num contexto separado que não devolve o resultado à janela do app (modo <em>standalone</em>), então a Promise nunca resolve e o botão não sai do estado de carregamento.</li>
+            <li><strong>Fluxo por redirect em PWA/iOS</strong> — em app instalado (qualquer plataforma) e no iOS, o login passa a usar <code>signInWithRedirect</code> (navegação de topo) com retorno por <code>getRedirectResult()</code>. No desktop, o fluxo de popup é mantido. A persistência (compartilhado × pessoal) e o <code>prompt</code> do Google continuam sendo aplicados antes do redirect, como no popup.</li>
+            <li><strong>Mensagem para não cadastrados no retorno</strong> — quando a verificação de cadastro confirma usuário inexistente/inativo, a tela de login agora exibe o aviso "Usuário não cadastrado ou inativo" também no fluxo por redirect, em vez de apenas voltar em silêncio.</li>
+            <li><strong>Arquivos</strong> — <code>index.html</code> (detecção standalone/iOS, <code>signInWithRedirect</code>/<code>getRedirectResult</code>, aviso de não cadastrado); <code>js/version.js</code> — 1.22.1; <code>service-worker.js</code> — <code>rmpf-v1.22.1</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.22.0</span>
             <span class="badge-date">20/07/2026</span>
           </div>
