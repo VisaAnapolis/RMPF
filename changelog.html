@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.22.2</span>
+            <span class="badge-date">22/07/2026</span>
+          </div>
+          <div class="changelog-title">Login no PWA/iOS: OAuth direto na mesma origem (redirect do Firebase também não funciona no Safari)</div>
+          <ul class="changelog-changes">
+            <li><strong>Por que o redirect da v1.22.1 voltava sem logar</strong> — o <code>signInWithRedirect</code> guarda o resultado do login no <em>authDomain</em> (<code>visam-3a30b.firebaseapp.com</code>), um domínio <em>diferente</em> do app (<code>visaanapolis.github.io</code>). O Safari/iOS bloqueia storage de terceiros (ITP), então ao voltar do Google o app não consegue ler o resultado (<code>getRedirectResult()</code> = <code>null</code>) e a tela fica parada no login. Limitação documentada pelo Firebase para browsers que bloqueiam cookies de terceiros.</li>
+            <li><strong>OAuth conduzido manualmente, 100% first-party</strong> — em PWA instalado (qualquer plataforma) e no iOS, o login agora navega direto para o <code>accounts.google.com/o/oauth2/v2/auth</code> com <code>redirect_uri</code> na <strong>mesma origem do app</strong>; o token volta no fragmento da URL (<code>#access_token=…</code>, com <code>state</code> anti-CSRF) e o login é concluído com <code>signInWithCredential</code> — sem nenhum armazenamento cruzado entre domínios. Desktop segue no popup.</li>
+            <li><strong>Botão não fica mais preso em "Aguarde…"</strong> — no iOS PWA a página do Google abre numa folha sobre o app; se o usuário fechá-la sem concluir, o botão é reabilitado quando o app volta a ficar visível. Se o login concluir na folha, a sessão sincroniza e a janela principal redireciona ao dashboard sozinha.</li>
+            <li><strong>⚠️ Configuração necessária (uma vez)</strong> — cadastrar as URLs de retorno em <em>Google Cloud Console → APIs &amp; Services → Credentials → Web client (auto created by Google Service) → Authorized redirect URIs</em>: <code>https://visaanapolis.github.io/RMPF/</code> e <code>https://garrado.github.io/RMPF/</code>. Sem isso, o Google exibe "Erro 400: redirect_uri_mismatch".</li>
+            <li><strong>Arquivos</strong> — <code>index.html</code> (fluxo OAuth manual: <code>_rmpfIniciarLoginOAuth</code>/<code>_rmpfConcluirLoginOAuth</code>, reabilitação do botão); <code>js/version.js</code> — 1.22.2; <code>service-worker.js</code> — <code>rmpf-v1.22.2</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.22.1</span>
             <span class="badge-date">22/07/2026</span>
           </div>
