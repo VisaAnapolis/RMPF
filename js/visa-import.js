@@ -1216,6 +1216,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   updateData.motivo_pendencia = null;
                   onProgress(`✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: autorização de fiscais confirmada, restaurado para enviado.`, 'info');
                 }
+              } else if (existing.status === 'pendente') {
+                // Fiscal1/Fiscal2 nunca exigem autorização — se o registro ficou
+                // pendente em versão anterior do CSV (ex.: era terceiro fiscal e
+                // deixou de ser), reverte para enviado. Sem isso, o .update()
+                // parcial do Firestore nunca voltaria a tocar o campo status,
+                // deixando a pendência presa mesmo sem motivo.
+                updateData.status = 'enviado';
+                updateData.motivo_pendencia = null;
+                onProgress(`✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: não é mais terceiro fiscal, restaurado para enviado.`, 'info');
               }
               await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false, alvo.cnae);
               _aplicarManualNoMapaPontosVisa(estadoPontos.byDia, existing, -1);
