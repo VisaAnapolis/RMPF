@@ -44,6 +44,26 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.23.0</span>
+            <span class="badge-date">24/07/2026</span>
+          </div>
+          <div class="changelog-title">Reconciliação com o WCVS: lançamento homologado que diverge da origem volta para a conferência</div>
+          <ul class="changelog-changes">
+            <li><strong>O furo que existia</strong> — um lançamento já homologado era <em>pulado sem sequer ser comparado</em> com o CSV. Na prática, qualquer alteração feita no WCVS <strong>depois</strong> da homologação (data, CNAE, área, nº de fiscais, até exclusão da inspeção) nunca chegava ao RMPF, e ninguém percebia. Somado a isso, o import automático só reconciliava um mês e vigiava a mudança de apenas 2 dos 10 CSVs que consome.</li>
+            <li><strong>O CSV do WCVS agora é a fonte da verdade da competência aberta</strong> — todo lançamento homologado é comparado campo a campo a cada importação, sobre os 13 campos que definem identidade e pontuação (data, tipo, item do Anexo VII, complexidade, CNAE, pontos, área, qtd. de fiscais, documento, regulado, origem da demanda, nº da OS, origem do CNAE). <strong>Se nada mudou, a homologação fica intacta</strong> e nem há gravação. Se mudou, o dado do WCVS prevalece e o lançamento volta para a conferência. Alterações cosméticas (razão social, descrição, dispositivo legal) <em>não</em> desfazem a homologação.</li>
+            <li><strong>Novo status visual "Reaberto"</strong> — badge roxo na coluna Status e ícone 🔄 clicável, em <em>Meus Lançamentos</em> e na <em>Conferência</em>, com modal explicando o que aconteceu e uma tabela <em>como foi homologado × como está hoje no WCVS</em>. O fiscal recebe também uma notificação push agregada, para entender a queda de pontuação sem precisar abrir chamado.</li>
+            <li><strong>Quatro situações distinguidas</strong> — <em>alterada na origem</em> (mudou no WCVS); <em>CNAE reclassificado</em> (a atividade foi corrigida no WCVS: a versão antiga é zerada para não contar em dobro, mas <strong>a pontuação não é perdida</strong> — o lançamento atual da mesma inspeção continua valendo e nada precisa ser relançado); <em>excluída na origem</em> (saiu do CSV de fato — inclusive por troca de fiscal —, e agora fica zerada e visível em vez de ser apagada em silêncio); e <em>incompatibilidade</em> (outro lançamento do mesmo dia tornou este não cumulativo).</li>
+            <li><strong>Conflito entre manual e importado reabre os dois</strong> — quando um plantão/operação manual e uma vistoria do WCVS passam a coexistir no mesmo dia após a homologação, ambos voltam à conferência para o administrador decidir qual prevalece, em vez de o sistema escolher sozinho.</li>
+            <li><strong>Competência fechada continua intocável</strong> — mês fechado não é comparado, reaberto nem sinalizado em nenhum dos caminhos novos.</li>
+            <li><strong>Salvaguarda contra reabertura em massa indevida</strong> — se o <code>cnae.csv</code> ou o <code>inspecoes_cnae.csv</code> falhar (rede, token), os alvos e a pontuação sairiam errados e <em>toda</em> inspeção viraria órfã. Nesse caso a rodada segue importando, mas não reabre nem zera nada que esteja homologado.</li>
+            <li><strong>Detecção de mudança corrigida</strong> — o import automático passa a vigiar os 10 CSVs (em <em>uma única</em> chamada à API, pelo SHA do diretório) e a importação manual passa a registrar o estado, que era o motivo de o automático redisparar logo depois dela.</li>
+            <li><strong>Nova auditoria em modo simulação</strong> — em <em>Parametrização → 🔍 Auditar Divergências</em>, roda o mesmo motor com as gravações desligadas e lista o que seria alterado, <strong>sem gravar nada</strong>.</li>
+            <li><strong>Arquivos</strong> — <code>js/visa-import.js</code> (comparação campo a campo, reabertura, órfãos, revalidação cruzada do mês, modo simulação); <code>js/visa-auto-import.js</code> (SHA dos 10 CSVs, registro de estado reaproveitável); <code>js/firestore.js</code> (<code>fetchGitHubDirBlobShas</code>); <code>js/utils.js</code> + <code>css/rmpf.css</code> (badge e modal de reabertura); <code>conferencia.html</code>, <code>meus-lancamentos.html</code>, <code>parametrizacao.html</code>; <code>js/version.js</code> — 1.23.0; <code>service-worker.js</code> — <code>rmpf-v1.23.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.22.2</span>
             <span class="badge-date">22/07/2026</span>
           </div>
