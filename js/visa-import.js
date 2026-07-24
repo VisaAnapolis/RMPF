@@ -368,7 +368,9 @@ function resolverTipoVisa(tipoRaw, complexidade) {
 }
 
 // ── Autorização do terceiro fiscal ───────────────────────
-// Retorna true somente quando o Fiscal3 está explicitamente autorizado:
+// Aplica-se ao Fiscal3 e a todo fiscal adicional (4º+) vindo do
+// inspecoes_fiscais.csv — todos tratados como terceiro fiscal. Retorna true
+// somente quando explicitamente autorizado:
 //   - OS encontrada em requerimento.csv com prioridade=true, OU
 //   - Ofício encontrado em oficio.csv com terceiro=true.
 // Qualquer outro caso (chave ausente ou flag falso) → não autorizado.
@@ -694,6 +696,40 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       console.error('Failed to load inspecoes_cnae.csv:', err);
     }
 
+    // ── Fiscais adicionais por visita (data/inspecoes_fiscais.csv) ───
+    // Mapa VISITA_CTRL (controle da visita) → [nomes de fiscais extras], dedup
+    // por nome normalizado. Quando uma inspeção tem mais de 3 fiscais, o 4º em
+    // diante vem neste arquivo (as três primeiras colunas Fiscal1/2/3 seguem no
+    // inspecoes.csv). Cada fiscal daqui é tratado como terceiro fiscal
+    // (isTerceiro=true), igual ao Fiscal3 — mesma regra de autorização. As
+    // colunas CONTROLE (id sequencial da linha), ORDEM, CODIGO e auditoria são
+    // ignoradas; o vínculo é por VISITA_CTRL, como no inspecoes_cnae.csv.
+    const inspecoesFiscaisMap = new Map();
+    try {
+      const ifText = await window.fetchGitHubCSV('data/inspecoes_fiscais.csv');
+      if (ifText !== null) {
+        const ifParsed = Papa.parse(ifText, {
+          header: true,
+          delimiter: ';',
+          skipEmptyLines: true,
+          transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
+        });
+        for (const r of ifParsed.data) {
+          const visita = String(r['VISITA_CTRL'] || r['Visita_Ctrl'] || r['visita_ctrl'] || '').replace(/"/g, '').trim();
+          const nomeFisc = String(r['FISCAL'] || r['Fiscal'] || r['fiscal'] || '').replace(/"/g, '').trim();
+          if (!visita || !nomeFisc) continue;
+          if (!inspecoesFiscaisMap.has(visita)) inspecoesFiscaisMap.set(visita, []);
+          const list = inspecoesFiscaisMap.get(visita);
+          const norm = normNomeVisa(nomeFisc);
+          if (!list.some(n => normNomeVisa(n) === norm)) list.push(nomeFisc);
+        }
+        onProgress(`👥 ${inspecoesFiscaisMap.size} visita(s) com fiscais adicionais carregada(s).`, 'info');
+      }
+    } catch (err) {
+      onProgress('⚠️ Não foi possível carregar inspecoes_fiscais.csv — usando apenas os fiscais do inspecoes.csv.', 'warn');
+      console.error('Failed to load inspecoes_fiscais.csv:', err);
+    }
+
     // ── Regulados (data/regulados.csv) ───────────────────────
     // Mapa CODIGO(regulado) → { municipal (inscrição normalizada), razao }.
     // Fornece a razão social e a inscrição municipal (ponte para o taxa.csv).
@@ -869,6 +905,19 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         .map(f => ({ ...f, nome: String(f.nome || '').replace(/"/g, '').trim() }))
         .filter(f => f.nome);
 
+      // Fiscais adicionais (4º+), vindos do inspecoes_fiscais.csv vinculado por
+      // VISITA_CTRL (= controle da inspeção). Cada um entra como terceiro fiscal
+      // (isTerceiro=true), igual ao Fiscal3. Dedup por nome normalizado contra os
+      // já presentes (Fiscal1/2/3) e entre os próprios extras.
+      const fiscaisExtras = inspecoesFiscaisMap.get(controleVisa) || [];
+      const nomesPresentes = new Set(fiscaisCsv.map(f => normNomeVisa(f.nome)));
+      for (const nomeExtra of fiscaisExtras) {
+        const norm = normNomeVisa(nomeExtra);
+        if (!norm || nomesPresentes.has(norm)) continue;
+        nomesPresentes.add(norm);
+        fiscaisCsv.push({ nome: nomeExtra, isTerceiro: true });
+      }
+
       // ── CNAEs-alvo da inspeção ───────────────────────────
       // Vistoria (VIS): expande em 1 lançamento por CNAE de competência —
       // o CNAE informado na inspeção e os CNAEs extras que o fiscal informou
@@ -937,9 +986,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         // Decreto E.2: em fiscalização com 2+ fiscais, os CNAEs de baixa/média
         // complexidade têm a pontuação reduzida para cada fiscal (média 12→9,
         // baixa 6→3). Entra na seleção do teto de 48 já com o valor reduzido.
-        // fiscaisCsv.length = participantes físicos no CSV (inclui Fiscal3 mesmo
-        // não autorizado); como dupla e trio reduzem igual, isso só muda o nº
-        // exibido, não os pontos.
+        // fiscaisCsv.length = participantes físicos (Fiscal1/2/3 + adicionais do
+        // inspecoes_fiscais.csv), incluindo os não autorizados; como dupla, trio
+        // e 4+ reduzem igual, isso só muda o nº exibido, não os pontos.
         const qtdFiscais = fiscaisCsv.length;
         if (qtdFiscais >= 2) {
           for (const c of candidatos) {
@@ -1153,12 +1202,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 const autorizado = isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);
                 if (!autorizado) {
                   updateData.status = 'pendente';
-                  updateData.motivo_pendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
-                  onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
+                  updateData.motivo_pendencia = 'Fiscal adicional sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
+                  onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)} sem autorização de fiscal adicional, marcado como pendente.`, 'warn');
                 } else if (existing.status === 'pendente') {
                   updateData.status = 'enviado';
                   updateData.motivo_pendencia = null;
-                  onProgress(`✅ CONTROLE ${controleVisa} — Fiscal3 agora autorizado, restaurado para enviado.`, 'info');
+                  onProgress(`✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)} agora autorizado, restaurado para enviado.`, 'info');
                 }
               }
               await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false, alvo.cnae);
@@ -1179,8 +1228,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               let motivoPendencia = null;
               if (isTerceiro && !isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap)) {
                 statusInicial = 'pendente';
-                motivoPendencia = 'Fiscal3 sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
-                onProgress(`⚠️ CONTROLE ${controleVisa} — Fiscal3 sem autorização, marcado como pendente.`, 'warn');
+                motivoPendencia = 'Fiscal adicional sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
+                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)} sem autorização de fiscal adicional, marcado como pendente.`, 'warn');
               }
               const _duplaReducaoVisCreate = alvo.qtd_fiscais != null;
               await window.db_upsertVISAManual(controleVisa, emailFiscal, {
