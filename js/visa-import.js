@@ -224,6 +224,117 @@ async function motivoNaoCumulatividadeVistoria(fiscalEmail, dataISO, excluirId =
   return null;
 }
 
+// ── Reconciliação com a origem (WCVS) ────────────────────
+// O inspecoes.csv é a fonte da verdade permanente do mês aberto: se uma inspeção
+// muda no WCVS depois de homologada, o lançamento é sobrescrito e REABERTO (volta
+// a 'enviado') para nova homologação. Para isso é preciso saber se mudou algo que
+// de fato importa — daí a comparação campo a campo sobre os campos que definem
+// identidade e pontuação. Campos cosméticos (razão social, descrição, dispositivo
+// legal, participantes) ficam de fora: mudança neles não justifica desfazer o
+// trabalho de conferência do administrador.
+const VISA_CAMPOS_ORIGEM = [
+  'data', 'tipo_codigo', 'item_pontuacao', 'complexidade', 'visa_cnae',
+  'cnae_origem', 'pontos', 'visa_area', 'qtd_fiscais', 'documento',
+  'codigo', 'motivo_os', 'os_numero',
+];
+
+// Rótulos legíveis para o modal — o nome cru do campo não diz nada ao fiscal.
+const VISA_CAMPOS_ORIGEM_LABEL = {
+  data: 'Data', tipo_codigo: 'Tipo', item_pontuacao: 'Item do Anexo VII',
+  complexidade: 'Complexidade', visa_cnae: 'CNAE', cnae_origem: 'Origem do CNAE',
+  pontos: 'Pontos', visa_area: 'Área (m²)', qtd_fiscais: 'Qtd. de fiscais',
+  documento: 'Documento', codigo: 'Regulado (código)', motivo_os: 'Origem da demanda',
+  os_numero: 'Nº da OS',
+};
+
+// null, undefined e '' são o mesmo "vazio"; 48 e '48' são o mesmo valor. Sem
+// isso, docs antigos (gravados quando um campo ainda não existia) apareceriam
+// como alterados e seriam reabertos sem que nada tivesse mudado na origem.
+function _normValorOrigem(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'number') return String(v);
+  const s = String(v).trim();
+  if (s === '') return '';
+  if (!isNaN(Number(s))) return String(Number(s));
+  return s;
+}
+
+function visaCanonicoOrigem(doc) {
+  const out = {};
+  for (const c of VISA_CAMPOS_ORIGEM) out[c] = _normValorOrigem(doc ? doc[c] : null);
+  return out;
+}
+
+// [] = nada mudou (homologação preservada). Cada entrada traz o rótulo e os
+// valores de/para, que alimentam direto a tabela do modal de reabertura.
+//
+// Campo AUSENTE no doc gravado (chave inexistente, não null) é ignorado: são
+// campos que ainda não existiam no esquema quando aquele lançamento foi salvo
+// — evolução do RMPF, não alteração no WCVS. Sem isso, a primeira rodada
+// reabriria em massa homologações antigas legítimas. Campo gravado como null
+// continua valendo como comparação normal.
+function visaDiffOrigem(existing, novo) {
+  const a = visaCanonicoOrigem(existing);
+  const b = visaCanonicoOrigem(novo);
+  const diff = [];
+  for (const c of VISA_CAMPOS_ORIGEM) {
+    if (existing && !Object.prototype.hasOwnProperty.call(existing, c)) continue;
+    if (a[c] !== b[c]) {
+      diff.push({ campo: c, label: VISA_CAMPOS_ORIGEM_LABEL[c] || c, de: a[c], para: b[c] });
+    }
+  }
+  return diff;
+}
+
+// Distingue "o WCVS mudou" de "outro lançamento tornou este não cumulativo":
+// quando só os pontos mudaram E o motivo de zeragem mudou junto, a inspeção em si
+// continua idêntica — quem mexeu no resultado foi um lançamento do mesmo dia.
+function visaClassificaDiff(diff, existing, zeradoMotivoNovo) {
+  const soPontos = diff.length === 1 && diff[0].campo === 'pontos';
+  const zeradoMudou =
+    _normValorOrigem(existing && existing.zerado_motivo) !== _normValorOrigem(zeradoMotivoNovo);
+  return (soPontos && zeradoMudou) ? 'incompatibilidade' : 'origem';
+}
+
+// Textos das reaberturas (exibidos ao fiscal e ao administrador no modal).
+function _motivoReaberturaOrigem(controle, diff) {
+  return 'A inspeção CONTROLE ' + controle + ' foi alterada no WCVS depois de ter sido homologada. ' +
+    'Campo(s) alterado(s): ' + diff.map(d => d.label).join(', ') + '. ' +
+    'O lançamento foi atualizado com o dado atual da origem e devolvido à conferência para nova homologação.';
+}
+
+function _motivoReaberturaIncompat(controle, zeradoMotivo) {
+  return 'A pontuação da inspeção CONTROLE ' + controle + ' mudou porque outro lançamento do mesmo dia ' +
+    'a tornou não cumulativa' + (zeradoMotivo ? ' — ' + zeradoMotivo : '') + '. ' +
+    'Como esse lançamento (no WCVS ou manual) foi feito DEPOIS da homologação, o registro voltou à conferência.';
+}
+
+function _motivoReaberturaOrfao(controle) {
+  return 'A inspeção CONTROLE ' + controle + ' não consta mais no arquivo de inspeções do mês: foi excluída ' +
+    'no WCVS, ou teve a data alterada para outro mês, depois de ter sido homologada. ' +
+    'A pontuação foi zerada e o lançamento devolvido à conferência. ' +
+    'Se a exclusão foi indevida, basta corrigir no WCVS que ele volta na próxima importação.';
+}
+
+// CNAE reclassificado ≠ inspeção excluída. O CONTROLE continua no CSV, só que
+// sob outro CNAE (correção de RT no WCVS): existe um lançamento novo e correto
+// da mesma inspeção. Este aqui é a versão superada, que precisa ficar zerada
+// para não contar em dobro — mas o fiscal não perdeu nada.
+function _motivoCnaeReclassificado(controle, cnaeAntigo, cnaesAtuais) {
+  const lista = (cnaesAtuais || []).filter(Boolean).join(', ');
+  return 'A atividade (CNAE) da inspeção CONTROLE ' + controle + ' foi corrigida no WCVS depois da ' +
+    'homologação: este lançamento era do CNAE ' + (cnaeAntigo || '—') +
+    (lista ? ', e a inspeção agora está classificada como ' + lista : '') + '. ' +
+    'Esta versão antiga foi zerada para não contar em dobro — o lançamento atual da mesma inspeção ' +
+    'continua valendo e a sua pontuação não foi perdida. Nada precisa ser relançado.';
+}
+
+function _motivoReaberturaConflito(descricaoConflito) {
+  return 'Este lançamento ficou incompatível com outro do mesmo dia: ' + descricaoConflito + '. ' +
+    'O conflito surgiu DEPOIS da homologação — por isso os dois lançamentos envolvidos voltaram à ' +
+    'conferência para o administrador decidir qual prevalece.';
+}
+
 function visaMesAberto(mes, ano) {
   mes = Number(mes); ano = Number(ano);
   if (ano > VISA_IMPORT_INICIO_ANO) return true;
@@ -478,16 +589,207 @@ function encontrarDataEncaminhaProtocolo(numeroProtocolo, dataVisitaISO, tramita
   return null;
 }
 
-async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFiscais, onProgress, onProgressBar }) {
+// ── Revalidação cruzada do mês ───────────────────────────
+// Reconciliar linha a linha com o CSV não basta: a incompatibilidade entre dois
+// lançamentos nasce da COMBINAÇÃO deles no mesmo dia, e o segundo pode ter sido
+// criado (no WCVS ou manualmente) depois que o primeiro já estava homologado.
+// Este passe varre o mês inteiro e reabre o que estiver em estado inconsistente.
+//
+// Só age sobre VIOLAÇÃO REAL visível nos dados — não sobre "houve conflito algum
+// dia". Se a vistoria já está zerada pela regra, o estado é consistente e a
+// homologação continua de pé; nada é reaberto à toa.
+const _STATUS_REVALIDA = ['aceito', 'homologado', 'enviado', 'pendente'];
+
+function _ehHomologado(m) {
+  return m && (m.status === 'aceito' || m.status === 'homologado');
+}
+
+// Já sinalizado e aguardando decisão do administrador: não mexer de novo.
+function _jaSinalizado(m) {
+  return !!(m && m.reaberto_tipo && m.status === 'enviado');
+}
+
+async function revalidarCruzadoMes({ mes, ano, fiscalEmail, escrever, anota, onProgress, marcarReabertura }) {
+  let reabertos_incompat = 0, zerados_incompat = 0;
+
+  const docs = fiscalEmail
+    ? await window.db_getManuais(fiscalEmail, mes, ano)
+    : await window.db_getManuaisTodos(mes, ano);
+
+  const porFiscal = new Map();
+  for (const d of docs) {
+    if (!d.fiscal_email || !d.data) continue;
+    if (!_STATUS_REVALIDA.includes(d.status)) continue;   // fechado/recusado/rascunho fora
+    if (!porFiscal.has(d.fiscal_email)) porFiscal.set(d.fiscal_email, []);
+    porFiscal.get(d.fiscal_email).push(d);
+  }
+
+  // Reabre um lançamento (ou apenas zera, quando nunca foi homologado).
+  const reabrir = async (m, motivo, patchExtra) => {
+    if (_jaSinalizado(m)) return false;
+    const patch = Object.assign({}, patchExtra || {});
+    if (_ehHomologado(m)) {
+      patch.status = 'enviado';
+      patch.pontos_homologado = null;
+      patch.reaberto_tipo = 'incompatibilidade';
+      patch.reaberto_motivo = motivo;
+      patch.reaberto_diff = null;
+      patch.reaberto_em = new Date().toISOString();
+      patch.reaberto_pontos_homologado_anterior =
+        (m.pontos_homologado === undefined ? null : m.pontos_homologado);
+      reabertos_incompat++;
+      marcarReabertura(m.fiscal_email);
+      anota('reabrir_incompat', {
+        controle: m.visa_controle || m.controle, fiscal: m.fiscal_email,
+        cnae: m.visa_cnae, data: m.data, status_atual: m.status, motivo,
+      });
+    } else {
+      // Nunca homologado: corrige a pontuação em silêncio, sem marcar reabertura.
+      if (!Object.keys(patch).length) return false;
+      zerados_incompat++;
+      anota('zerar', {
+        controle: m.visa_controle || m.controle, fiscal: m.fiscal_email,
+        cnae: m.visa_cnae, data: m.data, status_atual: m.status, motivo,
+      });
+    }
+    await escrever.update(m.id, patch);
+    Object.assign(m, patch);   // evita reavaliar o mesmo doc no laço seguinte
+    return true;
+  };
+
+  const zerarVistoria = (m, itemDecreto, causa) => ({
+    pontos: 0,
+    zerado_motivo: causa,
+    dispositivo_legal: window.dispositivoLegal
+      ? window.dispositivoLegal(m.item_pontuacao, 0, false, itemDecreto)
+      : (m.dispositivo_legal || null),
+  });
+
+  for (const [email, lista] of porFiscal.entries()) {
+    const nome = (lista.find(d => d.fiscal_nome) || {}).fiscal_nome || null;
+    let escalaDatas = new Set();
+    try {
+      if (typeof window.datasEscaladoNoMes === 'function' && nome) {
+        escalaDatas = await window.datasEscaladoNoMes(nome, mes, ano);
+      }
+    } catch (_) { escalaDatas = new Set(); }
+
+    let ocorrAceitas = [];
+    try { ocorrAceitas = await _getOcorrenciasAceitasVisa(email, mes, ano); } catch (_) {}
+
+    const porDia = new Map();
+    for (const d of lista) {
+      if (!porDia.has(d.data)) porDia.set(d.data, []);
+      porDia.get(d.data).push(d);
+    }
+
+    for (const [dia, doDia] of porDia.entries()) {
+      try {
+        // ── C: dia coberto por afastamento aceito ──
+        if (_dataCobertaOcorrVisa(dia, ocorrAceitas)) {
+          for (const m of doDia) {
+            if (m.origem === 'ocorrencia' || !_ehHomologado(m)) continue;
+            await reabrir(m, _motivoReaberturaConflito(
+              'o dia ' + dia + ' passou a ser coberto por um afastamento aceito (ocorrência), ' +
+              'que não admite outros lançamentos'), {});
+          }
+          continue;   // dia resolvido; as demais regras não se aplicam
+        }
+
+        const plt      = doDia.filter(ehPlantaoManual);
+        const opf      = doDia.filter(ehOpfManual);
+        const relAlta  = doDia.filter(ehRelAltaImportada);
+        const diaInt   = doDia.filter(ehAtividadeDiaInteiroManual);
+        const vistorias = doDia.filter(ehVistoriaQualquer);
+        const escalado = escalaDatas.has(dia);
+
+        // ── A: vistoria pontuando num dia que deveria zerá-la ──
+        let itemDecreto = null, causa = null, culpado = null;
+        if (plt.length)          { itemDecreto = 9;  culpado = plt[0];
+          causa = 'plantão fiscal manual no mesmo dia (Anexo VII, item 9)'; }
+        else if (escalado)       { itemDecreto = 9;
+          causa = 'fiscal escalado pela gerência para plantão fiscal no mesmo dia — escala de plantão do VISA (Anexo VII, item 9)'; }
+        else if (opf.length)     { itemDecreto = 18; culpado = opf[0];
+          causa = 'operação fiscal manual no mesmo dia (Anexo VII, item 18)'; }
+        else if (relAlta.length) { itemDecreto = 13; culpado = relAlta[0];
+          causa = 'relatório técnico de inspeção (alta complexidade) no mesmo dia (Anexo VII, item 13)'; }
+
+        if (causa) {
+          const pontuando = vistorias.filter(v => (Number(v.pontos) || 0) > 0);
+          for (const v of pontuando) {
+            await reabrir(v, _motivoReaberturaConflito(
+              'a vistoria deixou de ser cumulativa por ' + causa), zerarVistoria(v, itemDecreto, causa));
+          }
+          // Decisão do gestor: reabrir os DOIS lados, para o administrador
+          // escolher qual prevalece — a vistoria do WCVS ou o lançamento manual.
+          if (pontuando.length && culpado && _ehHomologado(culpado)) {
+            await reabrir(culpado, _motivoReaberturaConflito(
+              'passou a existir vistoria do WCVS no mesmo dia (CONTROLE ' +
+              (pontuando[0].visa_controle || '—') + '), não cumulativa com este lançamento'), {});
+          }
+        }
+
+        // ── B: 48×48 — dois lançamentos manuais de dia inteiro pontuando ──
+        const dInteiroPontuando = diaInt.filter(m => (Number(m.pontos) || 0) > 0);
+        if (dInteiroPontuando.length > 1) {
+          for (const m of dInteiroPontuando) {
+            if (!_ehHomologado(m)) continue;
+            const outro = dInteiroPontuando.find(x => x.id !== m.id);
+            await reabrir(m, _motivoReaberturaConflito(
+              'há outra atividade de dia inteiro (48 pontos) lançada no mesmo dia — ' +
+              ((outro && outro.tipo_nome) || 'plantão/operação/serviços técnicos') +
+              ' —, e elas não são cumulativas entre si (Decreto 49.723/2023, Anexo VII)'), {});
+          }
+        }
+      } catch (e) {
+        onProgress('⚠️ Revalidação do dia ' + dia + ': ' + e.message, 'warn');
+      }
+    }
+  }
+
+  return { reabertos_incompat, zerados_incompat };
+}
+
+async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFiscais, onProgress, onProgressBar, simulacao }) {
   mes = Number(mes); ano = Number(ano);
+  simulacao = !!simulacao;
 
   if (!visaMesAberto(mes, ano)) {
     onProgress('⚠️ Mês anterior a Abril/2026 — impossível importar.', 'warn');
     return { criados: 0, atualizados: 0, ignorados: 0, erros: 0 };
   }
 
-  // Acquire distributed lock — throws if another import is already running for this month
-  await window.db_acquireVisaImportLock(mes, ano, fiscalEmail, fiscalNome || fiscalEmail);
+  // ── Modo simulação (auditoria de divergências) ───────────
+  // Toda gravação passa por `escrever.*`; em simulação elas viram no-ops que só
+  // registram a intenção em `relatorio`. É o que permite auditar o que a
+  // reconciliação FARIA sem tocar em nada — mesma lógica, um caminho só.
+  // Regra a manter: nenhuma chamada direta a db_upsertVISAManual/db_updateManual/
+  // db_deleteManual dentro desta função — sempre via `escrever`.
+  // O cache de ocorrências vive no módulo e a página do admin fica aberta por
+  // horas (auto-import a cada 10 min): sem limpar no início de cada rodada, um
+  // afastamento aceito nesse intervalo continuaria invisível pelo resto da
+  // sessão — e agora essa informação decide reabertura de lançamento homologado.
+  _visaOcorrCache.clear();
+
+  const relatorio = [];
+  const anota = (acao, dados) => relatorio.push({ acao, ...dados });
+  const escrever = simulacao
+    ? {
+        upsert: async () => {},
+        update: async () => {},
+        remover: async () => {},
+      }
+    : {
+        upsert: (...a) => window.db_upsertVISAManual(...a),
+        update: (...a) => window.db_updateManual(...a),
+        remover: (...a) => window.db_deleteManual(...a),
+      };
+
+  // Simulação é 100% leitura: não disputa o lock com uma importação real.
+  if (!simulacao) {
+    // Acquire distributed lock — throws if another import is already running for this month
+    await window.db_acquireVisaImportLock(mes, ano, fiscalEmail, fiscalNome || fiscalEmail);
+  }
 
   try {
     // ── Flag da pontuação por área (alimentação alta) ──
@@ -634,9 +936,17 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     // Mapa CNAE → { complexidade, descricao }. A presença no mapa define que o
     // CNAE é de competência da vigilância (tem pontuação). Complexidades inválidas
     // (ex.: lixo "OS") são descartadas, logo o CNAE não conta como competência.
+    // Salvaguarda da reconciliação: sem cnae.csv/inspecoes_cnae.csv os alvos e a
+    // pontuação saem errados — TODA inspeção viraria órfã e homologações
+    // legítimas seriam reabertas/zeradas em massa por uma simples falha de rede.
+    // Quando qualquer dessas fontes falta, a rodada segue importando, mas não
+    // reabre nem zera nada de homologado.
+    let fontesIncompletas = false;
+
     const cnaeMap = new Map();
     try {
       const cnaeText = await window.fetchGitHubCSV('data/cnae.csv');
+      if (cnaeText === null) fontesIncompletas = true;
       if (cnaeText !== null) {
         const cnaeParsed = Papa.parse(cnaeText, {
           header: true,
@@ -663,6 +973,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         onProgress(`🧬 ${cnaeMap.size} CNAE(s) de competência carregado(s).`, 'info');
       }
     } catch (err) {
+      fontesIncompletas = true;
       onProgress('⚠️ Não foi possível carregar cnae.csv — expansão por CNAEs extras desabilitada.', 'warn');
       console.error('Failed to load cnae.csv:', err);
     }
@@ -675,6 +986,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     const inspecoesCnaeMap = new Map();
     try {
       const icText = await window.fetchGitHubCSV('data/inspecoes_cnae.csv');
+      if (icText === null) fontesIncompletas = true;
       if (icText !== null) {
         const icParsed = Papa.parse(icText, {
           header: true,
@@ -693,6 +1005,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         onProgress(`🏷️ ${inspecoesCnaeMap.size} visita(s) com CNAEs extras carregada(s).`, 'info');
       }
     } catch (err) {
+      fontesIncompletas = true;
       onProgress('⚠️ Não foi possível carregar inspecoes_cnae.csv — usando apenas o CNAE da inspeção.', 'warn');
       console.error('Failed to load inspecoes_cnae.csv:', err);
     }
@@ -829,7 +1142,25 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     onProgress(`📋 ${rowsFiltradas.length} inspeção(ões) encontrada(s) para ${mesStr}/${anoStr}.`, 'info');
 
     let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
+    let reabertos = 0, reabertos_orfaos = 0, reabertos_incompat = 0;
+    // fiscal → nº de reaberturas nesta rodada (1 push agregado por fiscal ao final)
+    const reabertosPorFiscal = new Map();
+    const marcarReabertura = (email) => {
+      if (!email) return;
+      reabertosPorFiscal.set(email, (reabertosPorFiscal.get(email) || 0) + 1);
+    };
     const processedKeys = new Set(); // "fiscalEmail::controleVisa::cnae"
+    // "fiscalEmail::controleVisa" → Set de CNAEs processados nesta rodada. Uma
+    // correção de RT no WCVS (CNAE reclassificado) faz o CONTROLE continuar
+    // existindo no CSV sob outro CNAE — sem isso, o loop de órfãos trataria a
+    // versão antiga como "excluída na origem", quando na verdade já existe um
+    // lançamento atualizado da MESMA inspeção sob o CNAE novo.
+    const processedControleFiscal = new Map();
+    const marcarProcessadoControleFiscal = (email, controle, cnae) => {
+      const k = email + '::' + controle;
+      if (!processedControleFiscal.has(k)) processedControleFiscal.set(k, new Set());
+      processedControleFiscal.get(k).add(cnae || '');
+    };
     const pontosEstadoCache = new Map();
 
     // Heartbeat do lock: uma importação de todos os fiscais pode passar dos 3 min
@@ -1047,6 +1378,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           const legacy = await window.db_getVISAManual(controleVisa, emailFiscal);
           if (legacy && (legacy.status === 'aceito' || legacy.status === 'fechado')) {
             processedKeys.add(emailFiscal + '::' + controleVisa + '::' + (legacy.visa_cnae || ''));
+            marcarProcessadoControleFiscal(emailFiscal, controleVisa, legacy.visa_cnae);
             ignorados++;
             onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado (legado), preservado.`, 'warn');
             continue;
@@ -1066,6 +1398,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
           // Marca como presente no CSV para detecção de registros órfãos
           processedKeys.add(emailFiscal + '::' + controleVisa + '::' + alvo.cnae);
+          marcarProcessadoControleFiscal(emailFiscal, controleVisa, alvo.cnae);
 
           try {
             const existing = await window.db_getVISAManual(controleVisa, emailFiscal, alvo.cnae);
@@ -1163,9 +1496,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             }
 
             if (existing) {
-              if (existing.status === 'aceito' || existing.status === 'fechado') {
+              // Mês fechado é intocável: nem comparado, nem sinalizado.
+              if (existing.status === 'fechado') {
                 ignorados++;
-                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado, ignorado.`, 'warn');
+                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
                 continue;
               }
               const _duplaReducaoVis = alvo.qtd_fiscais != null;
@@ -1199,6 +1533,54 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFiscal, _duplaReducaoVis, itemDecretoZerado || itemDecretoAlimentacao || undefined)
                   : null,
               };
+              // ── Homologado: só sobrescreve se a origem realmente mudou ──
+              // Sem diff, a homologação do administrador fica intacta (e sem
+              // gravação). Com diff, o dado do WCVS prevalece e o lançamento
+              // volta à conferência — é o que fecha o furo de alterações feitas
+              // no transacional depois da homologação.
+              const _homologado = existing.status === 'aceito' || existing.status === 'homologado';
+              if (_homologado) {
+                const _diff = visaDiffOrigem(existing, updateData);
+                if (!_diff.length) {
+                  ignorados++;
+                  continue;
+                }
+                if (fontesIncompletas) {
+                  ignorados++;
+                  onProgress(
+                    `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: divergência detectada, mas ` +
+                    `os CSVs de apoio falharam nesta rodada. Homologação mantida por segurança.`, 'warn');
+                  continue;
+                }
+                const _tipoReab = visaClassificaDiff(_diff, existing, zeradoMotivo);
+                updateData.status = 'enviado';
+                updateData.pontos_homologado = null;
+                updateData.reaberto_tipo = _tipoReab;
+                updateData.reaberto_diff = _diff;
+                updateData.reaberto_em = new Date().toISOString();
+                updateData.reaberto_pontos_homologado_anterior =
+                  (existing.pontos_homologado === undefined ? null : existing.pontos_homologado);
+                updateData.reaberto_motivo = _tipoReab === 'incompatibilidade'
+                  ? _motivoReaberturaIncompat(controleVisa, zeradoMotivo)
+                  : _motivoReaberturaOrigem(controleVisa, _diff);
+                if (_tipoReab === 'incompatibilidade') reabertos_incompat++; else reabertos++;
+                marcarReabertura(emailFiscal);
+                anota('reabrir', {
+                  controle: controleVisa, fiscal: emailFiscal, cnae: alvo.cnae, data: dataISO,
+                  status_atual: existing.status, tipo: _tipoReab, diff: _diff,
+                });
+                onProgress(
+                  `🔄 CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: alterado na origem depois de ` +
+                  `homologado (${_diff.map(d => d.label).join(', ')}) — reaberto para nova conferência.`, 'warn');
+              } else if (existing.reaberto_tipo) {
+                // Reaparecendo no CSV / voltando a bater: some a marca de reabertura.
+                updateData.reaberto_tipo = null;
+                updateData.reaberto_motivo = null;
+                updateData.reaberto_diff = null;
+                updateData.reaberto_em = null;
+                updateData.reaberto_pontos_homologado_anterior = null;
+              }
+
               if (existing.status === 'recusado') {
                 updateData.status = 'enviado';
                 updateData.motivo_recusa = null;
@@ -1217,7 +1599,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   onProgress(`✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: autorização de fiscais confirmada, restaurado para enviado.`, 'info');
                 }
               }
-              await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false, alvo.cnae);
+              await escrever.upsert(controleVisa, emailFiscal, updateData, existing.id, false, alvo.cnae);
               _aplicarManualNoMapaPontosVisa(estadoPontos.byDia, existing, -1);
               const manualAtualizado = { ...existing, ...updateData, id: existing.id };
               _aplicarManualNoMapaPontosVisa(estadoPontos.byDia, manualAtualizado, 1);
@@ -1239,7 +1621,11 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: inspeção com mais de dois fiscais sem autorização prévia, marcado como pendente.`, 'warn');
               }
               const _duplaReducaoVisCreate = alvo.qtd_fiscais != null;
-              await window.db_upsertVISAManual(controleVisa, emailFiscal, {
+              anota('criar', {
+                controle: controleVisa, fiscal: emailFiscal, cnae: alvo.cnae, data: dataISO,
+                status_atual: null,
+              });
+              await escrever.upsert(controleVisa, emailFiscal, {
                 controle: 'VISA-' + controleVisa,
                 fiscal_email: emailFiscal,
                 fiscal_nome: nomeFiscalCsv,
@@ -1294,11 +1680,62 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         : await window.db_getManuaisTodos(mes, ano);
       for (const m of candidatos) {
         if (m.origem !== 'visa_csv') continue;
-        if (m.status === 'aceito' || m.status === 'fechado') continue;
+        if (m.status === 'fechado') continue;              // mês fechado: intocável
+        // Órfão já sinalizado numa rodada anterior: preservar SEM regravar. Sem
+        // este desvio ele voltaria a 'enviado' e a rodada seguinte o apagaria.
+        if (m.reaberto_tipo === 'orfao' || m.reaberto_tipo === 'cnae_reclassificado') continue;
         const key = (m.fiscal_email || '') + '::' + (m.visa_controle || '') + '::' + (m.visa_cnae || '');
-        if (!processedKeys.has(key)) {
-          await window.db_deleteManual(m.id);
+        if (processedKeys.has(key)) continue;
+
+        // A inspeção sumiu, ou só trocou de CNAE? Se o mesmo CONTROLE apareceu
+        // nesta rodada sob outro CNAE, o RT foi reclassificado no WCVS: existe
+        // um lançamento novo e correto da mesma inspeção. Chamar isso de
+        // "excluído no WCVS" seria mentira para o fiscal.
+        const cnaesAtuais = processedControleFiscal.get((m.fiscal_email || '') + '::' + (m.visa_controle || ''));
+        const reclassificado = !!(cnaesAtuais && cnaesAtuais.size);
+
+        const homologado = m.status === 'aceito' || m.status === 'homologado';
+        if (homologado) {
+          // Homologado que sumiu da origem NÃO é apagado em silêncio: fica visível,
+          // zerado, aguardando decisão do administrador.
+          if (fontesIncompletas) {
+            onProgress(
+              `⚠️ CONTROLE ${m.visa_controle} — ausente do CSV, mas os arquivos de apoio falharam ` +
+              `nesta rodada. Homologação mantida por segurança.`, 'warn');
+            continue;
+          }
+          await escrever.update(m.id, {
+            pontos: 0,
+            status: 'enviado',
+            pontos_homologado: null,
+            reaberto_tipo: reclassificado ? 'cnae_reclassificado' : 'orfao',
+            reaberto_motivo: reclassificado
+              ? _motivoCnaeReclassificado(m.visa_controle, m.visa_cnae, Array.from(cnaesAtuais))
+              : _motivoReaberturaOrfao(m.visa_controle),
+            reaberto_diff: null,
+            reaberto_em: new Date().toISOString(),
+            reaberto_pontos_homologado_anterior:
+              (m.pontos_homologado === undefined ? null : m.pontos_homologado),
+          });
+          reabertos_orfaos++;
+          marcarReabertura(m.fiscal_email);
+          anota(reclassificado ? 'reabrir_cnae_reclassificado' : 'reabrir_orfao', {
+            controle: m.visa_controle, fiscal: m.fiscal_email, cnae: m.visa_cnae,
+            data: m.data, status_atual: m.status,
+          });
+          onProgress(
+            reclassificado
+              ? `🔄 CONTROLE ${m.visa_controle} — CNAE ${m.visa_cnae} reclassificado no WCVS: versão ` +
+                `antiga zerada (o lançamento atual da inspeção segue valendo).`
+              : `🔄 CONTROLE ${m.visa_controle} — homologado, mas ausente do CSV: pontuação zerada e ` +
+                `devolvido à conferência.`, 'warn');
+        } else {
+          await escrever.remover(m.id);
           excluidos++;
+          anota('excluir', {
+            controle: m.visa_controle, fiscal: m.fiscal_email, cnae: m.visa_cnae,
+            data: m.data, status_atual: m.status,
+          });
           onProgress(`🗑️ CONTROLE ${m.visa_controle} — não encontrado no CSV, lançamento excluído.`, 'info');
         }
       }
@@ -1306,17 +1743,70 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       onProgress('⚠️ Erro ao verificar lançamentos órfãos: ' + e.message, 'warn');
     }
 
+    // ── Revalidação cruzada do mês ──
+    // Roda depois da reconciliação porque depende do estado final do dia (uma
+    // vistoria recém-criada pode tornar não cumulativo um manual homologado há
+    // semanas). Falha aqui não derruba a importação já concluída.
+    let zerados_incompat = 0;
+    if (!fontesIncompletas) {
+      try {
+        if (!simulacao && typeof window.db_refreshVisaImportLock === 'function') {
+          await window.db_refreshVisaImportLock(mes, ano);
+        }
+        onProgress('🔁 Revalidando incompatibilidades do mês...', 'info');
+        const rev = await revalidarCruzadoMes({
+          mes, ano, fiscalEmail, escrever, anota, onProgress, marcarReabertura,
+        });
+        reabertos_incompat += rev.reabertos_incompat;
+        zerados_incompat = rev.zerados_incompat;
+      } catch (e) {
+        onProgress('⚠️ Erro na revalidação cruzada: ' + e.message, 'warn');
+      }
+    } else {
+      onProgress('⚠️ Revalidação cruzada pulada: os CSVs de apoio falharam nesta rodada.', 'warn');
+    }
+
+    const totalReabertos = reabertos + reabertos_orfaos + reabertos_incompat;
+
+    // Um push por fiscal, agregando todas as reaberturas da rodada (a queda de
+    // pontuação no painel dele é imediata; sem aviso, viraria chamado).
+    if (!simulacao && reabertosPorFiscal.size &&
+        typeof window.dispararNotificacaoFiscal === 'function') {
+      for (const [email, qtd] of reabertosPorFiscal.entries()) {
+        try {
+          window.dispararNotificacaoFiscal(
+            email,
+            '🔄 Lançamento reaberto',
+            `${qtd} lançamento(s) de ${String(mes).padStart(2, '0')}/${ano} voltaram para conferência ` +
+            `por alteração na origem ou incompatibilidade. Abra Meus Lançamentos para ver o motivo.`
+          );
+        } catch (_) { /* notificação nunca derruba a importação */ }
+      }
+    }
+
     onProgress(
-      `✅ Importação concluída: <strong>${criados}</strong> criado(s), ` +
+      `✅ ${simulacao ? 'Simulação concluída' : 'Importação concluída'}: ` +
+      `<strong>${criados}</strong> criado(s), ` +
       `<strong>${atualizados}</strong> atualizado(s), ` +
       `<strong>${ignorados}</strong> ignorado(s), ` +
       `<strong>${excluidos}</strong> excluído(s), ` +
+      `<strong>${totalReabertos}</strong> reaberto(s), ` +
       `<strong>${erros}</strong> erro(s).`,
       erros > 0 ? 'warn' : 'ok'
     );
-    return { criados, atualizados, ignorados, excluidos, erros };
+    if (totalReabertos) {
+      onProgress(
+        `🔄 Reaberturas: ${reabertos} por alteração na origem, ${reabertos_orfaos} por exclusão na ` +
+        `origem, ${reabertos_incompat} por incompatibilidade.`, 'warn');
+    }
+
+    return {
+      criados, atualizados, ignorados, excluidos, erros,
+      reabertos, reabertos_orfaos, reabertos_incompat, zerados_incompat,
+      relatorio,
+    };
   } finally {
-    await window.db_releaseVisaImportLock(mes, ano);
+    if (!simulacao) await window.db_releaseVisaImportLock(mes, ano);
   }
 }
 
@@ -1332,3 +1822,7 @@ window.datasComRelAltaImportada    = datasComRelAltaImportada;
 window.ehAtividadeDiaInteiroManual = ehAtividadeDiaInteiroManual;
 window.atividadesDiaInteiroNoDia   = atividadesDiaInteiroNoDia;
 window.motivoNaoCumulatividadeVistoria = motivoNaoCumulatividadeVistoria;
+window.visaCanonicoOrigem          = visaCanonicoOrigem;
+window.visaDiffOrigem              = visaDiffOrigem;
+window.visaClassificaDiff          = visaClassificaDiff;
+window.revalidarCruzadoMes         = revalidarCruzadoMes;

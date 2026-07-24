@@ -207,12 +207,17 @@
         <button class="btn btn-outline" id="param-btn-import-sim-todos" type="button">
           📥 Importar SIM — Todos os Fiscais
         </button>
+        <button class="btn btn-outline" id="param-btn-auditar-visa" type="button"
+                title="Simula a importação e mostra as divergências entre o CSV do WCVS e os lançamentos — sem gravar nada">
+          🔍 Auditar Divergências (simulação)
+        </button>
         <button class="btn btn-outline" id="param-btn-apagar-todos" type="button"
                 style="color:var(--verm);border-color:var(--verm)"
                 title="Apagar lançamentos importados (VISA e SIM) do mês — lançamentos dos fiscais NÃO são apagados">
           🗑️ Apagar Lançamentos Importados (VISA e SIM)
         </button>
       </div>
+      <div id="param-auditoria-visa" style="margin-top:12px"></div>
       <div id="param-import-visa-log" style="margin-top:12px"></div>
       <div id="param-import-progress-wrap" class="progress-wrap" style="display:none">
         <div class="progress-header">
@@ -1742,6 +1747,13 @@
           const aberto = visaMesAberto(mes, ano);
           btnVisaTodos.disabled = !aberto;
           btnVisaTodos.title = aberto ? 'Importar inspeções do VISA para todos os fiscais' : 'Mês anterior a Abril/2026 — impossível importar';
+          const bAud = document.getElementById('param-btn-auditar-visa');
+          if (bAud) {
+            bAud.disabled = !aberto;
+            bAud.title = aberto
+              ? 'Simula a importação e mostra as divergências entre o CSV do WCVS e os lançamentos — sem gravar nada'
+              : 'Mês anterior a Abril/2026 — impossível auditar';
+          }
         }
         if (typeof simMesAberto === 'function') {
           const aberto = simMesAberto(mes, ano);
@@ -1804,11 +1816,107 @@
         };
         try {
           const allFiscais = await db_getTodosFiscais();
-          await importarInspecoesVISA({ fiscalEmail: null, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
+          const r = await importarInspecoesVISA({ fiscalEmail: null, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
+          // Registra o estado da importação, senão o auto-import redispara logo
+          // em seguida achando que os CSVs ainda não foram processados. Os SHAs
+          // só são carimbados quando o mês importado é a competência aberta —
+          // importar um mês antigo não pode marcar a competência como feita.
+          if (typeof window.registrarImportStateVisa === 'function') {
+            let blobShas = null;
+            try {
+              const comp = await db_getProximaCompetencia();
+              if (Number(comp.mes) === mes && Number(comp.ano) === ano &&
+                  typeof window.visaBlobShasAtuais === 'function') {
+                blobShas = await window.visaBlobShasAtuais();
+              }
+            } catch (_) { blobShas = null; }
+            try {
+              await window.registrarImportStateVisa(r, mes, ano, blobShas, { tipo: 'visa_manual' });
+            } catch (_) { /* histórico não pode derrubar a importação concluída */ }
+          }
         } catch(e) {
           logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
         } finally {
           btnVisaTodos.disabled = typeof visaMesAberto === 'function' && !visaMesAberto(mes, ano);
+          ocultarProgresso();
+        }
+      });
+
+      // ── Auditoria de divergências (simulação, nada é gravado) ──
+      // Mesma engrenagem da importação real (`simulacao: true` troca as
+      // gravações por no-ops que só registram a intenção). Permite medir o que
+      // a reconciliação vai fazer antes de deixá-la rodar sozinha.
+      const btnAuditar = document.getElementById('param-btn-auditar-visa');
+      const AUD_ROTULOS = {
+        criar: ['Criar', 'var(--verde)'],
+        reabrir: ['Reabrir — alterado na origem', '#7c3aed'],
+        reabrir_orfao: ['Reabrir zerado — excluído na origem', '#7c3aed'],
+        reabrir_cnae_reclassificado: ['Zerar versão antiga — CNAE reclassificado', '#7c3aed'],
+        reabrir_incompat: ['Reabrir — incompatibilidade', '#7c3aed'],
+        zerar: ['Zerar pontos', 'var(--lara)'],
+        excluir: ['Excluir', 'var(--verm)'],
+      };
+
+      if (btnAuditar) btnAuditar.addEventListener('click', async () => {
+        const mes = Number(selM.value);
+        const ano = Number(selA.value);
+        const mesNome = selM.options[selM.selectedIndex]?.text || mes;
+        const alvo = document.getElementById('param-auditoria-visa');
+        btnAuditar.disabled = true;
+        alvo.innerHTML = alerta('info', `🔍 Simulando a importação de ${escHtml(String(mesNome))}/${ano}… nada será gravado.`);
+        try {
+          const allFiscais = await db_getTodosFiscais();
+          const r = await importarInspecoesVISA({
+            fiscalEmail: null, mes, ano, allFiscais,
+            simulacao: true,
+            onProgress: () => {},
+            onProgressBar: mostrarProgresso,
+          });
+          const linhas = (r && r.relatorio) || [];
+          const porAcao = {};
+          for (const it of linhas) porAcao[it.acao] = (porAcao[it.acao] || 0) + 1;
+
+          const resumo = Object.keys(AUD_ROTULOS)
+            .filter(a => porAcao[a])
+            .map(a => `<strong style="color:${AUD_ROTULOS[a][1]}">${porAcao[a]}</strong> ${escHtml(AUD_ROTULOS[a][0])}`)
+            .join(' · ') || 'nenhuma divergência encontrada';
+
+          // Só as ações que mexem em algo já existente interessam na conferência.
+          const relevantes = linhas.filter(it => it.acao !== 'criar');
+          let html = alerta('ok',
+            `Simulação de ${escHtml(String(mesNome))}/${ano} concluída — <strong>nenhum dado foi gravado</strong>.<br>${resumo}`);
+
+          if (relevantes.length) {
+            html += `<div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:.88rem">` +
+              `<thead><tr>` +
+              ['Ação', 'CONTROLE', 'Fiscal', 'Data', 'CNAE', 'Status atual', 'Detalhe']
+                .map(h => `<th style="text-align:left;padding:6px;border-bottom:1px solid #e2e8f0;white-space:nowrap">${h}</th>`).join('') +
+              `</tr></thead><tbody>`;
+            for (const it of relevantes.slice(0, 300)) {
+              const rot = AUD_ROTULOS[it.acao] || [it.acao, 'inherit'];
+              const detalhe = it.diff && it.diff.length
+                ? it.diff.map(d => `${escHtml(d.label)}: ${escHtml(String(d.de || '—'))} → ${escHtml(String(d.para || '—'))}`).join('<br>')
+                : escHtml(it.motivo || '—');
+              html += `<tr>` +
+                `<td style="padding:6px;color:${rot[1]};font-weight:600;white-space:nowrap">${escHtml(rot[0])}</td>` +
+                `<td style="padding:6px">${escHtml(String(it.controle || '—'))}</td>` +
+                `<td style="padding:6px">${escHtml(nomeCurto(it.fiscal || '—'))}</td>` +
+                `<td style="padding:6px;white-space:nowrap">${escHtml(it.data || '—')}</td>` +
+                `<td style="padding:6px">${escHtml(it.cnae || '—')}</td>` +
+                `<td style="padding:6px">${escHtml(it.status_atual || '—')}</td>` +
+                `<td style="padding:6px">${detalhe}</td>` +
+                `</tr>`;
+            }
+            html += `</tbody></table></div>`;
+            if (relevantes.length > 300) {
+              html += alerta('info', `Exibindo as 300 primeiras de ${relevantes.length} divergências.`);
+            }
+          }
+          alvo.innerHTML = html;
+        } catch (e) {
+          alvo.innerHTML = alerta('danger', '🚨 Erro na simulação: ' + escHtml(e.message));
+        } finally {
+          btnAuditar.disabled = false;
           ocultarProgresso();
         }
       });

@@ -1007,6 +1007,55 @@ async function fetchGitHubFileCommitSha(filePath) {
   return Array.isArray(arr) && arr.length ? (arr[0].sha || null) : null;
 }
 
+/**
+ * SHAs (blob) de todos os arquivos de um diretório do repositório VISA, em UMA
+ * chamada. A importação consome ~10 CSVs; consultar o commit de cada um custaria
+ * 10 requisições por verificação (a cada 10 min, por admin logado). Aqui o
+ * próprio listing do diretório já traz o sha de cada arquivo, e qualquer
+ * alteração de conteúdo muda o blob sha.
+ * @param {string} dirPath  ex.: 'data'
+ * @returns {Promise<Object>} mapa { 'data/inspecoes.csv': '<sha>', ... }
+ */
+async function fetchGitHubDirBlobShas(dirPath) {
+  const token = await db_getGitHubToken();
+  if (!token) throw new Error('Token do GitHub não configurado. Acesse Admin → 🔑 Token do GitHub para configurar.');
+  const url = `https://api.github.com/repos/garrado/VISA/contents/${dirPath}`;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 s
+  let resp;
+  try {
+    resp = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Tempo limite excedido ao consultar o GitHub (20 s).');
+    }
+    throw new Error('Falha de rede ao consultar o GitHub.');
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (resp.status === 401) throw new Error('Token do GitHub inválido ou expirado.');
+  if (resp.status === 403) throw new Error('Acesso negado ao repositório VISA. Verifique as permissões do token.');
+  if (!resp.ok) throw new Error('Não foi possível listar o diretório do repositório VISA: HTTP ' + resp.status);
+
+  const arr = await resp.json();
+  const out = {};
+  if (Array.isArray(arr)) {
+    for (const it of arr) {
+      if (it && it.type === 'file' && it.path && it.sha) out[it.path] = it.sha;
+    }
+  }
+  return out;
+}
+
 // ── App Config / Estado de Importação (detecção de mudança) ──
 // Guarda o "token de mudança" da última importação automática por fonte,
 // ex.: { visa: { commit_sha, mes, ano, imported_at } }. Evita reimportar
@@ -1282,6 +1331,7 @@ window.db_getGitHubToken        = db_getGitHubToken;
 window.db_setGitHubToken        = db_setGitHubToken;
 window.fetchGitHubCSV           = fetchGitHubCSV;
 window.fetchGitHubFileCommitSha = fetchGitHubFileCommitSha;
+window.fetchGitHubDirBlobShas   = fetchGitHubDirBlobShas;
 window.db_getImportState        = getImportState;
 window.db_setImportState        = setImportState;
 window.db_getAnexosPorMes       = getAnexosPorMes;

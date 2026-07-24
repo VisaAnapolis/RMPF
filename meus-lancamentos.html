@@ -329,6 +329,16 @@
         Promise.all([db_getManuais(_user.email, mes, ano), db_getFechamento(_user.email, mes, ano)]),
         _timeout,
       ]);
+      // Lançamento reaberto: já foi homologado e voltou à conferência porque a
+      // inspeção mudou/sumiu no WCVS ou ficou incompatível com outra do mesmo
+      // dia. Explica a queda de pontuação que o fiscal vê sem ter feito nada.
+      const _reab = _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
+      document.getElementById('alert-area').innerHTML = _reab
+        ? alerta('warn', `<strong>${_reab} lançamento(s)</strong> seu(s) voltaram para conferência. ` +
+            `Isso acontece quando a inspeção é alterada ou excluída no WCVS, ou quando outro lançamento ` +
+            `do mesmo dia passa a ser incompatível, depois da homologação. ` +
+            `Clique no ícone 🔄 na coluna Status para ver o motivo — não é preciso lançar nada de novo.`)
+        : '';
       renderTabela();
     } catch(e) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="17">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
@@ -418,7 +428,7 @@
         <td data-label="Pontos Requeridos" class="td-num">${m.pontos != null ? formatPontos(m.pontos) : '—'}${window.zeradoWarningHtml(m)}</td>
         <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
         <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado != null ? formatPontos(m.pontos_homologado) : '—'}</td>
-        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : badge(m.status)}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
+        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : (m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status))}${window.reabertoWarningHtml(m)}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
         <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
         <td data-label="Ações" class="td-center nao-imprimir">${acoes}</td>
       </tr>`;
