@@ -542,6 +542,157 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Coluna "Fiscais": contagem clicável + alerta de autorização
+// ─────────────────────────────────────────────────────────────
+// A importação VISA grava `fiscais_participantes` (lista de nomes) quando a
+// inspeção tem 2+ fiscais. A contagem na coluna "Fiscais" vira CLICÁVEL e abre
+// um modal com o nome de todos os participantes. Registros legados (sem
+// reimportar) caem no fallback `qtd_fiscais` (número simples, não-clicável).
+// Mesmo padrão de modal único + delegação dos alertas de prazo/zerado acima.
+
+// HTML da contagem de fiscais (clicável quando há lista de participantes).
+// Os dados do modal viajam no próprio elemento via data-* (nomes unidos por |).
+function fiscaisCountHtml(m) {
+  if (m && Array.isArray(m.fiscais_participantes) && m.fiscais_participantes.length >= 2) {
+    return `<span class="fiscais-link" role="button" tabindex="0"` +
+      ` style="cursor:pointer;text-decoration:underline"` +
+      ` title="Clique para ver os fiscais participantes"` +
+      ` data-fiscais="${escHtml(m.fiscais_participantes.join('|'))}">` +
+      `${m.fiscais_participantes.length}</span>`;
+  }
+  return (m && m.qtd_fiscais != null) ? escHtml(String(m.qtd_fiscais)) : '—';
+}
+
+// Preenche e exibe o modal de participantes a partir do dataset do elemento.
+function abrirFiscais(ds) {
+  _initFiscaisModal();
+  const modal = document.getElementById('modal-fiscais');
+  if (!modal) return;
+  const nomes = String(ds.fiscais || '').split('|').filter(Boolean);
+  modal.querySelector('#fs-body').innerHTML =
+    `<ul style="list-style:none;padding:0;margin:0;line-height:1.9">` +
+    nomes.map(n => `<li>👤 ${escHtml(n)}</li>`).join('') +
+    `</ul>`;
+  modal.style.display = 'flex';
+}
+
+// Injeta o markup do modal (uma vez) e registra os fechamentos.
+function _initFiscaisModal() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('modal-fiscais')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    `<div id="modal-fiscais" class="modal-backdrop" style="display:none">` +
+    `<div class="modal" style="max-width:480px">` +
+    `<div class="modal-header"><span>👥 Fiscais participantes</span>` +
+    `<button class="modal-close" id="fs-close" aria-label="Fechar">✕</button></div>` +
+    `<div class="modal-body" id="fs-body"></div>` +
+    `<div class="modal-footer"><button class="btn btn-default" id="fs-close2">Fechar</button></div>` +
+    `</div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const modal = document.getElementById('modal-fiscais');
+  const hide = () => { modal.style.display = 'none'; };
+  document.getElementById('fs-close').addEventListener('click', hide);
+  document.getElementById('fs-close2').addEventListener('click', hide);
+  modal.addEventListener('click', (e) => { if (e.target === modal) hide(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') hide();
+  });
+}
+
+// Ativação por clique ou Enter/Espaço em qualquer .fiscais-link (delegação).
+function _onFiscaisActivate(e) {
+  const el = e.target && e.target.closest ? e.target.closest('.fiscais-link') : null;
+  if (!el) return;
+  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  abrirFiscais(el.dataset);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', _onFiscaisActivate);
+  document.addEventListener('keydown', _onFiscaisActivate);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initFiscaisModal);
+  } else {
+    _initFiscaisModal();
+  }
+}
+
+// HTML do ícone ⚠️ de autorização pendente (só na conferência): inspeção com
+// mais de dois fiscais E `motivo_pendencia` gravado (sem autorização prévia).
+function fiscaisAlertaHtml(m) {
+  if (!m || !Array.isArray(m.fiscais_participantes) ||
+      m.fiscais_participantes.length <= 2 || !m.motivo_pendencia) return '';
+  return ` <span class="fiscais-alerta" role="button" tabindex="0"` +
+    ` style="cursor:pointer;color:var(--amar)"` +
+    ` title="Mais de dois fiscais sem autorização prévia — clique para detalhes"` +
+    ` data-fiscais="${escHtml(m.fiscais_participantes.join('|'))}">⚠️</span>`;
+}
+
+// Preenche e exibe o modal do alerta a partir do dataset do ícone clicado.
+function abrirFiscaisAlerta(ds) {
+  _initFiscaisAlertaModal();
+  const modal = document.getElementById('modal-fiscais-alerta');
+  if (!modal) return;
+  const nomes = String(ds.fiscais || '').split('|').filter(Boolean);
+  modal.querySelector('#fa-body').innerHTML =
+    `<p style="margin:0 0 12px">Esta inspeção foi realizada por <strong>mais de dois fiscais</strong> ` +
+    `e <strong>não consta autorização prévia</strong>: a OS não está em requerimento.csv com ` +
+    `prioridade, nem o Ofício em oficio.csv com Terceiro.</p>` +
+    `<p style="margin:0 0 12px">Os lançamentos dos fiscais além do 2º permanecem ` +
+    `<strong>pendentes</strong> até a autorização.</p>` +
+    `<p style="margin:0 0 4px"><strong>Fiscais participantes:</strong></p>` +
+    `<ul style="list-style:none;padding:0;margin:0;line-height:1.9">` +
+    nomes.map(n => `<li>👤 ${escHtml(n)}</li>`).join('') +
+    `</ul>`;
+  modal.style.display = 'flex';
+}
+
+// Injeta o markup do modal (uma vez) e registra os fechamentos.
+function _initFiscaisAlertaModal() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('modal-fiscais-alerta')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    `<div id="modal-fiscais-alerta" class="modal-backdrop" style="display:none">` +
+    `<div class="modal" style="max-width:480px">` +
+    `<div class="modal-header"><span>⚠️ Autorização de fiscais pendente</span>` +
+    `<button class="modal-close" id="fa-close" aria-label="Fechar">✕</button></div>` +
+    `<div class="modal-body" id="fa-body"></div>` +
+    `<div class="modal-footer"><button class="btn btn-default" id="fa-close2">Fechar</button></div>` +
+    `</div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const modal = document.getElementById('modal-fiscais-alerta');
+  const hide = () => { modal.style.display = 'none'; };
+  document.getElementById('fa-close').addEventListener('click', hide);
+  document.getElementById('fa-close2').addEventListener('click', hide);
+  modal.addEventListener('click', (e) => { if (e.target === modal) hide(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') hide();
+  });
+}
+
+// Ativação por clique ou Enter/Espaço em qualquer .fiscais-alerta (delegação).
+function _onFiscaisAlertaActivate(e) {
+  const el = e.target && e.target.closest ? e.target.closest('.fiscais-alerta') : null;
+  if (!el) return;
+  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  abrirFiscaisAlerta(el.dataset);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', _onFiscaisAlertaActivate);
+  document.addEventListener('keydown', _onFiscaisAlertaActivate);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initFiscaisAlertaModal);
+  } else {
+    _initFiscaisAlertaModal();
+  }
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -576,4 +727,8 @@ window.prazoWarningHtml          = prazoWarningHtml;
 window.abrirForaPrazo            = abrirForaPrazo;
 window.zeradoWarningHtml         = zeradoWarningHtml;
 window.abrirZeradoMotivo         = abrirZeradoMotivo;
+window.fiscaisCountHtml          = fiscaisCountHtml;
+window.abrirFiscais              = abrirFiscais;
+window.fiscaisAlertaHtml         = fiscaisAlertaHtml;
+window.abrirFiscaisAlerta        = abrirFiscaisAlerta;
 window.visaAppSidebarLink        = visaAppSidebarLink;

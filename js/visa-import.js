@@ -367,10 +367,11 @@ function resolverTipoVisa(tipoRaw, complexidade) {
            item_pontuacao: item, pontos, descLabel: 'Vistoria VISA' };
 }
 
-// ── Autorização do terceiro fiscal ───────────────────────
-// Aplica-se ao Fiscal3 e a todo fiscal adicional (4º+) vindo do
-// inspecoes_fiscais.csv — todos tratados como terceiro fiscal. Retorna true
-// somente quando explicitamente autorizado:
+// ── Autorização de inspeção com mais de dois fiscais ─────
+// Toda inspeção com mais de dois fiscais exige autorização prévia. A regra
+// recai sobre o Fiscal3 e todo fiscal adicional (4º+) vindo do
+// inspecoes_fiscais.csv (isTerceiro=true). Retorna true somente quando
+// explicitamente autorizado:
 //   - OS encontrada em requerimento.csv com prioridade=true, OU
 //   - Ofício encontrado em oficio.csv com terceiro=true.
 // Qualquer outro caso (chave ausente ou flag falso) → não autorizado.
@@ -918,6 +919,11 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         fiscaisCsv.push({ nome: nomeExtra, isTerceiro: true });
       }
 
+      // Lista de participantes gravada no lançamento (coluna "Fiscais" clicável
+      // na UI). Só relevante com 2+ fiscais; single-fiscal grava null (fallback
+      // legado por qtd_fiscais nas telas).
+      const nomesParticipantes = fiscaisCsv.map(f => f.nome);
+
       // ── CNAEs-alvo da inspeção ───────────────────────────
       // Vistoria (VIS): expande em 1 lançamento por CNAE de competência —
       // o CNAE informado na inspeção e os CNAEs extras que o fiscal informou
@@ -1188,6 +1194,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 municipal: regInfo.municipal || '',
                 visa_area: alvo.visa_area ?? null,
                 qtd_fiscais: alvo.qtd_fiscais ?? null,
+                fiscais_participantes: fiscaisCsv.length >= 2 ? nomesParticipantes : null,
                 dispositivo_legal: window.dispositivoLegal
                   ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFiscal, _duplaReducaoVis, itemDecretoZerado || itemDecretoAlimentacao || undefined)
                   : null,
@@ -1197,17 +1204,17 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 updateData.motivo_recusa = null;
                 onProgress(`🔄 CONTROLE ${controleVisa}: recusado anteriormente, resubmetido para conferência.`, 'info');
               }
-              // Verificação de autorização do terceiro fiscal na atualização
+              // Verificação de autorização (inspeção com mais de dois fiscais) na atualização
               if (isTerceiro) {
                 const autorizado = isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);
                 if (!autorizado) {
                   updateData.status = 'pendente';
-                  updateData.motivo_pendencia = 'Fiscal adicional sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
-                  onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)} sem autorização de fiscal adicional, marcado como pendente.`, 'warn');
+                  updateData.motivo_pendencia = 'Inspeção com mais de dois fiscais sem autorização prévia (OS/Ofício não consta como autorizado)';
+                  onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: inspeção com mais de dois fiscais sem autorização prévia, marcado como pendente.`, 'warn');
                 } else if (existing.status === 'pendente') {
                   updateData.status = 'enviado';
                   updateData.motivo_pendencia = null;
-                  onProgress(`✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)} agora autorizado, restaurado para enviado.`, 'info');
+                  onProgress(`✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: autorização de fiscais confirmada, restaurado para enviado.`, 'info');
                 }
               }
               await window.db_upsertVISAManual(controleVisa, emailFiscal, updateData, existing.id, false, alvo.cnae);
@@ -1223,13 +1230,13 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
                 continue;
               }
-              // Determinar status inicial considerando autorização do terceiro fiscal
+              // Determinar status inicial considerando autorização de mais de dois fiscais
               let statusInicial = 'enviado';
               let motivoPendencia = null;
               if (isTerceiro && !isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap)) {
                 statusInicial = 'pendente';
-                motivoPendencia = 'Fiscal adicional sem autorização de terceiro fiscal (OS/Ofício não consta como autorizado)';
-                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)} sem autorização de fiscal adicional, marcado como pendente.`, 'warn');
+                motivoPendencia = 'Inspeção com mais de dois fiscais sem autorização prévia (OS/Ofício não consta como autorizado)';
+                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: inspeção com mais de dois fiscais sem autorização prévia, marcado como pendente.`, 'warn');
               }
               const _duplaReducaoVisCreate = alvo.qtd_fiscais != null;
               await window.db_upsertVISAManual(controleVisa, emailFiscal, {
@@ -1261,6 +1268,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 municipal: regInfo.municipal || '',
                 visa_area: alvo.visa_area ?? null,
                 qtd_fiscais: alvo.qtd_fiscais ?? null,
+                fiscais_participantes: fiscaisCsv.length >= 2 ? nomesParticipantes : null,
                 dispositivo_legal: window.dispositivoLegal
                   ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFiscal, _duplaReducaoVisCreate, itemDecretoZerado || itemDecretoAlimentacao || undefined)
                   : null,
