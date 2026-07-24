@@ -304,6 +304,16 @@
         .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
       document.getElementById('m-env').textContent = formatPontos(ptosEnviados);
       document.getElementById('metrics-wrap').style.display = '';
+      // Reaberturas: homologações desfeitas pela reconciliação com o WCVS.
+      // Sem este aviso o administrador reconferiria sem entender por que um
+      // lançamento que ele já aceitou voltou para a fila.
+      const _reab = _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
+      document.getElementById('alert-area').innerHTML = _reab
+        ? alerta('warn', `<strong>${_reab} lançamento(s)</strong> deste fiscal foram reabertos porque a ` +
+            `inspeção mudou, sumiu no WCVS ou ficou incompatível com outro lançamento do mesmo dia, ` +
+            `depois de já terem sido homologados. Clique no ícone 🔄 na coluna Status para ver o motivo ` +
+            `de cada um antes de homologar novamente.`)
+        : '';
       renderTabela();
     } catch(e) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="17">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
@@ -371,7 +381,7 @@
         <td data-label="Pontos Requeridos" class="td-num">${m.pontos!=null?formatPontos(m.pontos):'—'}${window.zeradoWarningHtml(m)}</td>
         <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
         <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado!=null?formatPontos(m.pontos_homologado):'—'}</td>
-        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : badge(m.status)}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
+        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : (m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status))}${window.reabertoWarningHtml(m)}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
         <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
         <td data-label="Ações" class="nao-imprimir" style="white-space:nowrap">${acoes}</td>
       </tr>`;
@@ -408,8 +418,21 @@
     document.getElementById('hom-motivo').value    = m.motivo_recusa || '';
     const aviso = document.getElementById('hom-pendencia-aviso');
     const avisoTexto = document.getElementById('hom-pendencia-texto');
-    if (m.motivo_pendencia) {
-      avisoTexto.textContent = m.motivo_pendencia;
+    // Reabertura entra no mesmo box de aviso: o admin precisa saber que já
+    // homologou este lançamento antes e por que ele voltou — inclusive com
+    // quanto valia na homologação anterior.
+    const partesAviso = [];
+    if (m.motivo_pendencia) partesAviso.push(m.motivo_pendencia);
+    if (m.reaberto_tipo && m.reaberto_motivo) {
+      partesAviso.push(
+        m.reaberto_motivo +
+        (m.reaberto_pontos_homologado_anterior != null
+          ? ' Homologado anteriormente com ' + formatPontos(m.reaberto_pontos_homologado_anterior) + ' pt(s).'
+          : '')
+      );
+    }
+    if (partesAviso.length) {
+      avisoTexto.textContent = partesAviso.join(' | ');
       aviso.style.display = '';
     } else {
       avisoTexto.textContent = '';
@@ -508,12 +531,25 @@
     }
 
     try {
-      await db_updateManual(id, {
+      // Decidido o lançamento, a marca de reabertura sai — a não ser a de
+      // órfão: ela precisa persistir para a importação seguinte não apagar um
+      // registro que o administrador já adjudicou (evita o vaivém apagar/reabrir).
+      const _limpezaReab = (manual && manual.reaberto_tipo)
+        ? {
+            reaberto_tipo: (manual.reaberto_tipo === 'orfao' || manual.reaberto_tipo === 'cnae_reclassificado')
+              ? manual.reaberto_tipo : null,
+            reaberto_motivo: null,
+            reaberto_diff: null,
+            reaberto_em: null,
+            reaberto_pontos_homologado_anterior: null,
+          }
+        : {};
+      await db_updateManual(id, Object.assign({
         status: statusFinal,
         pontos_homologado: statusFinal === 'aceito' ? Number(ponHom) : null,
         motivo_recusa: statusFinal === 'recusado' ? motivo : null,
         motivo_pendencia: null,
-      });
+      }, _limpezaReab));
       document.getElementById('modal-hom').style.display = 'none';
       const msg = _homPendente && status === 'aceito'
         ? 'Lançamento <strong>autorizado</strong> e enviado para conferência.'

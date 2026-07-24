@@ -116,6 +116,7 @@ function badge(type) {
     'pendente-fiscal': ['badge-pendente-fiscal', 'Pendente'],
     cvs:      ['badge-cvs',      'CVS'],
     manual:   ['badge-manual',   'Manual'],
+    reaberto: ['badge-reaberto', 'Reaberto'],
   };
   const [cls, label] = map[type] || ['badge-rascunho', type];
   return `<span class="badge ${cls}">${label}</span>`;
@@ -542,6 +543,128 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ── Lançamento REABERTO (reconciliação com o WCVS) ───────
+// O inspecoes.csv é a fonte da verdade do mês aberto: se a inspeção mudou ou
+// sumiu no WCVS depois de homologada, ou se outro lançamento do mesmo dia a
+// tornou não cumulativa, a importação desfaz a homologação e grava `reaberto_*`.
+// O fiscal precisa entender por que a pontuação dele caiu sem ele ter feito
+// nada — daí o ícone 🔄 clicável com a explicação completa. Mesmo padrão de
+// modal único + delegação usado no alerta de prazo e no de pontuação zerada.
+
+function reabertoWarningHtml(m) {
+  // Sem motivo não há o que explicar: é o caso do órfão já decidido pelo
+  // administrador, que mantém `reaberto_tipo` só como marca interna anti-vaivém.
+  if (!m || !m.reaberto_tipo || !m.reaberto_motivo) return '';
+  let diffJson = '';
+  try { diffJson = m.reaberto_diff ? JSON.stringify(m.reaberto_diff) : ''; } catch (_) {}
+  return ` <span class="reaberto-alerta" role="button" tabindex="0"` +
+    ` style="cursor:pointer;color:var(--amar)"` +
+    ` title="Lançamento reaberto — clique para detalhes"` +
+    ` data-tipo="${escHtml(m.reaberto_tipo)}"` +
+    ` data-motivo="${escHtml(m.reaberto_motivo || '')}"` +
+    ` data-anterior="${escHtml(m.reaberto_pontos_homologado_anterior == null ? '' : String(m.reaberto_pontos_homologado_anterior))}"` +
+    ` data-diff="${escHtml(diffJson)}">🔄</span>`;
+}
+
+const _REABERTO_TITULO = {
+  origem: 'Inspeção alterada no WCVS',
+  orfao: 'Inspeção excluída no WCVS',
+  cnae_reclassificado: 'Atividade (CNAE) corrigida no WCVS',
+  incompatibilidade: 'Lançamento incompatível no mesmo dia',
+};
+
+function abrirReaberto(ds) {
+  _initReabertoModal();
+  const modal = document.getElementById('modal-reaberto');
+  if (!modal) return;
+
+  let diff = [];
+  try { diff = ds.diff ? JSON.parse(ds.diff) : []; } catch (_) { diff = []; }
+
+  // A abertura muda conforme o caso: em CNAE reclassificado este registro é uma
+  // versão SUPERADA (o lançamento válido é outro), então prometer "será
+  // homologado de novo" seria enganoso.
+  const intro = ds.tipo === 'cnae_reclassificado'
+    ? `Este lançamento é uma <strong>versão antiga</strong> de uma inspeção que foi recorrigida no ` +
+      `WCVS. Ele ficou zerado apenas para não contar em dobro — <strong>a sua pontuação não foi ` +
+      `perdida</strong>, pois o lançamento atual da mesma inspeção continua valendo.`
+    : `Este lançamento <strong>já tinha sido homologado</strong> e voltou para a conferência. ` +
+      `Nada foi perdido: ele continua na sua lista e será homologado de novo assim que o ` +
+      `administrador conferir.`;
+
+  let html =
+    `<p style="margin:0 0 12px">${intro}</p>` +
+    `<p style="margin:0 0 12px">${escHtml(ds.motivo || '—')}</p>`;
+
+  if (ds.anterior) {
+    html += `<p style="margin:0 0 12px"><strong>Pontuação homologada anteriormente:</strong> ` +
+            `${escHtml(ds.anterior)} pt(s).</p>`;
+  }
+
+  if (diff.length) {
+    html += `<table style="width:100%;border-collapse:collapse;font-size:.92em">` +
+      `<thead><tr>` +
+      `<th style="text-align:left;padding:4px 6px;border-bottom:1px solid #e2e8f0">Campo</th>` +
+      `<th style="text-align:left;padding:4px 6px;border-bottom:1px solid #e2e8f0">Como foi homologado</th>` +
+      `<th style="text-align:left;padding:4px 6px;border-bottom:1px solid #e2e8f0">Como está hoje no WCVS</th>` +
+      `</tr></thead><tbody>`;
+    for (const d of diff) {
+      html += `<tr>` +
+        `<td style="padding:4px 6px"><strong>${escHtml(d.label || d.campo || '')}</strong></td>` +
+        `<td style="padding:4px 6px">${escHtml(d.de === '' || d.de == null ? '—' : String(d.de))}</td>` +
+        `<td style="padding:4px 6px">${escHtml(d.para === '' || d.para == null ? '—' : String(d.para))}</td>` +
+        `</tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  modal.querySelector('#rb-title').textContent =
+    '🔄 ' + (_REABERTO_TITULO[ds.tipo] || 'Lançamento reaberto');
+  modal.querySelector('#rb-body').innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function _initReabertoModal() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('modal-reaberto')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    `<div id="modal-reaberto" class="modal-backdrop" style="display:none">` +
+    `<div class="modal" style="max-width:620px">` +
+    `<div class="modal-header"><span id="rb-title">🔄 Lançamento reaberto</span>` +
+    `<button class="modal-close" id="rb-close" aria-label="Fechar">✕</button></div>` +
+    `<div class="modal-body" id="rb-body"></div>` +
+    `<div class="modal-footer"><button class="btn btn-default" id="rb-close2">Entendi</button></div>` +
+    `</div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const modal = document.getElementById('modal-reaberto');
+  const hide = () => { modal.style.display = 'none'; };
+  document.getElementById('rb-close').addEventListener('click', hide);
+  document.getElementById('rb-close2').addEventListener('click', hide);
+  modal.addEventListener('click', (e) => { if (e.target === modal) hide(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') hide();
+  });
+}
+
+function _onReabertoAlertaActivate(e) {
+  const el = e.target && e.target.closest ? e.target.closest('.reaberto-alerta') : null;
+  if (!el) return;
+  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  abrirReaberto(el.dataset);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', _onReabertoAlertaActivate);
+  document.addEventListener('keydown', _onReabertoAlertaActivate);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initReabertoModal);
+  } else {
+    _initReabertoModal();
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Coluna "Fiscais": contagem clicável + alerta de autorização
 // ─────────────────────────────────────────────────────────────
@@ -727,6 +850,8 @@ window.prazoWarningHtml          = prazoWarningHtml;
 window.abrirForaPrazo            = abrirForaPrazo;
 window.zeradoWarningHtml         = zeradoWarningHtml;
 window.abrirZeradoMotivo         = abrirZeradoMotivo;
+window.reabertoWarningHtml       = reabertoWarningHtml;
+window.abrirReaberto             = abrirReaberto;
 window.fiscaisCountHtml          = fiscaisCountHtml;
 window.abrirFiscais              = abrirFiscais;
 window.fiscaisAlertaHtml         = fiscaisAlertaHtml;

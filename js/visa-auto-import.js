@@ -13,8 +13,92 @@ const VISA_AUTO_IMPORT_INTERVALO_MS = 10 * 60 * 1000; // 10 min
 const VISA_AUTO_IMPORT_ARQUIVO      = 'data/inspecoes.csv';
 const VISA_AUTO_IMPORT_ARQUIVO_CNAE = 'data/inspecoes_cnae.csv';
 
+// TODOS os arquivos que alteram o resultado da importação. Antes só os dois
+// primeiros eram vigiados, então mudança em requerimento/oficio/taxa/cnae/
+// fiscais extras não disparava reimportação nenhuma — e o Firestore ficava
+// desatualizado em relação ao WCVS sem ninguém perceber.
+const VISA_AUTO_IMPORT_ARQUIVOS = [
+  'data/inspecoes.csv',
+  'data/inspecoes_cnae.csv',
+  'data/inspecoes_fiscais.csv',
+  'data/requerimento.csv',
+  'data/oficio.csv',
+  'data/denuncia.csv',
+  'data/tramitacao.csv',
+  'data/cnae.csv',
+  'data/regulados.csv',
+  'data/taxa.csv',
+];
+
 let _visaAutoRodando = false;
 let _visaAutoTimer   = null;
+
+// Mapa { caminho: blobSha } dos arquivos vigiados. Uma única chamada lista o
+// diretório inteiro; se a rota falhar, cai no SHA de commit por arquivo.
+async function visaBlobShasAtuais() {
+  let todos = null;
+  try {
+    todos = await window.fetchGitHubDirBlobShas('data');
+  } catch (e) {
+    console.warn('[VISA auto-import] Listagem do diretório falhou, usando SHA por arquivo:', e.message);
+  }
+  const out = {};
+  if (todos) {
+    for (const p of VISA_AUTO_IMPORT_ARQUIVOS) if (todos[p]) out[p] = todos[p];
+    return out;
+  }
+  for (const p of VISA_AUTO_IMPORT_ARQUIVOS) {
+    try {
+      const s = await window.fetchGitHubFileCommitSha(p);
+      if (s) out[p] = s;
+    } catch (_) { /* arquivo ausente/erro pontual não bloqueia os demais */ }
+  }
+  return out;
+}
+
+function visaShasMudaram(anterior, atual) {
+  const a = anterior || {}, b = atual || {};
+  const chaves = new Set(Object.keys(a).concat(Object.keys(b)));
+  for (const k of chaves) if ((a[k] || null) !== (b[k] || null)) return true;
+  return false;
+}
+
+// Persiste o estado da importação (SHAs + competência) e o histórico de
+// execuções. Extraído do fluxo automático para que a importação MANUAL também
+// registre — sem isso o auto-import redisparava logo depois de um import manual.
+async function registrarImportStateVisa(r, mes, ano, blobShas, opts) {
+  opts = opts || {};
+  let state = opts.state;
+  if (!state) {
+    try { state = await window.db_getImportState(); } catch (_) { state = {}; }
+  }
+  const runEntry = {
+    tipo: opts.tipo || 'visa', ts: new Date().toISOString(),
+    dur_s: opts.dur_s != null ? opts.dur_s : null,
+    leituras: opts.leituras != null ? opts.leituras : null,
+    criados: (r && r.criados) || 0, atualizados: (r && r.atualizados) || 0,
+    ignorados: (r && r.ignorados) || 0, excluidos: (r && r.excluidos) || 0,
+    reabertos: (r && r.reabertos) || 0,
+    reabertos_orfaos: (r && r.reabertos_orfaos) || 0,
+    reabertos_incompat: (r && r.reabertos_incompat) || 0,
+    erros: (r && r.erros) || 0,
+    mes: Number(mes), ano: Number(ano),
+    csv_sha: String((blobShas && blobShas[VISA_AUTO_IMPORT_ARQUIVO]) || '').slice(0, 10),
+  };
+  const runs = (Array.isArray(state.runs) ? state.runs : []).concat(runEntry).slice(-60);
+  const patch = { runs };
+  // Só carimba a competência/SHAs quando os SHAs foram de fato apurados; um
+  // import manual de mês diverso não pode marcar a competência aberta como
+  // "já importada".
+  if (blobShas) {
+    patch.visa = {
+      blob_shas: blobShas,
+      mes: Number(mes), ano: Number(ano),
+      imported_at: new Date().toISOString(),
+    };
+  }
+  await window.db_setImportState(patch);
+}
 
 // ── Toast discreto (canto inferior direito) ──────────────
 // Painel com DUAS regiões independentes: uma barra de PROGRESSO persistente
@@ -123,30 +207,24 @@ async function verificarEImportarVISA(user) {
     }
     if (!window.visaMesAberto(mes, ano)) return;
 
-    // 2. SHA atual dos CSVs (requests baratos; lança se não houver token)
-    let shaAtual;
+    // 2. SHAs atuais de TODOS os CSVs que a importação consome (1 request)
+    let blobShas;
     try {
-      shaAtual = await window.fetchGitHubFileCommitSha(VISA_AUTO_IMPORT_ARQUIVO);
+      blobShas = await visaBlobShasAtuais();
     } catch (e) {
       // Token ausente/expirado ou falha de rede — não quebra a página.
-      console.warn('[VISA auto-import] Não foi possível obter o SHA do CSV:', e.message);
+      console.warn('[VISA auto-import] Não foi possível obter os SHAs dos CSVs:', e.message);
       return;
     }
-    if (!shaAtual) return;
-    // O inspecoes_cnae.csv também altera o resultado da importação (CNAEs
-    // extras por visita). Ausência do arquivo/SHA vira null e não bloqueia.
-    let shaCnae = null;
-    try {
-      shaCnae = (await window.fetchGitHubFileCommitSha(VISA_AUTO_IMPORT_ARQUIVO_CNAE)) || null;
-    } catch (e) {
-      console.warn('[VISA auto-import] Não foi possível obter o SHA do inspecoes_cnae.csv:', e.message);
-    }
+    if (!blobShas || !blobShas[VISA_AUTO_IMPORT_ARQUIVO]) return;
 
-    // 3. Comparar com o estado salvo
+    // 3. Comparar com o estado salvo. Estado no formato antigo (commit_sha /
+    //    commit_sha_cnae) conta como "mudou": dispara uma importação extra,
+    //    idempotente, e já grava o formato novo.
     let state = {};
     try { state = await window.db_getImportState(); } catch (_) {}
     const st = state && state.visa;
-    if (st && st.commit_sha === shaAtual && (st.commit_sha_cnae || null) === shaCnae &&
+    if (st && st.blob_shas && !visaShasMudaram(st.blob_shas, blobShas) &&
         Number(st.mes) === Number(mes) && Number(st.ano) === Number(ano)) {
       return; // já importado para esta versão dos CSVs — nada a fazer
     }
@@ -167,26 +245,21 @@ async function verificarEImportarVISA(user) {
       const r = await window.importarInspecoesVISA({
         fiscalEmail: null, mes, ano, allFiscais, onProgress, onProgressBar,
       });
-      // 5. Persistir o novo SHA só após sucesso — junto com o histórico de
+      // 5. Persistir os novos SHAs só após sucesso — junto com o histórico de
       // execuções (runs, últimos 60) que alimenta o painel de monitoramento.
-      const _runEntry = {
-        tipo: 'visa', ts: new Date().toISOString(),
-        dur_s: Math.round((Date.now() - _runT0) / 1000),
+      await registrarImportStateVisa(r, mes, ano, blobShas, {
+        tipo: 'visa', dur_s: Math.round((Date.now() - _runT0) / 1000),
         leituras: (typeof window.rmReadsSession === 'function') ? (window.rmReadsSession() - _runR0) : null,
-        criados: (r && r.criados) || 0, atualizados: (r && r.atualizados) || 0,
-        ignorados: (r && r.ignorados) || 0, excluidos: (r && r.excluidos) || 0,
-        erros: (r && r.erros) || 0,
-        mes: Number(mes), ano: Number(ano), csv_sha: String(shaAtual).slice(0, 10),
-      };
-      const _runs = (Array.isArray(state.runs) ? state.runs : []).concat(_runEntry).slice(-60);
-      await window.db_setImportState({
-        visa: { commit_sha: shaAtual, commit_sha_cnae: shaCnae, mes: Number(mes), ano: Number(ano), imported_at: new Date().toISOString() },
-        runs: _runs,
+        state,
       });
       const total = r ? ((r.criados || 0) + (r.atualizados || 0)) : 0;
+      const reab = r ? ((r.reabertos || 0) + (r.reabertos_orfaos || 0) + (r.reabertos_incompat || 0)) : 0;
       _visaAutoProgressHide();
       _visaAutoMsg(`✅ Inspeções do VISA atualizadas (${total} lançamento(s) afetado(s)).`, 'ok');
-      _visaAutoToastHide(6000);
+      if (reab) {
+        _visaAutoMsg(`🔄 ${reab} lançamento(s) reaberto(s) para nova homologação — confira na Conferência.`, 'warn');
+      }
+      _visaAutoToastHide(reab ? 12000 : 6000);
     } catch (e) {
       // Outro admin já está importando (lock) — sai em silêncio.
       const msg = String(e && e.message || '');
@@ -217,3 +290,5 @@ function iniciarAutoImportVISA(user) {
 
 window.verificarEImportarVISA = verificarEImportarVISA;
 window.iniciarAutoImportVISA  = iniciarAutoImportVISA;
+window.visaBlobShasAtuais       = visaBlobShasAtuais;
+window.registrarImportStateVisa = registrarImportStateVisa;

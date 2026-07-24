@@ -242,6 +242,9 @@ input, select, textarea { font-family: var(--font); }
 .badge-pendente-fiscal  { background: var(--azulP); color: var(--azul);  }
 .badge-cvs              { background: var(--azulP);  color: var(--azul);  }
 .badge-manual   { background: var(--verdeP); color: var(--verde); }
+/* Reaberto: homologação desfeita pela reconciliação com o WCVS. Roxo para não
+   se confundir com "enviado" (amarelo, fluxo normal) nem com "recusado". */
+.badge-reaberto { background: #ede9fe;       color: #7c3aed;      }
 
 /* ── Alerts ── */
 .alert {
