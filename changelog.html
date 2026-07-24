@@ -44,7 +44,7 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
-            <span class="badge-version">v1.23.0</span>
+            <span class="badge-version">v1.24.0</span>
             <span class="badge-date">24/07/2026</span>
           </div>
           <div class="changelog-title">Reconciliação com o WCVS: lançamento homologado que diverge da origem volta para a conferência</div>
@@ -58,7 +58,22 @@
             <li><strong>Salvaguarda contra reabertura em massa indevida</strong> — se o <code>cnae.csv</code> ou o <code>inspecoes_cnae.csv</code> falhar (rede, token), os alvos e a pontuação sairiam errados e <em>toda</em> inspeção viraria órfã. Nesse caso a rodada segue importando, mas não reabre nem zera nada que esteja homologado.</li>
             <li><strong>Detecção de mudança corrigida</strong> — o import automático passa a vigiar os 10 CSVs (em <em>uma única</em> chamada à API, pelo SHA do diretório) e a importação manual passa a registrar o estado, que era o motivo de o automático redisparar logo depois dela.</li>
             <li><strong>Nova auditoria em modo simulação</strong> — em <em>Parametrização → 🔍 Auditar Divergências</em>, roda o mesmo motor com as gravações desligadas e lista o que seria alterado, <strong>sem gravar nada</strong>.</li>
-            <li><strong>Arquivos</strong> — <code>js/visa-import.js</code> (comparação campo a campo, reabertura, órfãos, revalidação cruzada do mês, modo simulação); <code>js/visa-auto-import.js</code> (SHA dos 10 CSVs, registro de estado reaproveitável); <code>js/firestore.js</code> (<code>fetchGitHubDirBlobShas</code>); <code>js/utils.js</code> + <code>css/rmpf.css</code> (badge e modal de reabertura); <code>conferencia.html</code>, <code>meus-lancamentos.html</code>, <code>parametrizacao.html</code>; <code>js/version.js</code> — 1.23.0; <code>service-worker.js</code> — <code>rmpf-v1.23.0</code>; <code>changelog.html</code> — esta entrada.</li>
+            <li><strong>Arquivos</strong> — <code>js/visa-import.js</code> (comparação campo a campo, reabertura, órfãos, revalidação cruzada do mês, modo simulação); <code>js/visa-auto-import.js</code> (SHA dos 10 CSVs, registro de estado reaproveitável); <code>js/firestore.js</code> (<code>fetchGitHubDirBlobShas</code>); <code>js/utils.js</code> + <code>css/rmpf.css</code> (badge e modal de reabertura); <code>conferencia.html</code>, <code>meus-lancamentos.html</code>, <code>parametrizacao.html</code>; <code>js/version.js</code> — 1.24.0; <code>service-worker.js</code> — <code>rmpf-v1.24.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.23.0</span>
+            <span class="badge-date">24/07/2026</span>
+          </div>
+          <div class="changelog-title">Inspeções com mais de 3 fiscais (inspecoes_fiscais.csv) e coluna Fiscais interativa</div>
+          <ul class="changelog-changes">
+            <li><strong>Importação de fiscais adicionais (4º em diante)</strong> — a importação do VISA passa a ler <code>data/inspecoes_fiscais.csv</code> (vínculo por <code>VISITA_CTRL</code> = controle da inspeção, mesmo mecanismo do <code>inspecoes_cnae.csv</code>). Cada fiscal extra é tratado como terceiro fiscal: sem autorização prévia (OS em <code>requerimento.csv</code> com <code>prioridade=true</code> ou Ofício em <code>oficio.csv</code> com <code>Terceiro=true</code>), o lançamento entra <strong>pendente</strong> com pontos preservados e é reavaliado a cada reimportação. Dedup por nome normalizado contra Fiscal1/2/3; os extras contam em <code>qtd_fiscais</code> e na redução dupla/trio (média 12→9, baixa 6→3). Sem o arquivo, a importação segue só com Fiscal1/2/3 (fail-open). — PRs #284/#285</li>
+            <li><strong>Coluna "Fiscais" clicável com a equipe completa</strong> — novo campo <code>fiscais_participantes</code> gravado na importação (inspeções com 2+ fiscais); Conferência e Meus Lançamentos exibem o nº real de participantes e o clique abre o modal "👥 Fiscais participantes" com todos os nomes. Registros importados antes desta versão mostram a contagem legada até serem reimportados. — PR #285</li>
+            <li><strong>Alerta de autorização pendente na Conferência</strong> — ícone ⚠️ clicável (ampliado) ao lado da contagem quando a inspeção tem mais de dois fiscais sem autorização prévia; o modal explica a regra ao administrador, informa que os lançamentos a partir do 2º fiscal permanecem pendentes até a autorização e lista os fiscais participantes. — PRs #285/#286/#287/#288</li>
+            <li><strong>Mensagens de pendência reformuladas</strong> — <code>motivo_pendencia</code> e avisos da importação deixam de citar "Fiscal3" e passam a "Inspeção com mais de dois fiscais sem autorização prévia (OS/Ofício não consta como autorizado)", com o nome do fiscal nos avisos.</li>
+            <li><strong>Arquivos</strong> — <code>js/visa-import.js</code> (inspecoesFiscaisMap, fiscais_participantes, mensagens); <code>js/utils.js</code> (fiscaisCountHtml, fiscaisAlertaHtml e modais); <code>conferencia.html</code>; <code>meus-lancamentos.html</code>; <code>js/version.js</code> — 1.23.0; <code>service-worker.js</code> — <code>rmpf-v1.23.0</code>; <code>changelog.html</code> — esta entrada.</li>
           </ul>
         </li>
 
