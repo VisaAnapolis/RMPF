@@ -340,7 +340,7 @@
         if (m.status === 'enviado') {
           acoes = `<button class="btn btn-outline btn-sm" onclick="abrirHom('${m.id}')">📝 Homologar</button>`;
         } else if (m.status === 'pendente') {
-          acoes = `<button class="btn btn-default btn-sm" onclick="abrirHom('${m.id}')" title="Fiscal3 aguarda autorização">🔔 Autorizar</button>`;
+          acoes = `<button class="btn btn-default btn-sm" onclick="abrirHom('${m.id}')" title="Aguarda autorização de fiscais">🔔 Autorizar</button>`;
         } else if (m.status === 'aceito' || m.status === 'recusado' || m.status === 'homologado') {
           acoes = `<button class="btn btn-default btn-sm" onclick="abrirHom('${m.id}')">✏️ Rever</button>`;
         }
@@ -372,7 +372,7 @@
         <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo||'—')}</td>
         <td data-label="Origem da Demanda">${isVigilanciaAtiva ? `<span class="text-vigilancia-ativa">${escHtml(m.motivo_os)}</span>` : escHtml(m.motivo_os || '—')}</td>
         <td data-label="OS" class="td-nowrap">${escHtml(m.os_numero || '—')}</td>
-        <td data-label="Documento">${escHtml(m.documento || '—')}</td>
+        <td data-label="Documento">${window.documentoComNumeroHtml ? window.documentoComNumeroHtml(m) : escHtml(m.documento || '—')}</td>
         <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
         <td data-label="Complexidade" class="td-center">${window.complexidadeHtml ? window.complexidadeHtml(m) : (m.complexidade || '—')}</td>
         <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>

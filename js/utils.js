@@ -687,6 +687,18 @@ function fiscaisCountHtml(m) {
   return (m && m.qtd_fiscais != null) ? escHtml(String(m.qtd_fiscais)) : '—';
 }
 
+// Documento lavrado + o número impresso nele (coluna NUMERO do inspecoes.csv),
+// que é o que o fiscal usa para localizar o papel. O número reinicia por talão,
+// então acompanha o tipo e não aparece sozinho. Lançamentos importados antes
+// deste campo existir ficam sem ele até a próxima importação sincronizar.
+function documentoComNumeroHtml(m) {
+  const tipo = (m && m.documento) ? String(m.documento).trim() : '';
+  if (!tipo) return '—';
+  const num = (m && m.numero != null) ? String(m.numero).trim() : '';
+  if (!num) return escHtml(tipo);
+  return `${escHtml(tipo)} <span class="text-muted">nº ${escHtml(num)}</span>`;
+}
+
 // Preenche e exibe o modal de participantes a partir do dataset do elemento.
 function abrirFiscais(ds) {
   _initFiscaisModal();
@@ -764,8 +776,9 @@ function abrirFiscaisAlerta(ds) {
     `<p style="margin:0 0 12px">Esta inspeção foi realizada por <strong>mais de dois fiscais</strong> ` +
     `e <strong>não consta autorização prévia</strong>: a OS não está em requerimento.csv com ` +
     `prioridade, nem o Ofício em oficio.csv com Terceiro.</p>` +
-    `<p style="margin:0 0 12px">Os lançamentos <strong>a partir do 2º fiscal</strong> permanecem ` +
-    `<strong>pendentes</strong> até a autorização.</p>` +
+    `<p style="margin:0 0 12px">Os dois primeiros fiscais entram normalmente; os lançamentos ` +
+    `<strong>do 3º fiscal em diante</strong> permanecem <strong>pendentes</strong> até a ` +
+    `autorização.</p>` +
     `<p style="margin:0 0 4px"><strong>Fiscais participantes:</strong></p>` +
     `<ul style="list-style:none;padding:0;margin:0;line-height:1.9">` +
     nomes.map(n => `<li>👤 ${escHtml(n)}</li>`).join('') +
@@ -854,6 +867,7 @@ window.reabertoWarningHtml       = reabertoWarningHtml;
 window.abrirReaberto             = abrirReaberto;
 window.fiscaisCountHtml          = fiscaisCountHtml;
 window.abrirFiscais              = abrirFiscais;
+window.documentoComNumeroHtml    = documentoComNumeroHtml;
 window.fiscaisAlertaHtml         = fiscaisAlertaHtml;
 window.abrirFiscaisAlerta        = abrirFiscaisAlerta;
 window.visaAppSidebarLink        = visaAppSidebarLink;

@@ -286,6 +286,45 @@ function visaDiffOrigem(existing, novo) {
   return diff;
 }
 
+// ── Campos informativos (sincronizados sem reabrir) ──────
+// Não afetam pontuação nem identidade, então uma diferença aqui NÃO justifica
+// desfazer a homologação — mas o valor precisa refletir a origem, senão a tela
+// mostra dado velho para sempre: quando um homologado não tem diferença nos
+// campos canônicos, o laço nem grava (é o `continue` mais abaixo), e um campo
+// que passou a existir depois daquela homologação nunca chegaria ao documento.
+const VISA_CAMPOS_INFORMATIVOS = ['fiscais_participantes', 'numero'];
+
+// Compara só os informativos. Diferente de visaDiffOrigem em dois pontos:
+// trata array (fiscais_participantes) e considera chave AUSENTE como diferença
+// — é exatamente o caso a preencher nos lançamentos antigos.
+function _normValorInformativo(v) {
+  if (Array.isArray(v)) return v.map(x => String(x == null ? '' : x).trim()).join('|');
+  return _normValorOrigem(v);
+}
+
+function visaDiffInformativo(existing, novo, campos) {
+  const lista = campos || VISA_CAMPOS_INFORMATIVOS;
+  const diff = [];
+  for (const c of lista) {
+    if (_normValorInformativo(existing ? existing[c] : null) !==
+        _normValorInformativo(novo ? novo[c] : null)) {
+      diff.push(c);
+    }
+  }
+  return diff;
+}
+
+// Patch com SOMENTE os campos informativos, montado do zero. Nunca derivar de
+// updateData: um spread acidental levaria status/pontos para um lançamento
+// homologado, quebrando a garantia de que sincronizar não altera pontuação.
+function visaPatchInformativo(novo, campos) {
+  const patch = {};
+  for (const c of (campos || VISA_CAMPOS_INFORMATIVOS)) {
+    patch[c] = (novo && novo[c] !== undefined) ? novo[c] : null;
+  }
+  return patch;
+}
+
 // Distingue "o WCVS mudou" de "outro lançamento tornou este não cumulativo":
 // quando só os pontos mudaram E o motivo de zeragem mudou junto, a inspeção em si
 // continua idêntica — quem mexeu no resultado foi um lançamento do mesmo dia.
@@ -1018,9 +1057,17 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     // (isTerceiro=true), igual ao Fiscal3 — mesma regra de autorização. As
     // colunas CONTROLE (id sequencial da linha), ORDEM, CODIGO e auditoria são
     // ignoradas; o vínculo é por VISITA_CTRL, como no inspecoes_cnae.csv.
+    //
+    // A falha deste arquivo conta como fonte incompleta: sem os extras, a
+    // contagem de fiscais cai (ex.: 6 → 3) e `qtd_fiscais` É campo canônico —
+    // uma indisponibilidade momentânea reabriria homologados em massa. Também
+    // marca `fiscaisIncompletos`, que suspende a sincronização da lista de
+    // participantes para não substituir dado bom por lista truncada.
     const inspecoesFiscaisMap = new Map();
+    let fiscaisIncompletos = false;
     try {
       const ifText = await window.fetchGitHubCSV('data/inspecoes_fiscais.csv');
+      if (ifText === null) fiscaisIncompletos = true;
       if (ifText !== null) {
         const ifParsed = Papa.parse(ifText, {
           header: true,
@@ -1040,8 +1087,13 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         onProgress(`👥 ${inspecoesFiscaisMap.size} visita(s) com fiscais adicionais carregada(s).`, 'info');
       }
     } catch (err) {
+      fiscaisIncompletos = true;
       onProgress('⚠️ Não foi possível carregar inspecoes_fiscais.csv — usando apenas os fiscais do inspecoes.csv.', 'warn');
       console.error('Failed to load inspecoes_fiscais.csv:', err);
+    }
+    if (fiscaisIncompletos) {
+      fontesIncompletas = true;
+      onProgress('⚠️ Sem inspecoes_fiscais.csv nesta rodada: nenhuma homologação será reaberta (a contagem de fiscais ficaria errada).', 'warn');
     }
 
     // ── Regulados (data/regulados.csv) ───────────────────────
@@ -1143,6 +1195,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
     let criados = 0, atualizados = 0, ignorados = 0, erros = 0;
     let reabertos = 0, reabertos_orfaos = 0, reabertos_incompat = 0;
+    // homologados que receberam só campos informativos (sem reabrir)
+    let sincronizados = 0;
     // fiscal → nº de reaberturas nesta rodada (1 push agregado por fiscal ao final)
     const reabertosPorFiscal = new Map();
     const marcarReabertura = (email) => {
@@ -1210,6 +1264,13 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       else if (motivoOSNorm === 'DENUNCIA')     osNumero = denuncia;
       else if (motivoOSNorm === 'REQUERIMENTO') osNumero = os;
       const documento = tipoRaw;
+
+      // Número impresso do documento lavrado (coluna NUMERO do inspecoes.csv).
+      // Reinicia por talão, então não é único e não serve como chave — é só
+      // informação para o fiscal localizar o papel. '000000' e vazio querem
+      // dizer "documento sem número" (dicionário de campos do WCVS).
+      const numeroRaw = String(row['NUMERO'] || row['Numero'] || '').replace(/"/g, '').trim();
+      const numero = (!numeroRaw || /^0+$/.test(numeroRaw)) ? null : numeroRaw;
 
       // ── Prazo da OS e conformidade (cumprida fora do prazo) ──
       // Compara o prazo de execução da OS com a data do registro da inspeção
@@ -1519,6 +1580,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 prazo_os: prazoOsFinal,
                 fora_do_prazo: foraDoPrazo,
                 documento,
+                numero,
                 origem: 'visa_csv',
                 visa_controle: controleVisa,
                 visa_cnae: alvo.cnae,
@@ -1542,7 +1604,28 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               if (_homologado) {
                 const _diff = visaDiffOrigem(existing, updateData);
                 if (!_diff.length) {
-                  ignorados++;
+                  // Nada que justifique reabrir. Ainda assim os campos
+                  // informativos precisam refletir a origem: sem isso, um campo
+                  // criado depois desta homologação (a lista de participantes, o
+                  // número do documento) nunca chegaria ao lançamento, porque
+                  // este é o único caminho que ele percorre. Grava só esses
+                  // campos — status, pontos e a homologação ficam intactos.
+                  const _camposInf = fiscaisIncompletos
+                    ? VISA_CAMPOS_INFORMATIVOS.filter(c => c !== 'fiscais_participantes')
+                    : VISA_CAMPOS_INFORMATIVOS;
+                  const _diffInf = visaDiffInformativo(existing, updateData, _camposInf);
+                  if (_diffInf.length) {
+                    await escrever.update(existing.id, visaPatchInformativo(updateData, _diffInf));
+                    sincronizados++;
+                    anota('sincronizar', {
+                      controle: controleVisa, fiscal: emailFiscal, cnae: alvo.cnae,
+                      data: dataISO, status_atual: existing.status,
+                      motivo: 'Campos informativos desatualizados: ' + _diffInf.join(', ') +
+                              ' (homologação e pontuação preservadas)',
+                    });
+                  } else {
+                    ignorados++;
+                  }
                   continue;
                 }
                 if (fontesIncompletas) {
@@ -1598,6 +1681,17 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   updateData.motivo_pendencia = null;
                   onProgress(`✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: autorização de fiscais confirmada, restaurado para enviado.`, 'info');
                 }
+              } else if (existing.status === 'pendente') {
+                // Fiscal1 e Fiscal2 nunca dependem de autorização. Se o
+                // lançamento ficou pendente numa versão anterior do CSV (era
+                // terceiro fiscal e deixou de ser, ou a ordem dos fiscais
+                // mudou no WCVS), nada o tirava desse estado: o update parcial
+                // do Firestore só toca os campos enviados, e sem passar por
+                // aqui `status` e `motivo_pendencia` ficavam presos para
+                // sempre — inclusive com o texto de uma versão antiga.
+                updateData.status = 'enviado';
+                updateData.motivo_pendencia = null;
+                onProgress(`✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: não é mais terceiro fiscal, pendência removida.`, 'info');
               }
               await escrever.upsert(controleVisa, emailFiscal, updateData, existing.id, false, alvo.cnae);
               _aplicarManualNoMapaPontosVisa(estadoPontos.byDia, existing, -1);
@@ -1643,6 +1737,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 prazo_os: prazoOsFinal,
                 fora_do_prazo: foraDoPrazo,
                 documento,
+                numero,
                 status: statusInicial,
                 motivo_pendencia: motivoPendencia,
                 origem: 'visa_csv',
@@ -1791,9 +1886,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       `<strong>${ignorados}</strong> ignorado(s), ` +
       `<strong>${excluidos}</strong> excluído(s), ` +
       `<strong>${totalReabertos}</strong> reaberto(s), ` +
+      `<strong>${sincronizados}</strong> sincronizado(s), ` +
       `<strong>${erros}</strong> erro(s).`,
       erros > 0 ? 'warn' : 'ok'
     );
+    if (sincronizados) {
+      onProgress(
+        `🔗 ${sincronizados} homologado(s) atualizado(s) só nos dados informativos ` +
+        `(fiscais participantes / nº do documento) — pontuação e homologação preservadas.`, 'info');
+    }
     if (totalReabertos) {
       onProgress(
         `🔄 Reaberturas: ${reabertos} por alteração na origem, ${reabertos_orfaos} por exclusão na ` +
@@ -1803,6 +1904,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     return {
       criados, atualizados, ignorados, excluidos, erros,
       reabertos, reabertos_orfaos, reabertos_incompat, zerados_incompat,
+      sincronizados,
       relatorio,
     };
   } finally {
@@ -1825,4 +1927,6 @@ window.motivoNaoCumulatividadeVistoria = motivoNaoCumulatividadeVistoria;
 window.visaCanonicoOrigem          = visaCanonicoOrigem;
 window.visaDiffOrigem              = visaDiffOrigem;
 window.visaClassificaDiff          = visaClassificaDiff;
+window.visaDiffInformativo         = visaDiffInformativo;
+window.visaPatchInformativo        = visaPatchInformativo;
 window.revalidarCruzadoMes         = revalidarCruzadoMes;
