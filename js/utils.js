@@ -569,7 +569,7 @@ function reabertoWarningHtml(m) {
 const _REABERTO_TITULO = {
   origem: 'Inspeção alterada no WCVS',
   orfao: 'Inspeção excluída no WCVS',
-  cnae_reclassificado: 'Atividade (CNAE) corrigida no WCVS',
+  cnae_reclassificado: 'Atividade não selecionada na inspeção (WCVS)',
   incompatibilidade: 'Lançamento incompatível no mesmo dia',
 };
 
@@ -581,19 +581,18 @@ function abrirReaberto(ds) {
   let diff = [];
   try { diff = ds.diff ? JSON.parse(ds.diff) : []; } catch (_) { diff = []; }
 
-  // A abertura muda conforme o caso: em CNAE reclassificado este registro é uma
-  // versão SUPERADA (o lançamento válido é outro), então prometer "será
-  // homologado de novo" seria enganoso.
+  // Em CNAE não selecionado o próprio motivo já é a instrução completa (o que
+  // fazer no WCVS para a atividade voltar a pontuar); um parágrafo de abertura
+  // aqui só repetiria a mesma informação antes dela. Nos outros casos a abertura
+  // tranquiliza quem vê a pontuação cair: o lançamento não foi perdido.
   const intro = ds.tipo === 'cnae_reclassificado'
-    ? `Este lançamento é uma <strong>versão antiga</strong> de uma inspeção que foi recorrigida no ` +
-      `WCVS. Ele ficou zerado apenas para não contar em dobro — <strong>a sua pontuação não foi ` +
-      `perdida</strong>, pois o lançamento atual da mesma inspeção continua valendo.`
+    ? ''
     : `Este lançamento <strong>já tinha sido homologado</strong> e voltou para a conferência. ` +
       `Nada foi perdido: ele continua na sua lista e será homologado de novo assim que o ` +
       `administrador conferir.`;
 
   let html =
-    `<p style="margin:0 0 12px">${intro}</p>` +
+    (intro ? `<p style="margin:0 0 12px">${intro}</p>` : '') +
     `<p style="margin:0 0 12px">${escHtml(ds.motivo || '—')}</p>`;
 
   if (ds.anterior) {
@@ -687,6 +686,18 @@ function fiscaisCountHtml(m) {
   return (m && m.qtd_fiscais != null) ? escHtml(String(m.qtd_fiscais)) : '—';
 }
 
+// Documento lavrado + o número impresso nele (coluna NUMERO do inspecoes.csv),
+// que é o que o fiscal usa para localizar o papel. O número reinicia por talão,
+// então acompanha o tipo e não aparece sozinho. Lançamentos importados antes
+// deste campo existir ficam sem ele até a próxima importação sincronizar.
+function documentoComNumeroHtml(m) {
+  const tipo = (m && m.documento) ? String(m.documento).trim() : '';
+  if (!tipo) return '—';
+  const num = (m && m.numero != null) ? String(m.numero).trim() : '';
+  if (!num) return escHtml(tipo);
+  return `${escHtml(tipo)} <span class="text-muted">nº ${escHtml(num)}</span>`;
+}
+
 // Preenche e exibe o modal de participantes a partir do dataset do elemento.
 function abrirFiscais(ds) {
   _initFiscaisModal();
@@ -764,8 +775,9 @@ function abrirFiscaisAlerta(ds) {
     `<p style="margin:0 0 12px">Esta inspeção foi realizada por <strong>mais de dois fiscais</strong> ` +
     `e <strong>não consta autorização prévia</strong>: a OS não está em requerimento.csv com ` +
     `prioridade, nem o Ofício em oficio.csv com Terceiro.</p>` +
-    `<p style="margin:0 0 12px">Os lançamentos <strong>a partir do 2º fiscal</strong> permanecem ` +
-    `<strong>pendentes</strong> até a autorização.</p>` +
+    `<p style="margin:0 0 12px">Os dois primeiros fiscais entram normalmente; os lançamentos ` +
+    `<strong>do 3º fiscal em diante</strong> permanecem <strong>pendentes</strong> até a ` +
+    `autorização.</p>` +
     `<p style="margin:0 0 4px"><strong>Fiscais participantes:</strong></p>` +
     `<ul style="list-style:none;padding:0;margin:0;line-height:1.9">` +
     nomes.map(n => `<li>👤 ${escHtml(n)}</li>`).join('') +
@@ -854,6 +866,7 @@ window.reabertoWarningHtml       = reabertoWarningHtml;
 window.abrirReaberto             = abrirReaberto;
 window.fiscaisCountHtml          = fiscaisCountHtml;
 window.abrirFiscais              = abrirFiscais;
+window.documentoComNumeroHtml    = documentoComNumeroHtml;
 window.fiscaisAlertaHtml         = fiscaisAlertaHtml;
 window.abrirFiscaisAlerta        = abrirFiscaisAlerta;
 window.visaAppSidebarLink        = visaAppSidebarLink;

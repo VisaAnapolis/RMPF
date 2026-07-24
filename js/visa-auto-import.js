@@ -81,6 +81,7 @@ async function registrarImportStateVisa(r, mes, ano, blobShas, opts) {
     reabertos: (r && r.reabertos) || 0,
     reabertos_orfaos: (r && r.reabertos_orfaos) || 0,
     reabertos_incompat: (r && r.reabertos_incompat) || 0,
+    sincronizados: (r && r.sincronizados) || 0,
     erros: (r && r.erros) || 0,
     mes: Number(mes), ano: Number(ano),
     csv_sha: String((blobShas && blobShas[VISA_AUTO_IMPORT_ARQUIVO]) || '').slice(0, 10),
