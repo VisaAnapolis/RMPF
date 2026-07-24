@@ -626,7 +626,7 @@ function fiscaisAlertaHtml(m) {
   if (!m || !Array.isArray(m.fiscais_participantes) ||
       m.fiscais_participantes.length <= 2 || !m.motivo_pendencia) return '';
   return ` <span class="fiscais-alerta" role="button" tabindex="0"` +
-    ` style="cursor:pointer;color:var(--amar)"` +
+    ` style="cursor:pointer;color:var(--amar);font-size:1.4em;vertical-align:middle"` +
     ` title="Mais de dois fiscais sem autorização prévia — clique para detalhes"` +
     ` data-fiscais="${escHtml(m.fiscais_participantes.join('|'))}">⚠️</span>`;
 }
