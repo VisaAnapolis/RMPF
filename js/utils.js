@@ -641,8 +641,7 @@ function abrirFiscaisAlerta(ds) {
     `<p style="margin:0 0 12px">Esta inspeção foi realizada por <strong>mais de dois fiscais</strong> ` +
     `e <strong>não consta autorização prévia</strong>: a OS não está em requerimento.csv com ` +
     `prioridade, nem o Ofício em oficio.csv com Terceiro.</p>` +
-    `<p style="margin:0 0 12px">Somente os dois primeiros fiscais entram como enviados; ` +
-    `os lançamentos do <strong>3º fiscal em diante</strong> permanecem ` +
+    `<p style="margin:0 0 12px">Os lançamentos <strong>a partir do 2º fiscal</strong> permanecem ` +
     `<strong>pendentes</strong> até a autorização.</p>` +
     `<p style="margin:0 0 4px"><strong>Fiscais participantes:</strong></p>` +
     `<ul style="list-style:none;padding:0;margin:0;line-height:1.9">` +
