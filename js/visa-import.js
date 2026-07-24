@@ -355,17 +355,26 @@ function _motivoReaberturaOrfao(controle) {
     'Se a exclusão foi indevida, basta corrigir no WCVS que ele volta na próxima importação.';
 }
 
-// CNAE reclassificado ≠ inspeção excluída. O CONTROLE continua no CSV, só que
-// sob outro CNAE (correção de RT no WCVS): existe um lançamento novo e correto
-// da mesma inspeção. Este aqui é a versão superada, que precisa ficar zerada
-// para não contar em dobro — mas o fiscal não perdeu nada.
-function _motivoCnaeReclassificado(controle, cnaeAntigo, cnaesAtuais) {
+// CNAE reclassificado ≠ inspeção excluída: o CONTROLE continua no CSV, só sob
+// outro CNAE. A mensagem é ACIONÁVEL de propósito — o fiscal não precisa saber
+// da mecânica interna, precisa saber que a atividade só volta a pontuar se ele
+// marcá-la como inspecionada no WCVS (quando ela realmente foi).
+function _motivoCnaeReclassificado(controle, cnaeAntigo, cnaesAtuais, documento, numero) {
   const lista = (cnaesAtuais || []).filter(Boolean).join(', ');
-  return 'A atividade (CNAE) da inspeção CONTROLE ' + controle + ' foi corrigida no WCVS depois da ' +
-    'homologação: este lançamento era do CNAE ' + (cnaeAntigo || '—') +
-    (lista ? ', e a inspeção agora está classificada como ' + lista : '') + '. ' +
-    'Esta versão antiga foi zerada para não contar em dobro — o lançamento atual da mesma inspeção ' +
-    'continua valendo e a sua pontuação não foi perdida. Nada precisa ser relançado.';
+  const doc = String(documento || '').trim();
+  const num = (numero == null) ? '' : String(numero).trim();
+  // "o documento X" em vez de "o X": os tipos variam em gênero (o termo, a
+  // certidão, a manifestação) e concordar com cada um exigiria uma tabela.
+  const refDoc = doc
+    ? ('o documento ' + doc + (num ? ' nº ' + num : '') + ' (inspeção ' + controle + ')')
+    : ('a inspeção CONTROLE ' + controle);
+  return 'Este lançamento é da atividade (CNAE) ' + (cnaeAntigo || '—') + ', que não está ' +
+    'selecionada como atividade inspecionada' + (lista ? ' — no WCVS a inspeção está como ' + lista : '') +
+    '. Por isso ele está sem pontuação. ' +
+    'Se a atividade ' + (cnaeAntigo || '—') + ' TAMBÉM foi inspecionada nesta ocasião, abra no WCVS ' +
+    refDoc + ' e, em "Marque as demais atividades inspecionadas nesta visita", selecione essa ' +
+    'atividade e grave: na próxima importação ela volta a pontuar automaticamente. ' +
+    'Se ela não foi inspecionada, não é preciso fazer nada.';
 }
 
 function _motivoReaberturaConflito(descricaoConflito) {
@@ -1805,7 +1814,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             pontos_homologado: null,
             reaberto_tipo: reclassificado ? 'cnae_reclassificado' : 'orfao',
             reaberto_motivo: reclassificado
-              ? _motivoCnaeReclassificado(m.visa_controle, m.visa_cnae, Array.from(cnaesAtuais))
+              ? _motivoCnaeReclassificado(m.visa_controle, m.visa_cnae, Array.from(cnaesAtuais),
+                                          m.documento, m.numero)
               : _motivoReaberturaOrfao(m.visa_controle),
             reaberto_diff: null,
             reaberto_em: new Date().toISOString(),

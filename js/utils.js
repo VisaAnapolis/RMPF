@@ -569,7 +569,7 @@ function reabertoWarningHtml(m) {
 const _REABERTO_TITULO = {
   origem: 'Inspeção alterada no WCVS',
   orfao: 'Inspeção excluída no WCVS',
-  cnae_reclassificado: 'Atividade (CNAE) corrigida no WCVS',
+  cnae_reclassificado: 'Atividade não selecionada na inspeção (WCVS)',
   incompatibilidade: 'Lançamento incompatível no mesmo dia',
 };
 
@@ -581,19 +581,18 @@ function abrirReaberto(ds) {
   let diff = [];
   try { diff = ds.diff ? JSON.parse(ds.diff) : []; } catch (_) { diff = []; }
 
-  // A abertura muda conforme o caso: em CNAE reclassificado este registro é uma
-  // versão SUPERADA (o lançamento válido é outro), então prometer "será
-  // homologado de novo" seria enganoso.
+  // Em CNAE não selecionado o próprio motivo já é a instrução completa (o que
+  // fazer no WCVS para a atividade voltar a pontuar); um parágrafo de abertura
+  // aqui só repetiria a mesma informação antes dela. Nos outros casos a abertura
+  // tranquiliza quem vê a pontuação cair: o lançamento não foi perdido.
   const intro = ds.tipo === 'cnae_reclassificado'
-    ? `Este lançamento é uma <strong>versão antiga</strong> de uma inspeção que foi recorrigida no ` +
-      `WCVS. Ele ficou zerado apenas para não contar em dobro — <strong>a sua pontuação não foi ` +
-      `perdida</strong>, pois o lançamento atual da mesma inspeção continua valendo.`
+    ? ''
     : `Este lançamento <strong>já tinha sido homologado</strong> e voltou para a conferência. ` +
       `Nada foi perdido: ele continua na sua lista e será homologado de novo assim que o ` +
       `administrador conferir.`;
 
   let html =
-    `<p style="margin:0 0 12px">${intro}</p>` +
+    (intro ? `<p style="margin:0 0 12px">${intro}</p>` : '') +
     `<p style="margin:0 0 12px">${escHtml(ds.motivo || '—')}</p>`;
 
   if (ds.anterior) {
