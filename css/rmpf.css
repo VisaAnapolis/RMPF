@@ -332,6 +332,15 @@ table.rmpf-table {
   font-size: .84rem;
   table-layout: fixed;
 }
+/* Só as tabelas de lançamentos (17 colunas, em Conferência e Meus Lançamentos).
+   Abaixo desta largura os valores não caberiam e, como table-layout:fixed nunca
+   deixa a tabela passar de 100% do container, o texto vazava por cima da célula
+   vizinha em vez de aparecer rolagem. Com o min-width o .table-wrap
+   (overflow-x:auto) assume e a tabela rola na horizontal, preservando o
+   alinhamento das colunas. As demais telas têm poucas colunas e não levam esta
+   classe — nelas um min-width criaria rolagem à toa.
+   Reposto para 0 no layout de cartão (≤600px), onde não há colunas. */
+table.rmpf-table--lancamentos { min-width: 1480px; }
 .rmpf-table thead tr { background: var(--cinzaB); }
 .rmpf-table thead th {
   padding: 8px 6px;
@@ -819,6 +828,8 @@ table.rmpf-table {
     display: block;
     width: 100%;
   }
+  /* anula o min-width das 17 colunas: aqui cada linha virou cartão */
+  table.rmpf-table--lancamentos { min-width: 0; }
   .rmpf-table colgroup { display: none; }
   .rmpf-table thead { display: none; }
 
