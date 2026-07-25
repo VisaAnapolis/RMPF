@@ -908,3 +908,58 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
     max-width: none;
   }
 }
+
+/* ── Versículo do dia (js/versiculo.js) ──
+   Toast central: o wrapper cobre a tela apenas para centralizar o
+   cartão — pointer-events:none mantém clicável o que está atrás
+   (é toast, não modal). */
+.versiculo-toast {
+  position: fixed; inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  pointer-events: none;
+  z-index: 100000; /* acima do convite de push (99999), sem bloquear a tela */
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.versiculo-toast.is-on { opacity: 1; }
+
+.versiculo-card {
+  pointer-events: auto;
+  cursor: pointer;
+  max-width: min(460px, 92vw);
+  background: var(--branco);
+  border: 1px solid var(--cinzaL);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  padding: 24px 20px;
+  text-align: center;
+  transform: translateY(10px) scale(.97);
+  transition: transform 400ms cubic-bezier(.4, 0, .2, 1);
+}
+.versiculo-toast.is-on .versiculo-card { transform: translateY(0) scale(1); }
+
+.versiculo-card__texto {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  line-height: 1.6;
+  font-style: italic;
+  color: var(--azul);
+}
+.versiculo-card__ref {
+  margin: 0;
+  font-size: .875rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--cinzaT);
+}
+
+@media (max-width: 480px) {
+  .versiculo-card { padding: 20px 16px; }
+  .versiculo-card__texto { font-size: .9rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .versiculo-toast, .versiculo-card { transition: none; }
+}
