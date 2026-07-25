@@ -119,6 +119,12 @@
           window.ensureFCMOptInButton(user.email);
         }
 
+        // Versículo do dia (toast central, 1x por dia) — só depois da
+        // autenticação, para não aparecer em tela que vai redirecionar
+        if (typeof window.rmpfMostrarVersiculoDoDia === 'function') {
+          window.rmpfMostrarVersiculoDoDia();
+        }
+
         resolve(window.currentUser);
       } catch (e) {
         console.error('Auth guard error:', e);

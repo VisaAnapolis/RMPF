@@ -1,0 +1,199 @@
+{
+  "versao": 1,
+  "traducao": "Almeida Revista e Corrigida (ARC)",
+  "inicio": "2026-07-25",
+  "abertura": [
+    {
+      "ref": "Apocalipse 21:5",
+      "dias": 3,
+      "texto": "E o que estava assentado sobre o trono disse: Eis que faço nova todas as coisas. E disse-me: Escreve, porque estas palavras são verdadeiras e fiéis."
+    },
+    {
+      "ref": "Eclesiastes 3:1",
+      "dias": 2,
+      "texto": "Tudo tem o seu tempo determinado, e há tempo para todo o propósito debaixo do céu."
+    }
+  ],
+  "rotativos": [
+    {
+      "ref": "João 3:16",
+      "texto": "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."
+    },
+    {
+      "ref": "Salmos 23:1",
+      "texto": "O SENHOR é o meu pastor; nada me faltará."
+    },
+    {
+      "ref": "Provérbios 3:5-6",
+      "texto": "Confia no SENHOR de todo o teu coração e não te estribes no teu próprio entendimento. Reconhece-o em todos os teus caminhos, e ele endireitará as tuas veredas."
+    },
+    {
+      "ref": "Filipenses 4:13",
+      "texto": "Posso todas as coisas naquele que me fortalece."
+    },
+    {
+      "ref": "Isaías 41:10",
+      "texto": "Não temas, porque eu sou contigo; não te assombres, porque eu sou teu Deus; eu te esforço, e te ajudo, e te sustento com a destra da minha justiça."
+    },
+    {
+      "ref": "Salmos 46:1",
+      "texto": "Deus é o nosso refúgio e fortaleza, socorro bem presente na angústia."
+    },
+    {
+      "ref": "Jeremias 29:11",
+      "texto": "Porque eu bem sei os pensamentos que penso de vós, diz o SENHOR; pensamentos de paz e não de mal, para vos dar o fim que esperais."
+    },
+    {
+      "ref": "Mateus 11:28",
+      "texto": "Vinde a mim, todos os que estais cansados e oprimidos, e eu vos aliviarei."
+    },
+    {
+      "ref": "Romanos 8:28",
+      "texto": "E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus, daqueles que são chamados por seu decreto."
+    },
+    {
+      "ref": "Isaías 40:31",
+      "texto": "Mas os que esperam no SENHOR renovarão as suas forças e subirão com asas como águias; correrão e não se cansarão; caminharão e não se fatigarão."
+    },
+    {
+      "ref": "Salmos 91:1",
+      "texto": "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."
+    },
+    {
+      "ref": "Josué 1:9",
+      "texto": "Não to mandei eu? Esforça-te e tem bom ânimo; não pasmes, nem te espantes, porque o SENHOR, teu Deus, é contigo, por onde quer que andares."
+    },
+    {
+      "ref": "Provérbios 16:3",
+      "texto": "Confia ao SENHOR as tuas obras, e teus pensamentos serão estabelecidos."
+    },
+    {
+      "ref": "Salmos 121:1-2",
+      "texto": "Levantarei os meus olhos para os montes, de onde vem o meu socorro. O meu socorro vem do SENHOR, que fez o céu e a terra."
+    },
+    {
+      "ref": "Filipenses 4:6-7",
+      "texto": "Não estejais inquietos por coisa alguma; antes, as vossas petições sejam em tudo conhecidas diante de Deus, pela oração e súplicas, com ação de graças. E a paz de Deus, que excede todo o entendimento, guardará os vossos corações e os vossos sentimentos em Cristo Jesus."
+    },
+    {
+      "ref": "Mateus 6:33",
+      "texto": "Mas buscai primeiro o Reino de Deus, e a sua justiça, e todas estas coisas vos serão acrescentadas."
+    },
+    {
+      "ref": "1 Coríntios 13:13",
+      "texto": "Agora, pois, permanecem a fé, a esperança e o amor, estes três; mas o maior destes é o amor."
+    },
+    {
+      "ref": "Salmos 37:5",
+      "texto": "Entrega o teu caminho ao SENHOR; confia nele, e ele o fará."
+    },
+    {
+      "ref": "Miquéias 6:8",
+      "texto": "Ele te declarou, ó homem, o que é bom; e que é o que o SENHOR pede de ti, senão que pratiques a justiça, e ames a beneficência, e andes humildemente com o teu Deus?"
+    },
+    {
+      "ref": "2 Coríntios 5:17",
+      "texto": "Assim que, se alguém está em Cristo, nova criatura é: as coisas velhas já passaram; eis que tudo se fez novo."
+    },
+    {
+      "ref": "Salmos 119:105",
+      "texto": "Lâmpada para os meus pés é a tua palavra e luz para o meu caminho."
+    },
+    {
+      "ref": "Gálatas 5:22-23",
+      "texto": "Mas o fruto do Espírito é: amor, gozo, paz, longanimidade, benignidade, bondade, fé, mansidão, temperança."
+    },
+    {
+      "ref": "João 14:6",
+      "texto": "Disse-lhe Jesus: Eu sou o caminho, e a verdade, e a vida; ninguém vem ao Pai senão por mim."
+    },
+    {
+      "ref": "Salmos 27:1",
+      "texto": "O SENHOR é a minha luz e a minha salvação; a quem temerei? O SENHOR é a força da minha vida; de quem me recearei?"
+    },
+    {
+      "ref": "Colossenses 3:23",
+      "texto": "E, tudo quanto fizerdes, fazei-o de todo o coração, como ao Senhor e não aos homens."
+    },
+    {
+      "ref": "Tiago 1:5",
+      "texto": "E, se algum de vós tem falta de sabedoria, peça-a a Deus, que a todos dá liberalmente e o não lança em rosto; e ser-lhe-á dada."
+    },
+    {
+      "ref": "Isaías 43:2",
+      "texto": "Quando passares pelas águas, estarei contigo, e, quando pelos rios, eles não te submergirão; quando passares pelo fogo, não te queimarás, nem a chama arderá em ti."
+    },
+    {
+      "ref": "1 Pedro 5:7",
+      "texto": "Lançando sobre ele toda a vossa ansiedade, porque ele tem cuidado de vós."
+    },
+    {
+      "ref": "Romanos 12:2",
+      "texto": "E não vos conformeis com este mundo, mas transformai-vos pela renovação do vosso entendimento, para que experimenteis qual seja a boa, agradável e perfeita vontade de Deus."
+    },
+    {
+      "ref": "Salmos 118:24",
+      "texto": "Este é o dia que fez o SENHOR; regozijemo-nos e alegremo-nos nele."
+    },
+    {
+      "ref": "Hebreus 11:1",
+      "texto": "Ora, a fé é o firme fundamento das coisas que se esperam e a prova das coisas que se não veem."
+    },
+    {
+      "ref": "Mateus 5:16",
+      "texto": "Assim resplandeça a vossa luz diante dos homens, para que vejam as vossas boas obras e glorifiquem o vosso Pai, que está nos céus."
+    },
+    {
+      "ref": "Provérbios 17:22",
+      "texto": "O coração alegre serve de bom remédio, mas o espírito abatido virá a secar os ossos."
+    },
+    {
+      "ref": "Efésios 4:32",
+      "texto": "Antes, sede uns para com os outros benignos, misericordiosos, perdoando-vos uns aos outros, como também Deus vos perdoou em Cristo."
+    },
+    {
+      "ref": "Salmos 34:18",
+      "texto": "Perto está o SENHOR dos que têm o coração quebrantado, e salva os contritos de espírito."
+    },
+    {
+      "ref": "1 Coríntios 13:4",
+      "texto": "O amor é sofredor, é benigno; o amor não é invejoso; o amor não trata com leviandade, não se ensoberbece."
+    },
+    {
+      "ref": "Romanos 12:12",
+      "texto": "Alegrai-vos na esperança, sede pacientes na tribulação, perseverai na oração."
+    },
+    {
+      "ref": "Mateus 7:12",
+      "texto": "Portanto, tudo o que vós quereis que os homens vos façam, fazei-lho também vós, porque esta é a lei e os profetas."
+    },
+    {
+      "ref": "Eclesiastes 4:9",
+      "texto": "Melhores são dois do que um, porque têm melhor paga do seu trabalho."
+    },
+    {
+      "ref": "João 8:32",
+      "texto": "E conhecereis a verdade, e a verdade vos libertará."
+    },
+    {
+      "ref": "Provérbios 27:17",
+      "texto": "Como o ferro com o ferro se aguça, assim o homem afia o rosto do seu amigo."
+    },
+    {
+      "ref": "Salmos 133:1",
+      "texto": "Oh! quão bom e quão suave é que os irmãos vivam em união!"
+    },
+    {
+      "ref": "Mateus 5:9",
+      "texto": "Bem-aventurados os pacificadores, porque eles serão chamados filhos de Deus."
+    },
+    {
+      "ref": "João 13:34",
+      "texto": "Um novo mandamento vos dou: Que vos ameis uns aos outros; como eu vos amei a vós, que também vós uns aos outros vos ameis."
+    },
+    {
+      "ref": "Provérbios 22:6",
+      "texto": "Instrui o menino no caminho em que deve andar, e até quando envelhecer não se desviará dele."
+    }
+  ]
+}
