@@ -6,9 +6,9 @@
  * Corrigida — domínio público).
  *
  * Comportamento:
- *  - aparece centralizado e some sozinho (não é modal: não tem backdrop
- *    e não bloqueia clique no que está atrás);
- *  - no máx. 1x por dia (e 1x por sessão);
+ *  - aparece centralizado e some sozinho; escurece o fundo para dar
+ *    contraste, mas não bloqueia o clique no que está atrás;
+ *  - 1x por abertura do app (não repete navegando entre telas);
  *  - o versículo é o mesmo para todos os usuários no mesmo dia,
  *    calculado a partir da data civil de Brasília;
  *  - cede a vez ao convite de push (#fcm-invite-modal) sem consumir o
@@ -22,11 +22,6 @@
   if (window.__rmpfVersiculoInit) return;
   window.__rmpfVersiculoInit = true;
 
-  // Nota: index.html limpa todo o localStorage a cada bump de APP_VERSION
-  // (preserva só firebase:*, rmpf_app_version e rmpf_shared_device). Esta
-  // chave cai nessa limpeza, então o toast reaparece uma vez a mais no dia
-  // de um deploy com bump — comportamento esperado, não é falha.
-  var LS_DATA = 'rmpf_versiculo_data';
   var SS_SESSAO = 'rmpf_versiculo_sessao';
   var ABRIR_DELAY_MS = 1500;
   var VISIVEL_MS = 7000;
@@ -77,12 +72,14 @@
     return rot[(dias - acc) % rot.length];
   }
 
-  /* ── Guarda diária ──────────────────────────────────────── */
+  /* ── Guarda por sessão ──────────────────────────────────── */
 
+  // 1x por abertura do app: sessionStorage sobrevive à navegação entre
+  // telas e morre quando o app/aba fecha — então reabrir mostra de novo.
+  // O versículo em si continua sendo o do dia (ver versiculoDoDia).
   function deveMostrar() {
     try {
-      if (sessionStorage.getItem(SS_SESSAO)) return false;
-      return localStorage.getItem(LS_DATA) !== hojeISO();
+      return !sessionStorage.getItem(SS_SESSAO);
     } catch (e) {
       return true;
     }
@@ -90,9 +87,8 @@
 
   function marcarMostrado() {
     try {
-      localStorage.setItem(LS_DATA, hojeISO());
       sessionStorage.setItem(SS_SESSAO, '1');
-    } catch (e) { /* modo privado: apenas reaparece na próxima visita */ }
+    } catch (e) { /* modo privado: reaparece na próxima navegação */ }
   }
 
   /* ── Precedência: convite de push ───────────────────────── */
@@ -111,6 +107,7 @@
   function fechar() {
     if (!toast) return;
     clearTimeout(timerSaida);
+    document.removeEventListener('click', fechar, true);
     var alvo = toast;
     toast = null;
     alvo.classList.remove('is-on');
@@ -123,8 +120,9 @@
     if (!versiculo) return;
     fechar();
 
-    // O wrapper cobre a tela só para centralizar; pointer-events:none
-    // garante que o usuário continue clicando no que está atrás.
+    // O wrapper escurece a tela para dar contraste, mas pointer-events:none
+    // deixa o clique passar para o que está atrás. Como o véu não recebe o
+    // clique, é o listener no document (abaixo) que dispensa o versículo.
     toast = document.createElement('div');
     toast.id = 'rmpfVersiculoToast';
     toast.className = 'versiculo-toast';
@@ -150,6 +148,10 @@
 
     void toast.offsetWidth; // força o reflow para a transição de entrada
     toast.classList.add('is-on');
+
+    // Qualquer clique/toque na tela dispensa (a captura roda antes do
+    // handler do elemento clicado, mas não o impede de receber o clique).
+    document.addEventListener('click', fechar, true);
 
     timerSaida = setTimeout(fechar, VISIVEL_MS);
   }
@@ -191,10 +193,7 @@
     fechar: fechar,
     doDia: function (dataISO) { return versiculoDoDia(dataISO); },
     reset: function () {
-      try {
-        localStorage.removeItem(LS_DATA);
-        sessionStorage.removeItem(SS_SESSAO);
-      } catch (e) {}
+      try { sessionStorage.removeItem(SS_SESSAO); } catch (e) {}
     }
   };
 })();

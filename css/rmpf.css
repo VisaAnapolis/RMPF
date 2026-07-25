@@ -910,15 +910,16 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
 }
 
 /* ── Versículo do dia (js/versiculo.js) ──
-   Toast central: o wrapper cobre a tela apenas para centralizar o
-   cartão — pointer-events:none mantém clicável o que está atrás
-   (é toast, não modal). */
+   Toast central: o wrapper escurece a tela para dar contraste (cartão
+   branco sobre --cinzaB #f4f5f7 é imperceptível), mas pointer-events:none
+   mantém clicável o que está atrás — o véu é só visual. É toast, não modal. */
 .versiculo-toast {
   position: fixed; inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
+  background: rgba(0,0,0,.45); /* mesmo scrim de .modal-backdrop */
   pointer-events: none;
   z-index: 100000; /* acima do convite de push (99999), sem bloquear a tela */
   opacity: 0;
@@ -933,7 +934,7 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
   background: var(--branco);
   border: 1px solid var(--cinzaL);
   border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.18);
+  box-shadow: 0 18px 50px rgba(0,0,0,.35);
   padding: 24px 20px;
   text-align: center;
   transform: translateY(10px) scale(.97);
@@ -960,6 +961,12 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
   .versiculo-card { padding: 20px 16px; }
   .versiculo-card__texto { font-size: .9rem; }
 }
+/* "Reduzir movimento" tira o MOVIMENTO, não o esmaecer: zerar a transição
+   inteira fazia o versículo sumir de um golpe. Aqui o cartão perde o
+   deslize/escala e o véu mantém um fade curto — que é justamente a
+   alternativa recomendada a animações de movimento. */
 @media (prefers-reduced-motion: reduce) {
-  .versiculo-toast, .versiculo-card { transition: none; }
+  .versiculo-toast { transition: opacity 200ms ease; }
+  .versiculo-card,
+  .versiculo-toast.is-on .versiculo-card { transform: none; transition: none; }
 }
