@@ -97,6 +97,35 @@
     } catch (e) { /* modo privado: reaparece na próxima navegação */ }
   }
 
+  /* ── Interruptor (editado no admin.html do VISA) ─────────── */
+
+  // app_config/versiculo_do_dia é ÚNICO para os dois sistemas: VISA e RMPF
+  // vivem no mesmo projeto Firebase, e o controle fica só na tela de admin do
+  // VISA. Mesmo padrão de leitura de _resolvePromoConfig (firebase-config.js),
+  // que já consulta app_config para qualquer usuário autenticado.
+  // Falha de leitura cai no último valor conhecido e, sem ele, em "ligado" —
+  // rede instável não pode apagar a feature.
+  var LS_CONFIG = 'rmpf_versiculo_config';
+
+  function ultimoConhecido() {
+    try { return localStorage.getItem(LS_CONFIG) !== '0'; } catch (e) { return true; }
+  }
+
+  function resolverAtivo() {
+    // Sem Firestore à mão (ordem de scripts, página fora do guard) não dá para
+    // consultar: honra o último valor conhecido em vez de sumir sem explicação.
+    if (!window.db || typeof window.db.collection !== 'function') {
+      return Promise.resolve(ultimoConhecido());
+    }
+    return window.db.collection('app_config').doc('versiculo_do_dia').get()
+      .then(function (snap) {
+        var ativo = !snap.exists || (snap.data() || {}).ativo !== false;
+        try { localStorage.setItem(LS_CONFIG, ativo ? '1' : '0'); } catch (e) {}
+        return ativo;
+      })
+      .catch(ultimoConhecido);
+  }
+
   /* ── Precedência: convite de push ───────────────────────── */
 
   function outroPopupVisivel() {
@@ -221,16 +250,21 @@
         if (!json || (!json.abertura && !json.rotativos)) return;
         cfg = json;
         if (!deveMostrar()) return;
-        setTimeout(function () {
-          // revalida: outra aba pode ter exibido o versículo durante a espera
-          if (!deveMostrar()) return;
-          // cede a vez ao convite de push sem consumir o slot diário
-          if (outroPopupVisivel()) return;
-          var v = versiculoDoDia();
-          if (!v) return;
-          marcarMostrado();
-          abrir(v);
-        }, ABRIR_DELAY_MS);
+        // Desligado no admin do VISA: não exibe e NÃO consome o slot da sessão,
+        // para que religar traga o versículo de volta sem reabrir o app.
+        return resolverAtivo().then(function (ativo) {
+          if (!ativo) return;
+          setTimeout(function () {
+            // revalida: outra aba pode ter exibido o versículo durante a espera
+            if (!deveMostrar()) return;
+            // cede a vez ao convite de push sem consumir o slot da sessão
+            if (outroPopupVisivel()) return;
+            var v = versiculoDoDia();
+            if (!v) return;
+            marcarMostrado();
+            abrir(v);
+          }, ABRIR_DELAY_MS);
+        });
       })
       .catch(function () { /* sem rede/JSON → sem toast, silencioso */ });
   }
