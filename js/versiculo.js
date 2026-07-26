@@ -24,12 +24,18 @@
 
   var SS_SESSAO = 'rmpf_versiculo_sessao';
   var ABRIR_DELAY_MS = 1500;
-  var VISIVEL_MS = 7000;
-  var FADE_OUT_MS = 500;
+
+  // Linha do tempo, a partir do momento em que o toast aparece:
+  // 0 → 0,4s entra esmaecendo | até 4s parado a 100% | 4s → 7s dissolve | 7s sai.
+  var ENTRADA_MS = 400;
+  var SOLIDO_MS = 4000;
+  var DISSOLVER_MS = 3000;
+  var SAIDA_RAPIDA_MS = 250;  // quando o usuário dispensa antes da hora
 
   var cfg = null;
   var toast = null;
   var timerSaida = null;
+  var rafId = null;
 
   /* ── Data ───────────────────────────────────────────────── */
 
@@ -102,18 +108,48 @@
     return false;
   }
 
+  /* ── Animação ───────────────────────────────────────────── */
+
+  // A opacidade é escrita quadro a quadro em style.opacity, e não por
+  // `transition` no CSS, de propósito: o bloco prefers-reduced-motion já matou
+  // esta animação antes, e o mesmo vale para qualquer reset global futuro.
+  // Estilo inline não é alcançado por folha de estilo nenhuma, então o
+  // dissolver acontece em qualquer configuração do aparelho.
+  function anima(el, de, para, duracaoMs, aoFim) {
+    var inicio = null;
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(function passo(agora) {
+      if (inicio === null) inicio = agora;
+      var t = Math.min(1, (agora - inicio) / duracaoMs);
+      el.style.opacity = String(de + (para - de) * t);
+      if (t < 1) rafId = requestAnimationFrame(passo);
+      else if (aoFim) aoFim();
+    });
+  }
+
   /* ── UI ─────────────────────────────────────────────────── */
 
+  function remover(el) {
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function opacidadeAtual(el) {
+    var v = parseFloat(el.style.opacity);
+    return isNaN(v) ? 1 : v;
+  }
+
+  // Dispensa antes da hora (clique/Esc): dissolve rápido em vez de sumir seco.
   function fechar() {
     if (!toast) return;
     clearTimeout(timerSaida);
+    cancelAnimationFrame(rafId);
     document.removeEventListener('click', fechar, true);
     var alvo = toast;
     toast = null;
     alvo.classList.remove('is-on');
-    setTimeout(function () {
-      if (alvo.parentNode) alvo.parentNode.removeChild(alvo);
-    }, FADE_OUT_MS);
+    anima(alvo, opacidadeAtual(alvo), 0, SAIDA_RAPIDA_MS, function () {
+      remover(alvo);
+    });
   }
 
   function abrir(versiculo) {
@@ -146,14 +182,29 @@
     toast.appendChild(card);
     document.body.appendChild(toast);
 
-    void toast.offsetWidth; // força o reflow para a transição de entrada
+    toast.style.opacity = '0';
+    void toast.offsetWidth;      // reflow: o cartão desliza para o lugar
     toast.classList.add('is-on');
 
     // Qualquer clique/toque na tela dispensa (a captura roda antes do
     // handler do elemento clicado, mas não o impede de receber o clique).
     document.addEventListener('click', fechar, true);
 
-    timerSaida = setTimeout(fechar, VISIVEL_MS);
+    var alvo = toast;
+    anima(alvo, 0, 1, ENTRADA_MS);
+    // Fica 100% visível até os 4s e então dissolve por 3s, saindo aos 7s.
+    // `toast` só é zerado no fim: assim clique e Esc continuam dispensando
+    // durante a dissolução.
+    timerSaida = setTimeout(function () {
+      if (toast !== alvo) return;   // já foi dispensado nesse meio-tempo
+      anima(alvo, 1, 0, DISSOLVER_MS, function () {
+        if (toast === alvo) {
+          document.removeEventListener('click', fechar, true);
+          toast = null;
+        }
+        remover(alvo);
+      });
+    }, SOLIDO_MS);
   }
 
   document.addEventListener('keydown', function (ev) {

@@ -922,10 +922,11 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
   background: rgba(0,0,0,.45); /* mesmo scrim de .modal-backdrop */
   pointer-events: none;
   z-index: 100000; /* acima do convite de push (99999), sem bloquear a tela */
+  /* A opacidade é do js/versiculo.js, quadro a quadro em style.opacity: o
+     bloco prefers-reduced-motion zera transições e já matou este esmaecer
+     antes — estilo inline nenhuma folha de estilo alcança. */
   opacity: 0;
-  transition: opacity 400ms ease;
 }
-.versiculo-toast.is-on { opacity: 1; }
 
 .versiculo-card {
   pointer-events: auto;
@@ -976,12 +977,9 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
   .versiculo-card__texto { color: #9ecbf5; }
   .versiculo-card__ref { color: #aab4c4; }
 }
-/* "Reduzir movimento" tira o MOVIMENTO, não o esmaecer: zerar a transição
-   inteira fazia o versículo sumir de um golpe. Aqui o cartão perde o
-   deslize/escala e o véu mantém um fade curto — que é justamente a
-   alternativa recomendada a animações de movimento. */
+/* "Reduzir movimento" tira o MOVIMENTO: o cartão perde o deslize/escala. O
+   esmaecer não entra aqui — é opacidade, não movimento, e roda em JS. */
 @media (prefers-reduced-motion: reduce) {
-  .versiculo-toast { transition: opacity 200ms ease; }
   .versiculo-card,
   .versiculo-toast.is-on .versiculo-card { transform: none; transition: none; }
 }
