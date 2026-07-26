@@ -1,16 +1,16 @@
 {
   "versao": 1,
   "traducao": "Almeida Revista e Corrigida (ARC)",
-  "inicio": "2026-07-25",
+  "inicio": "2026-07-26",
   "abertura": [
     {
       "ref": "Apocalipse 21:5",
-      "dias": 3,
+      "dias": 4,
       "texto": "E o que estava assentado sobre o trono disse: Eis que faço nova todas as coisas. E disse-me: Escreve, porque estas palavras são verdadeiras e fiéis."
     },
     {
       "ref": "Eclesiastes 3:1",
-      "dias": 2,
+      "dias": 3,
       "texto": "Tudo tem o seu tempo determinado, e há tempo para todo o propósito debaixo do céu."
     }
   ],
@@ -194,6 +194,14 @@
     {
       "ref": "Provérbios 22:6",
       "texto": "Instrui o menino no caminho em que deve andar, e até quando envelhecer não se desviará dele."
+    },
+    {
+      "ref": "Apocalipse 21:5",
+      "texto": "E o que estava assentado sobre o trono disse: Eis que faço nova todas as coisas. E disse-me: Escreve, porque estas palavras são verdadeiras e fiéis."
+    },
+    {
+      "ref": "Eclesiastes 3:1",
+      "texto": "Tudo tem o seu tempo determinado, e há tempo para todo o propósito debaixo do céu."
     }
   ]
 }
