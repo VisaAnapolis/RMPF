@@ -336,13 +336,14 @@
         _timeout,
       ]);
       // Lançamento reaberto: já foi homologado e voltou à conferência porque a
-      // inspeção mudou/sumiu no WCVS ou ficou incompatível com outra do mesmo
-      // dia. Explica a queda de pontuação que o fiscal vê sem ter feito nada.
+      // inspeção foi alterada no WCVS depois da homologação, ou ficou
+      // incompatível com outra do mesmo dia. Explica a queda de pontuação que o
+      // fiscal vê sem ter feito nada — sem sugerir que o RMPF perdeu o dado.
       const _reab = _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
       document.getElementById('alert-area').innerHTML = _reab
         ? alerta('warn', `<strong>${_reab} lançamento(s)</strong> seu(s) voltaram para conferência. ` +
-            `Isso acontece quando a inspeção é alterada ou excluída no WCVS, ou quando outro lançamento ` +
-            `do mesmo dia passa a ser incompatível, depois da homologação. ` +
+            `Isso acontece quando a inspeção é alterada no WCVS após a homologação — por exemplo, a data ` +
+            `do documento foi alterada. ` +
             `Clique no ícone 🔄 na coluna Status para ver o motivo — não é preciso lançar nada de novo.`)
         : '';
       renderTabela();
