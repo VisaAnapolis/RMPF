@@ -544,9 +544,10 @@ if (typeof document !== 'undefined') {
 }
 
 // ── Lançamento REABERTO (reconciliação com o WCVS) ───────
-// O inspecoes.csv é a fonte da verdade do mês aberto: se a inspeção mudou ou
-// sumiu no WCVS depois de homologada, ou se outro lançamento do mesmo dia a
-// tornou não cumulativa, a importação desfaz a homologação e grava `reaberto_*`.
+// O inspecoes.csv é a fonte da verdade do mês aberto: se a inspeção foi alterada
+// no WCVS depois de homologada (inclusive a data do documento, que a tira da
+// competência), ou se outro lançamento do mesmo dia a tornou não cumulativa,
+// a importação desfaz a homologação e grava `reaberto_*`.
 // O fiscal precisa entender por que a pontuação dele caiu sem ele ter feito
 // nada — daí o ícone 🔄 clicável com a explicação completa. Mesmo padrão de
 // modal único + delegação usado no alerta de prazo e no de pontuação zerada.
@@ -568,7 +569,7 @@ function reabertoWarningHtml(m) {
 
 const _REABERTO_TITULO = {
   origem: 'Inspeção alterada no WCVS',
-  orfao: 'Inspeção excluída no WCVS',
+  orfao: 'Data da inspeção alterada no WCVS',
   cnae_reclassificado: 'Atividade não selecionada na inspeção (WCVS)',
   incompatibilidade: 'Lançamento incompatível no mesmo dia',
 };

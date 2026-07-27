@@ -349,13 +349,13 @@ function _motivoReaberturaIncompat(controle, zeradoMotivo) {
 }
 
 function _motivoReaberturaOrfao(controle) {
-  return 'A inspeção CONTROLE ' + controle + ' não consta mais no arquivo de inspeções do mês: foi excluída ' +
-    'no WCVS, ou teve a data alterada para outro mês, depois de ter sido homologada. ' +
+  return 'A inspeção CONTROLE ' + controle + ' foi alterada no WCVS depois de ter sido homologada e não ' +
+    'pertence mais a esta competência — normalmente porque a data do documento foi alterada para outro mês. ' +
     'A pontuação foi zerada e o lançamento devolvido à conferência. ' +
-    'Se a exclusão foi indevida, basta corrigir no WCVS que ele volta na próxima importação.';
+    'Se a alteração não estava correta, basta ajustar a data no WCVS que ele volta na próxima importação.';
 }
 
-// CNAE reclassificado ≠ inspeção excluída: o CONTROLE continua no CSV, só sob
+// CNAE reclassificado ≠ data alterada na origem: o CONTROLE continua no CSV, só sob
 // outro CNAE. A mensagem é ACIONÁVEL de propósito — o fiscal não precisa saber
 // da mecânica interna, precisa saber que a atividade só volta a pontuar se ele
 // marcá-la como inspecionada no WCVS (quando ela realmente foi).
@@ -1216,7 +1216,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     // "fiscalEmail::controleVisa" → Set de CNAEs processados nesta rodada. Uma
     // correção de RT no WCVS (CNAE reclassificado) faz o CONTROLE continuar
     // existindo no CSV sob outro CNAE — sem isso, o loop de órfãos trataria a
-    // versão antiga como "excluída na origem", quando na verdade já existe um
+    // versão antiga como "data alterada na origem", quando na verdade já existe um
     // lançamento atualizado da MESMA inspeção sob o CNAE novo.
     const processedControleFiscal = new Map();
     const marcarProcessadoControleFiscal = (email, controle, cnae) => {
@@ -1791,17 +1791,17 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         const key = (m.fiscal_email || '') + '::' + (m.visa_controle || '') + '::' + (m.visa_cnae || '');
         if (processedKeys.has(key)) continue;
 
-        // A inspeção sumiu, ou só trocou de CNAE? Se o mesmo CONTROLE apareceu
-        // nesta rodada sob outro CNAE, o RT foi reclassificado no WCVS: existe
-        // um lançamento novo e correto da mesma inspeção. Chamar isso de
-        // "excluído no WCVS" seria mentira para o fiscal.
+        // A inspeção saiu da competência, ou só trocou de CNAE? Se o mesmo
+        // CONTROLE apareceu nesta rodada sob outro CNAE, o RT foi reclassificado
+        // no WCVS: existe um lançamento novo e correto da mesma inspeção. Dizer
+        // ao fiscal que a data foi alterada, nesse caso, seria mentira.
         const cnaesAtuais = processedControleFiscal.get((m.fiscal_email || '') + '::' + (m.visa_controle || ''));
         const reclassificado = !!(cnaesAtuais && cnaesAtuais.size);
 
         const homologado = m.status === 'aceito' || m.status === 'homologado';
         if (homologado) {
-          // Homologado que sumiu da origem NÃO é apagado em silêncio: fica visível,
-          // zerado, aguardando decisão do administrador.
+          // Homologado que saiu da competência na origem NÃO é apagado em silêncio:
+          // fica visível, zerado, aguardando decisão do administrador.
           if (fontesIncompletas) {
             onProgress(
               `⚠️ CONTROLE ${m.visa_controle} — ausente do CSV, mas os arquivos de apoio falharam ` +
@@ -1832,8 +1832,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             reclassificado
               ? `🔄 CONTROLE ${m.visa_controle} — CNAE ${m.visa_cnae} reclassificado no WCVS: versão ` +
                 `antiga zerada (o lançamento atual da inspeção segue valendo).`
-              : `🔄 CONTROLE ${m.visa_controle} — homologado, mas ausente do CSV: pontuação zerada e ` +
-                `devolvido à conferência.`, 'warn');
+              : `🔄 CONTROLE ${m.visa_controle} — homologado, mas alterado no WCVS depois disso (data do ` +
+                `documento fora desta competência): pontuação zerada e devolvido à conferência.`, 'warn');
         } else {
           await escrever.remover(m.id);
           excluidos++;
@@ -1907,7 +1907,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     }
     if (totalReabertos) {
       onProgress(
-        `🔄 Reaberturas: ${reabertos} por alteração na origem, ${reabertos_orfaos} por exclusão na ` +
+        `🔄 Reaberturas: ${reabertos} por alteração na origem, ${reabertos_orfaos} por data alterada na ` +
         `origem, ${reabertos_incompat} por incompatibilidade.`, 'warn');
     }
 

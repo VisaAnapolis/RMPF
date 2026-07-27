@@ -314,13 +314,15 @@
       document.getElementById('metrics-wrap').style.display = '';
       // Reaberturas: homologações desfeitas pela reconciliação com o WCVS.
       // Sem este aviso o administrador reconferiria sem entender por que um
-      // lançamento que ele já aceitou voltou para a fila.
+      // lançamento que ele já aceitou voltou para a fila. O texto atribui a
+      // causa à alteração feita no WCVS depois da homologação — dizer que o
+      // dado "sumiu" faria parecer que o RMPF perdeu o lançamento.
       const _reab = _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
       document.getElementById('alert-area').innerHTML = _reab
         ? alerta('warn', `<strong>${_reab} lançamento(s)</strong> deste fiscal foram reabertos porque a ` +
-            `inspeção mudou, sumiu no WCVS ou ficou incompatível com outro lançamento do mesmo dia, ` +
-            `depois de já terem sido homologados. Clique no ícone 🔄 na coluna Status para ver o motivo ` +
-            `de cada um antes de homologar novamente.`)
+            `inspeção foi alterada no WCVS depois de já ter sido homologada — por exemplo, a data do ` +
+            `documento foi alterada — ou porque outro lançamento do mesmo dia passou a ser incompatível. ` +
+            `Clique no ícone 🔄 na coluna Status para ver o motivo de cada um antes de homologar novamente.`)
         : '';
       renderTabela();
     } catch(e) {
