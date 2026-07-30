@@ -422,8 +422,11 @@
         Na importação dos CSVs de inspeções do VISA, os CNAEs de <strong>alta complexidade</strong>
         da área de <strong>alimentos</strong> (equipes IA/AG) têm a pontuação reduzida conforme a
         metragem do estabelecimento (<code>taxa.csv</code>): ≤ 100 m² → 8 pts | &gt; 100 e &lt; 400 m² → 16 pts |
-        ≥ 400 m² ou sem área cadastrada → 48 pts. Quando <strong>inativo</strong>, a regra é ignorada e
-        esses CNAEs pontuam 48 fixo, como qualquer alta complexidade (Item 1 do Anexo VII).
+        ≥ 400 m² ou sem área cadastrada → 48 pts. Pontuando 8 ou 16, o CNAE não consome o teto de
+        48 pontos da inspeção sozinho: ele entra primeiro na seleção e <strong>soma com os demais
+        CNAEs</strong> da vistoria enquanto o total não exceder 48. Quando <strong>inativo</strong>,
+        a regra é ignorada e esses CNAEs pontuam 48 fixo, como qualquer alta complexidade
+        (Item 1 do Anexo VII).
       </p>
       <div class="form-row cols-2" style="max-width:280px;margin-bottom:14px;align-items:flex-end">
         <div class="form-group">

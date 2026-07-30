@@ -121,9 +121,16 @@ Em uma Vistoria (VIS), os CNAEs-alvo são o **CNAE informado** na inspeção
 `CONTROLE` do `inspecoes.csv`). A complexidade/pontuação de cada CNAE extra
 vem do `cnae.csv` (fonte única); extra sem competência no `cnae.csv` é
 ignorado com aviso. A **soma dos pontos** desses CNAEs **não pode
-exceder 48 pontos**. A seleção é feita por **maior pontuação primeiro**
-(em empate, o CNAE informado primeiro), acumulando enquanto a soma ≤ 48;
-os CNAEs que não couberem **não são lançados**.
+exceder 48 pontos**. A ordem de seleção é:
+
+1. **CNAEs de alta complexidade primeiro** — inclusive a alta de alimentação já
+   ajustada por área (8/16), que vale menos que uma média;
+2. depois, **maior pontuação primeiro**;
+3. em empate, o **CNAE informado** primeiro.
+
+A seleção acumula enquanto a soma ≤ 48; os CNAEs que não couberem **não são
+lançados** (o laço não para no primeiro que não cabe — segue tentando os
+seguintes, para aproveitar o teto ao máximo).
 
 Exemplos:
 
@@ -132,6 +139,20 @@ Exemplos:
 | 48 (alta) | qualquer | só o informado (48) | 48 |
 | 12 (média) | 4× de 12 | informado + 3 primeiros extras | 48 |
 | 12 (média) | 1× de 48 | só o extra (48) | 48 |
+| 8 (alta de alimentação, ≤ 100 m²) | 4× de 12 | informado (8) + 3 primeiros extras | 44 |
+| 16 (alta de alimentação, 100–400 m²) | 1× de 16 + 1× de 12 + 1× de 6 | informado (16) + 16 + 12 | 44 |
+
+**Por que a alta vem antes da pontuação.** A alta de alimentação ajustada por
+área vale 8 ou 16 pontos e, numa ordenação puramente por pontuação, ficava
+**abaixo** de CNAEs de média (12, ou 9 em dupla fiscal). Havendo CNAEs de menor
+complexidade suficientes para fechar os 48 sozinhos (ex.: 4× média de 12), o
+CNAE de **alta** era empurrado para fora do teto e simplesmente não era lançado
+— a inspeção perdia justamente o CNAE que a caracteriza. Agora a alta entra
+primeiro e o restante do teto é preenchido pelos demais CNAEs. Como a alta
+ocupa parte do teto, a soma final pode ficar **abaixo** de 48 (44 no exemplo
+acima); isso é esperado — o teto é limite, não meta. Quando a alta vale os 48
+cheios (alta comum, ou alimentação com ≥ 400 m²/sem área), nada muda: ela já
+era a primeira e consome o teto sozinha.
 
 O teto usa os pontos nominais de complexidade; os zeramentos por plantão
 fiscal e o limite de 24 pts/dia em dia com ocorrência são aplicados depois,
@@ -154,6 +175,11 @@ quanto para os extras informados pelo fiscal (CAE).
 O valor ajustado **entra na seleção gulosa do teto de 48** (é o ponto real do
 CNAE em todo o fluxo). CNAEs que não sejam alta de alimentação mantêm a
 pontuação por complexidade (alta=48, média=12, baixa=6).
+
+Quando a alta de alimentação pontua **8 ou 16** (isto é, não consome os 48
+sozinha), ela **soma com os demais CNAEs** da mesma inspeção respeitando o
+mesmo teto de 48 — e entra na seleção **antes** deles, para não ser deslocada
+por CNAEs de complexidade menor (ver "Teto de 48 pontos por inspeção" acima).
 
 A aplicação da regra é controlada por um **flag em Parametrização**
 (`parametrizacao.html`, card "Produtividade — Pontuação por Área (Alimentos

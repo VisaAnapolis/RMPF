@@ -413,8 +413,12 @@ function complexToItem(complexidade) {
 // (parametrizacao.html); desligado, esses CNAEs pontuam 48 fixo (alta padrão).
 const EQUIPES_ALIMENTACAO_VISA = ['IA', 'AG'];
 
+function ehAltaComplexidade(complexidade) {
+  return complexToItem(complexidade).item === 1;
+}
+
 function ehAlimentacaoAlta(complexidade, equipe) {
-  if (complexToItem(complexidade).pontos !== 48) return false; // s\u00f3 alta
+  if (!ehAltaComplexidade(complexidade)) return false; // s\u00f3 alta
   const eq = String(equipe || '').toUpperCase().trim();
   return EQUIPES_ALIMENTACAO_VISA.includes(eq);
 }
@@ -1406,11 +1410,25 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             }
           }
         }
-        // Ordena por pontos desc; em empate, informado primeiro (sort estável
-        // mantém a ordem do inspecoes_cnae.csv no restante).
-        candidatos.sort((a, b) => (b.pontos - a.pontos) || (Number(b.informado) - Number(a.informado)));
+        // Ordena por complexidade ALTA primeiro, depois por pontos desc; em
+        // empate, informado primeiro (sort estável mantém a ordem do
+        // inspecoes_cnae.csv no restante).
+        //
+        // Por que alta antes de pontos: a alta de alimentação ajustada por área
+        // vale 8 ou 16 pontos e, na ordenação puramente por pontuação, ficava
+        // ABAIXO de CNAEs de média (12/9). Com CNAEs de menor complexidade
+        // suficientes para fechar os 48 (ex.: 4× média de 12), o CNAE de alta
+        // era empurrado para fora do teto e simplesmente não era lançado. A alta
+        // é a que caracteriza a inspeção: quando ela não consome os 48 sozinha,
+        // entra primeiro e o restante do teto é preenchido pelos demais CNAEs,
+        // somando enquanto não exceder 48.
+        candidatos.sort((a, b) =>
+          (Number(ehAltaComplexidade(b.complexidade)) - Number(ehAltaComplexidade(a.complexidade))) ||
+          (b.pontos - a.pontos) ||
+          (Number(b.informado) - Number(a.informado)));
         // Seleção gulosa respeitando o teto de pontos da inspeção (usa os pontos
-        // já ajustados pela área).
+        // já ajustados pela área). Não interrompe no primeiro que não couber:
+        // segue tentando os seguintes, para aproveitar o teto ao máximo.
         let somaPontos = 0;
         for (const c of candidatos) {
           if (somaPontos + c.pontos > TETO_PONTOS_CNAE_VISA) continue; // não cabe → não lança

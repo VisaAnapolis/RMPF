@@ -44,6 +44,23 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.25.2</span>
+            <span class="badge-date">30/07/2026</span>
+          </div>
+          <div class="changelog-title">Alta de alimentação com 8/16 pontos deixa de ser descartada pelo teto de 48 e soma com os demais CNAEs</div>
+          <ul class="changelog-changes">
+            <li><strong>O problema</strong> — na expansão multi-CNAE de uma <strong>Vistoria</strong>, a seleção do teto de 48 pontos ordenava os CNAEs <em>somente</em> por pontuação. Um CNAE de <strong>alta complexidade de alimentação</strong> ajustado por área vale <strong>8</strong> (≤ 100 m²) ou <strong>16</strong> (&gt; 100 e &lt; 400 m²) — portanto <em>abaixo</em> de um CNAE de média (12, ou 9 em dupla fiscal). Quando a inspeção tinha CNAEs de menor complexidade suficientes para fechar os 48 sozinhos (ex.: 4 CNAEs de média de 12), o CNAE de <strong>alta</strong> era empurrado para fora do teto e <strong>simplesmente não era lançado</strong>: a inspeção perdia justamente o CNAE que a caracteriza.</li>
+            <li><strong>A regra</strong> — quando a alta complexidade <strong>não</strong> pontua os 48 cheios (caso dos alimentos por metragem), esse CNAE <strong>soma com os demais CNAEs</strong> da mesma inspeção, sob o mesmo teto: acumula-se enquanto a soma <strong>não exceder 48</strong>.</li>
+            <li><strong>Nova ordem de seleção</strong> — <strong>alta complexidade primeiro</strong> (inclusive a alta de alimentação já ajustada por área), depois <strong>maior pontuação</strong> e, em empate, o <strong>CNAE informado</strong> na inspeção. A alta entra garantida e o restante do teto é preenchido pelos outros CNAEs.</li>
+            <li><strong>Exemplo</strong> — alimentação de 8 pontos (≤ 100 m²) informada + 4 CNAEs extras de média: antes lançava <em>4× 12 = 48</em> e descartava a alta; agora lança <em>8 + 12 + 12 + 12 = 44</em>. A soma final pode ficar <strong>abaixo</strong> de 48 porque a alta ocupa parte do teto — o teto é limite, não meta.</li>
+            <li><strong>O que não muda</strong> — alta comum (48) e alta de alimentação com <strong>≥ 400 m²</strong> ou <strong>sem área cadastrada</strong> (48) continuam consumindo o teto sozinhas, como antes; inspeções só com média/baixa seguem idênticas; a redução por dupla/trio (item E.2) continua sendo aplicada <em>antes</em> da seleção; e o flag de Parametrização segue mandando na regra de área (desligado, a alta de alimentação volta aos 48 fixos e o caso nem ocorre).</li>
+            <li><strong>Abrangência</strong> — só a importação de <strong>Vistorias</strong> do VISA (única que expande em vários CNAEs). Demais tipos de inspeção seguem com um lançamento pelo CNAE informado. Vale a partir da importação seguinte.</li>
+            <li><strong>Arquivos</strong> — <code>js/visa-import.js</code> (nova ordenação e helper <code>ehAltaComplexidade</code>); <code>docs/integracao-visa-rmpf.md</code> (regra e exemplos do teto de 48); <code>js/version.js</code> — 1.25.2; <code>service-worker.js</code> — <code>rmpf-v1.25.2</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.25.1</span>
             <span class="badge-date">27/07/2026</span>
           </div>
