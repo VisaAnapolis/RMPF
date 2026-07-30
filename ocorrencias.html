@@ -57,6 +57,7 @@
                    (window.TIPOS_OCORRENCIA, manual:true) — ver preencherTipos().
                    "Férias" (inciso I) é sincronizado do VISA, fora do dropdown. -->
             </select>
+            <div id="o-tipo-aviso"></div>
           </div>
           <div class="form-row cols-2">
             <div class="form-group">
@@ -205,6 +206,20 @@
     });
   }
 
+  // Tipos de licença (própria saúde / familiar) só são aceitos após a
+  // perícia médica ser aprovada e comprovada no sistema Resoluto.
+  const TIPOS_EXIGEM_PERICIA = ['licenca_medica', 'licenca_familia'];
+
+  function atualizarAvisoTipo() {
+    const tipo = document.getElementById('o-tipo').value;
+    const aviso = document.getElementById('o-tipo-aviso');
+    if (!aviso) return;
+    aviso.innerHTML = TIPOS_EXIGEM_PERICIA.includes(tipo)
+      ? alerta('warn', '⚠️ Esta ocorrência só será aceita após a aprovação da perícia médica, ' +
+          'comprovada no sistema Resoluto.')
+      : '';
+  }
+
   function buildSidebar(perfil) {
     const links = perfil === 'Fiscal' ? [
       ['dashboard.html','📊','Dashboard'],
@@ -294,6 +309,7 @@
       document.getElementById('alert-area').innerHTML = alerta('ok','Ocorrência registrada com sucesso.');
       document.getElementById('form-ocorrencia').reset();
       formAlert.innerHTML = '';
+      document.getElementById('o-tipo-aviso').innerHTML = '';
       loadOcorrencias();
     } catch(e) {
       formAlert.innerHTML = alerta('danger','Erro: '+escHtml(e.message));
@@ -532,6 +548,7 @@
       preencherTipos();
       document.getElementById('o-mes').value = _um;
       document.getElementById('o-ano').value = _ua;
+      document.getElementById('o-tipo').addEventListener('change', atualizarAvisoTipo);
       document.getElementById('btn-registrar').addEventListener('click', registrarOcorrencia);
     } else {
       // Administrador: show fiscal filter and actions
