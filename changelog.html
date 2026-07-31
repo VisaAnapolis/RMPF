@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.26.0</span>
+            <span class="badge-date">31/07/2026</span>
+          </div>
+          <div class="changelog-title">Aviso de perícia médica nas licenças de saúde e fim do alerta de fora do prazo depois do fechamento</div>
+          <ul class="changelog-changes">
+            <li><strong>Licença de saúde agora avisa que depende de perícia médica</strong> — ao escolher <em>"Licença para tratamento da própria saúde"</em> ou <em>"Licença por doença em pessoa da família"</em> no registro de ocorrências, o fiscal passa a ver um aviso de que a ocorrência <strong>só será aceita após a aprovação da perícia médica</strong>, comprovada no <strong>Resoluto</strong>. Escolher outro tipo de ocorrência faz o aviso sumir, e ele é limpo junto com o formulário depois do registro.</li>
+            <li><strong>Alerta ⚠️ de fora do prazo some após o fechamento da competência</strong> — na tela de <em>Fechamento Mensal</em>, o ícone de "cumprido fora do prazo" continuava aparecendo na tabela de <em>Atividades Aceitas</em> mesmo depois de a competência ter sido fechada, quando ele já não tem mais o que sinalizar. Agora o alerta é suprimido tanto na tabela em tela quanto no relatório de impressão. Se a competência for <strong>reaberta</strong>, o alerta volta a aparecer normalmente.</li>
+            <li><strong>Arquivos</strong> — <code>ocorrencias.html</code> (aviso da perícia médica); <code>fechamento.html</code> (alerta de prazo suprimido em competência fechada, na tela e na impressão); <code>js/version.js</code> — 1.26.0; <code>service-worker.js</code> — <code>rmpf-v1.26.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.25.1</span>
             <span class="badge-date">27/07/2026</span>
           </div>
