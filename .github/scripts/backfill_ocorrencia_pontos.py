@@ -135,11 +135,41 @@ def carregar_feriados_municipais():
         linhas = [l.strip() for l in f.read().strip().split('\n')][1:]
     return {l.split(',')[0].strip() for l in linhas if l.strip()}
 
+def _domingo_de_pascoa(ano):
+    """Algoritmo de Meeus/Butcher (calendário gregoriano)."""
+    a = ano % 19
+    b, c = divmod(ano, 100)
+    d, e = divmod(b, 4)
+    f = (b + 8) // 25
+    g = (b - f + 1) // 3
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = divmod(c, 4)
+    l = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * l) // 451
+    mes, dia = divmod(h + l - 7 * m + 114, 31)
+    return dt.date(ano, mes, dia + 1)
+
+def feriados_moveis_nacionais(ano):
+    """Carnaval (seg/ter), Sexta-feira Santa e Corpus Christi.
+
+    `data/feriados.csv` só lista o ano corrente; derivá-los da Páscoa mantém a
+    contagem de dias úteis correta em qualquer ano.
+    """
+    pascoa = _domingo_de_pascoa(ano)
+    return {
+        (pascoa - dt.timedelta(days=48)).isoformat(),  # Carnaval — segunda
+        (pascoa - dt.timedelta(days=47)).isoformat(),  # Carnaval — terça
+        (pascoa - dt.timedelta(days=2)).isoformat(),   # Sexta-feira Santa
+        (pascoa + dt.timedelta(days=60)).isoformat(),  # Corpus Christi
+    }
+
 def eh_dia_util(data_iso, feriados_set):
     d = dt.date.fromisoformat(data_iso)
     if d.weekday() >= 5:  # 5=sábado, 6=domingo
         return False
     if data_iso[5:] in FERIADOS_NACIONAIS_FIXOS_MMDD:
+        return False
+    if data_iso in feriados_moveis_nacionais(d.year):
         return False
     return data_iso not in feriados_set
 

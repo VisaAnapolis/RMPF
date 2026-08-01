@@ -104,6 +104,10 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
   await window.db_acquireSimImportLock(mes, ano, fiscalEmail, fiscalNome || fiscalEmail);
 
   try {
+    // Feriados municipais — usados para prorrogar prazo vencido em dia não
+    // útil (ver window.cumpridoForaDoPrazo em js/utils.js).
+    const feriadosSet = await window.carregarFeriadosMunicipais();
+
     onProgress('🔄 Buscando ordens de serviço concluídas...', 'info');
 
     const ordens = await window.db_getOrdensServicoConcluidas(mes, ano, fiscalEmail || null);
@@ -164,8 +168,10 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
       // A OS de auditoria já traz o prazo (os.prazo) e a data de cumprimento
       // (os.dataCumprimento) no próprio doc de ordens_servico. Fora do prazo =
       // cumprida depois do prazo.
+      // Prazo vencido em fim de semana/feriado prorroga para o próximo dia
+      // útil: cumprir na segunda um prazo de sábado está DENTRO do prazo.
       const prazoOsISO = simTimestampToISO(os.prazo);
-      const foraDoPrazo = !!(prazoOsISO && dataISO && dataISO > prazoOsISO);
+      const foraDoPrazo = window.cumpridoForaDoPrazo(prazoOsISO, dataISO, feriadosSet);
 
       try {
         const existing = await window.db_getSIMManual(osNum, emailFiscal);
