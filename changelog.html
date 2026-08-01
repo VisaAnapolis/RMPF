@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.26.1</span>
+            <span class="badge-date">01/08/2026</span>
+          </div>
+          <div class="changelog-title">Correção: alertas de fora do prazo ainda apareciam depois do fechamento</div>
+          <ul class="changelog-changes">
+            <li><strong>A tabela agora é redesenhada logo após o fechamento</strong> — ao clicar em <em>Fechar Competência</em>, os lançamentos eram marcados como fechados apenas na memória, mas a tabela de <em>Atividades Aceitas</em> e o relatório de impressão continuavam com o HTML antigo. Os alertas ⚠️ só sumiam depois de recarregar a página. Agora a tela é redesenhada assim que o fechamento é gravado.</li>
+            <li><strong>O alerta some pela competência, não pelo status de cada lançamento</strong> — a supressão dependia de o lançamento estar com status <code>fechado</code>, então qualquer lançamento que entrasse como <em>aceito</em> ou <em>homologado</em> depois do fechamento (importação ou aceite posterior) voltava a exibir o ícone. A verificação passa a usar o estado da competência: fechada, nenhum alerta de prazo aparece; reaberta, todos voltam.</li>
+            <li><strong>Arquivos</strong> — <code>fechamento.html</code> (novo controle <code>_fechado</code>, helper <code>avisoPrazo()</code> e redesenho após o fechamento); <code>js/version.js</code> — 1.26.1; <code>service-worker.js</code> — <code>rmpf-v1.26.1</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.26.0</span>
             <span class="badge-date">31/07/2026</span>
           </div>
