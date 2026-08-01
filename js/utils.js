@@ -257,24 +257,123 @@ function dispositivoLegalOcorrencia(tipo) {
 const FERIADOS_NACIONAIS_FIXOS_MMDD = ['01-01','04-21','05-01','09-07','10-12','11-02','11-15','12-25'];
 const MEDIA_PRODUTIVIDADE_OCORRENCIA = 1000; // placeholder até existir média real do fiscal
 
-async function carregarFeriadosMunicipais() {
-  try {
-    const resp = await fetch('data/feriados.csv');
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const texto = await resp.text();
-    const linhas = texto.trim().split('\n').slice(1);
-    return new Set(linhas.map(l => l.split(',')[0].trim()).filter(Boolean));
-  } catch (e) {
-    console.warn('Não foi possível carregar data/feriados.csv — feriados municipais não serão excluídos do rateio:', e);
-    return new Set();
+// ── Feriados móveis (derivados da Páscoa) ──
+// Carnaval, Sexta-feira Santa e Corpus Christi mudam de data todo ano e
+// `data/feriados.csv` só lista o ano corrente. Derivá-los da Páscoa mantém o
+// cálculo de dia útil correto em qualquer ano, mesmo antes de o CSV ser
+// atualizado. Algoritmo de Meeus/Butcher (calendário gregoriano), em UTC para
+// não depender do fuso do navegador.
+function _domingoDePascoa(ano) {
+  const a = ano % 19;
+  const b = Math.floor(ano / 100);
+  const c = ano % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31);
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(Date.UTC(ano, mes - 1, dia));
+}
+
+function _isoUTC(d) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+
+function _somaDiasUTC(d, dias) {
+  const r = new Date(d.getTime());
+  r.setUTCDate(r.getUTCDate() + dias);
+  return r;
+}
+
+// Dia seguinte a uma data ISO (aritmética em UTC, imune a horário de verão).
+function _proximoDiaISO(dataISO) {
+  return _isoUTC(_somaDiasUTC(new Date(dataISO + 'T00:00:00Z'), 1));
+}
+
+const _feriadosMoveisCache = new Map();
+
+// Carnaval (segunda e terça), Sexta-feira Santa e Corpus Christi do ano.
+// Carnaval e Corpus Christi são ponto facultativo — tratados como não úteis,
+// igual ao que o `data/feriados.csv` já faz.
+function feriadosMoveisNacionais(ano) {
+  if (!_feriadosMoveisCache.has(ano)) {
+    const pascoa = _domingoDePascoa(ano);
+    _feriadosMoveisCache.set(ano, new Set([
+      _isoUTC(_somaDiasUTC(pascoa, -48)), // Carnaval — segunda-feira
+      _isoUTC(_somaDiasUTC(pascoa, -47)), // Carnaval — terça-feira
+      _isoUTC(_somaDiasUTC(pascoa, -2)),  // Sexta-feira Santa
+      _isoUTC(_somaDiasUTC(pascoa, 60)),  // Corpus Christi
+    ]));
   }
+  return _feriadosMoveisCache.get(ano);
+}
+
+// Fetch memoizado: `data/feriados.csv` é estático e consultado por várias
+// telas (rateio de ocorrência, alerta de prazo). O Set resolvido fica em
+// `_feriadosCache` para permitir a checagem SÍNCRONA na renderização das
+// tabelas (ver `prazoWarningHtml`).
+let _feriadosPromise = null;
+let _feriadosCache = null;
+
+async function carregarFeriadosMunicipais() {
+  if (!_feriadosPromise) {
+    _feriadosPromise = (async () => {
+      try {
+        const resp = await fetch('data/feriados.csv');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const texto = await resp.text();
+        const linhas = texto.trim().split('\n').slice(1);
+        const set = new Set(linhas.map(l => l.split(',')[0].trim()).filter(Boolean));
+        _feriadosCache = set;
+        return set;
+      } catch (e) {
+        console.warn('Não foi possível carregar data/feriados.csv — feriados municipais não serão considerados:', e);
+        _feriadosPromise = null; // permite nova tentativa numa chamada futura
+        return new Set();
+      }
+    })();
+  }
+  return _feriadosPromise;
+}
+
+// Set de feriados municipais já carregado, ou null se o fetch ainda não
+// terminou (nunca dispara requisição — é o caminho síncrono da renderização).
+function feriadosEmCache() {
+  return _feriadosCache;
 }
 
 function ehDiaUtil(dataISO, feriadosSet) {
+  if (!dataISO) return false;
   const d = new Date(dataISO + 'T12:00:00');
   if (d.getDay() === 0 || d.getDay() === 6) return false;
   if (FERIADOS_NACIONAIS_FIXOS_MMDD.includes(dataISO.slice(5))) return false;
-  return !feriadosSet.has(dataISO);
+  if (feriadosMoveisNacionais(Number(dataISO.slice(0, 4))).has(dataISO)) return false;
+  return !(feriadosSet && feriadosSet.has(dataISO));
+}
+
+// ── Prorrogação de prazo para o próximo dia útil ──
+// Prazo que vence em sábado, domingo ou feriado prorroga-se para o primeiro
+// dia útil seguinte (art. 224, §1º, do CPC, aplicado por analogia ao processo
+// administrativo): prazo no sábado cumprido na segunda-feira está EM DIA.
+function prazoEfetivo(prazoISO, feriadosSet) {
+  if (!prazoISO || !/^\d{4}-\d{2}-\d{2}$/.test(prazoISO)) return prazoISO || '';
+  let iso = prazoISO;
+  // O limite evita laço infinito caso alguma data inválida escape do regex.
+  for (let i = 0; i < 30 && !ehDiaUtil(iso, feriadosSet); i++) iso = _proximoDiaISO(iso);
+  return iso;
+}
+
+// Regra única de "cumprida fora do prazo", usada tanto na importação
+// (visa-import.js / sim-import.js) quanto na exibição do alerta.
+function cumpridoForaDoPrazo(prazoISO, cumprimentoISO, feriadosSet) {
+  if (!prazoISO || !cumprimentoISO) return false;
+  return cumprimentoISO > prazoEfetivo(prazoISO, feriadosSet);
 }
 
 function diasUteisNoMes(mes, ano, feriadosSet) {
@@ -382,10 +481,12 @@ function normalizarNome(nome) {
 // O modal é injetado uma única vez e controlado por delegação de eventos,
 // então funciona em qualquer página/tabela sem wiring adicional.
 
-// Dias corridos de atraso entre o prazo e a data de cumprimento (null se em dia).
+// Dias corridos de atraso entre o prazo (já prorrogado para o próximo dia
+// útil, quando cai em fim de semana/feriado) e a data de cumprimento —
+// null se em dia.
 function _prazoDiasAtraso(prazoISO, cumprISO) {
   if (!prazoISO || !cumprISO) return null;
-  const a = new Date(prazoISO + 'T00:00:00');
+  const a = new Date(prazoEfetivo(prazoISO, feriadosEmCache()) + 'T00:00:00');
   const b = new Date(cumprISO + 'T00:00:00');
   if (isNaN(a.getTime()) || isNaN(b.getTime())) return null;
   const diff = Math.round((b - a) / 86400000);
@@ -396,6 +497,12 @@ function _prazoDiasAtraso(prazoISO, cumprISO) {
 // Os dados do modal viajam no próprio elemento via data-* (sem lookup externo).
 function prazoWarningHtml(m) {
   if (!m || !m.fora_do_prazo) return '';
+  // Reavaliação defensiva com a regra de prorrogação: lançamentos importados
+  // antes dela ficaram gravados com fora_do_prazo=true mesmo quando o prazo
+  // caía em fim de semana ou feriado. Com os feriados já em cache o ícone some
+  // sem depender de nova importação; sem cache, vale o que está gravado.
+  const feriados = feriadosEmCache();
+  if (feriados && m.prazo_os && m.data && !cumpridoForaDoPrazo(m.prazo_os, m.data, feriados)) return '';
   const origem = m.motivo_os || (m.origem === 'sim_csv' ? 'Auditoria' : '—');
   return ` <span class="prazo-alerta" role="button" tabindex="0"` +
     ` style="cursor:pointer;color:var(--amar)"` +
@@ -410,12 +517,21 @@ function abrirForaPrazo(ds) {
   const modal = document.getElementById('modal-fora-prazo');
   if (!modal) return;
   const dias = _prazoDiasAtraso(ds.prazo, ds.cumpr);
+  // Quando o prazo original caiu em dia não útil, o modal mostra a data para a
+  // qual ele foi prorrogado — é ela que define o atraso.
+  const efetivo = ds.prazo ? prazoEfetivo(ds.prazo, feriadosEmCache()) : '';
+  const prorrogado = efetivo && efetivo !== ds.prazo;
   modal.querySelector('#fp-body').innerHTML =
     `<p style="margin:0 0 12px">Esta ordem de serviço foi cumprida após o prazo de execução.</p>` +
     `<ul style="list-style:none;padding:0;margin:0;line-height:1.9">` +
     `<li><strong>Origem da demanda:</strong> ${escHtml(ds.origem || '—')}</li>` +
     `<li><strong>Nº da OS:</strong> ${escHtml(ds.os || '—')}</li>` +
-    `<li><strong>Prazo para execução:</strong> ${escHtml(ds.prazo ? fmtData(ds.prazo) : '—')}</li>` +
+    `<li><strong>Prazo para execução:</strong> ${escHtml(ds.prazo ? fmtData(ds.prazo) : '—')}` +
+    (prorrogado
+      ? `<br><small style="opacity:.75">Venceu em dia não útil — prorrogado para ` +
+        `${escHtml(fmtData(efetivo))} (primeiro dia útil seguinte).</small>`
+      : '') +
+    `</li>` +
     `<li><strong>Data do cumprimento:</strong> ${escHtml(ds.cumpr ? fmtData(ds.cumpr) : '—')}</li>` +
     `<li><strong>Atraso:</strong> ${dias != null ? dias + ' dia(s)' : '—'}</li>` +
     `</ul>`;
@@ -456,6 +572,11 @@ function _onPrazoAlertaActivate(e) {
 }
 
 if (typeof document !== 'undefined') {
+  // Pré-carrega os feriados (arquivo estático de ~0,5 KB) para que a checagem
+  // síncrona de prorrogação de prazo já tenha o Set pronto quando as tabelas
+  // forem renderizadas — elas só aparecem depois das consultas ao Firestore,
+  // bem mais lentas que este fetch.
+  carregarFeriadosMunicipais();
   document.addEventListener('click', _onPrazoAlertaActivate);
   document.addEventListener('keydown', _onPrazoAlertaActivate);
   if (document.readyState === 'loading') {
@@ -853,7 +974,11 @@ window.FISCAIS_30H           = FISCAIS_30H;
 window.ehFiscal30h           = ehFiscal30h;
 window.pontosComFator30h     = pontosComFator30h;
 window.carregarFeriadosMunicipais = carregarFeriadosMunicipais;
+window.feriadosEmCache          = feriadosEmCache;
+window.feriadosMoveisNacionais  = feriadosMoveisNacionais;
 window.ehDiaUtil                = ehDiaUtil;
+window.prazoEfetivo             = prazoEfetivo;
+window.cumpridoForaDoPrazo      = cumpridoForaDoPrazo;
 window.diasUteisNoMes           = diasUteisNoMes;
 window.MEDIA_PRODUTIVIDADE_OCORRENCIA = MEDIA_PRODUTIVIDADE_OCORRENCIA;
 window.diasDaOcorrenciaPorMes   = diasDaOcorrenciaPorMes;

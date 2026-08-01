@@ -589,14 +589,18 @@ function converterHora12para24(horaStr) {
 }
 
 // Soma N dias úteis (pula sáb/dom) a uma data ISO. Cópia de os.html.
-function adicionarDiasUteis(dataISO, diasUteis) {
+function adicionarDiasUteis(dataISO, diasUteis, feriadosSet) {
   if (!dataISO) return '';
   const data = new Date(dataISO + 'T00:00:00');
   let add = 0;
   while (add < diasUteis) {
     data.setDate(data.getDate() + 1);
-    const dow = data.getDay();
-    if (dow !== 0 && dow !== 6) add++;
+    const ano = data.getFullYear();
+    const mes = String(data.getMonth() + 1).padStart(2, '0');
+    const dia = String(data.getDate()).padStart(2, '0');
+    // Feriados (nacionais fixos, móveis e municipais) também não contam —
+    // o prazo do protocolo é em DIAS ÚTEIS.
+    if (window.ehDiaUtil(`${ano}-${mes}-${dia}`, feriadosSet)) add++;
   }
   const ano = data.getFullYear();
   const mes = String(data.getMonth() + 1).padStart(2, '0');
@@ -854,6 +858,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     if (!regraAreaAlimentacaoAtiva) {
       onProgress('ℹ️ Pontuação por área (alimentos alta complexidade) desativada na Parametrização — esses CNAEs pontuam 48 fixo.', 'info');
     }
+
+    // Feriados municipais (data/feriados.csv) — usados na contagem de dias
+    // úteis do prazo do protocolo e na prorrogação de prazo vencido em dia
+    // não útil. Falha no fetch degrada para fins de semana + feriados
+    // nacionais (fixos e móveis), nunca para "sem feriado nenhum".
+    const feriadosSet = await window.carregarFeriadosMunicipais();
 
     onProgress('🔄 Buscando CSV de inspeções do VISA...', 'info');
 
@@ -1292,10 +1302,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       else if (motivoOSNorm === 'DENUNCIA')     prazoOsISO = (denunciaMap.get(osNumero) || {}).prazo || '';
       else if (motivoOSNorm === 'PROTOCOLO') {
         const encISO = encontrarDataEncaminhaProtocolo(osNumero, dataISO, tramitacaoPorProtocolo, fiscalMap);
-        prazoOsISO = encISO ? adicionarDiasUteis(encISO, 15) : '';
+        prazoOsISO = encISO ? adicionarDiasUteis(encISO, 15, feriadosSet) : '';
       }
       if (prazoOsISO === PRAZO_SEM_INFORMACAO) prazoOsISO = ''; // sentinela "sem prazo"
-      const foraDoPrazo = !!(prazoOsISO && dataISO && dataISO > prazoOsISO);
+      // Prazo vencido em fim de semana/feriado prorroga para o próximo dia
+      // útil: cumprir na segunda um prazo de sábado está DENTRO do prazo.
+      const foraDoPrazo = window.cumpridoForaDoPrazo(prazoOsISO, dataISO, feriadosSet);
       const prazoOsFinal = prazoOsISO || null;
 
       const rawFiscais = [
