@@ -375,6 +375,29 @@ function normalizarNome(nome) {
     .replace(/\s+/g, ' ');
 }
 
+// ── Competência fechada: o administrador já considerou tudo ──
+// Fechar a competência é o ato em que o administrador dá o mês por avaliado:
+// prazo, pontuação zerada, reabertura e autorização de fiscais já foram
+// ponderados na apuração assinada. Continuar exibindo os alertas depois disso
+// cobra uma decisão que já foi tomada, então todos os avisos de lançamento
+// ficam suprimidos enquanto a competência estiver fechada — reabrindo-a, eles
+// voltam.
+//
+// A flag é por página (cada tela mostra uma competência de um fiscal por vez) e
+// precisa ser reajustada a cada carregamento. O status 'fechado' do próprio
+// lançamento também suprime, mas não basta sozinho: um lançamento aceito ou
+// importado depois do fechamento fica com status 'aceito' dentro de um mês já
+// fechado e voltaria a alertar.
+let _competenciaFechada = false;
+
+function setCompetenciaFechada(fechada) {
+  _competenciaFechada = !!fechada;
+}
+
+function competenciaFechada(m) {
+  return _competenciaFechada || !!(m && m.status === 'fechado');
+}
+
 // ── Alerta "cumprida fora do prazo" (⚠️) + modal de detalhe ──
 // A importação (visa-import.js / sim-import.js) grava em cada lançamento
 // `fora_do_prazo` (bool) e `prazo_os` (ISO). O ícone aparece nas tabelas de
@@ -395,7 +418,7 @@ function _prazoDiasAtraso(prazoISO, cumprISO) {
 // HTML do ícone ⚠️ (só quando o lançamento foi cumprido fora do prazo).
 // Os dados do modal viajam no próprio elemento via data-* (sem lookup externo).
 function prazoWarningHtml(m) {
-  if (!m || !m.fora_do_prazo) return '';
+  if (!m || !m.fora_do_prazo || competenciaFechada(m)) return '';
   const origem = m.motivo_os || (m.origem === 'sim_csv' ? 'Auditoria' : '—');
   return ` <span class="prazo-alerta" role="button" tabindex="0"` +
     ` style="cursor:pointer;color:var(--amar)"` +
@@ -478,7 +501,7 @@ if (typeof document !== 'undefined') {
 // HTML do ícone ⚠️ (só quando o lançamento tem zerado_motivo).
 // Os dados do modal viajam no próprio elemento via data-* (sem lookup externo).
 function zeradoWarningHtml(m) {
-  if (!m || !m.zerado_motivo) return '';
+  if (!m || !m.zerado_motivo || competenciaFechada(m)) return '';
   return ` <span class="zerado-alerta" role="button" tabindex="0"` +
     ` style="cursor:pointer;color:var(--amar)"` +
     ` title="Pontuação zerada — clique para detalhes"` +
@@ -555,7 +578,7 @@ if (typeof document !== 'undefined') {
 function reabertoWarningHtml(m) {
   // Sem motivo não há o que explicar: é o caso do órfão já decidido pelo
   // administrador, que mantém `reaberto_tipo` só como marca interna anti-vaivém.
-  if (!m || !m.reaberto_tipo || !m.reaberto_motivo) return '';
+  if (!m || !m.reaberto_tipo || !m.reaberto_motivo || competenciaFechada(m)) return '';
   let diffJson = '';
   try { diffJson = m.reaberto_diff ? JSON.stringify(m.reaberto_diff) : ''; } catch (_) {}
   return ` <span class="reaberto-alerta" role="button" tabindex="0"` +
@@ -759,7 +782,8 @@ if (typeof document !== 'undefined') {
 // mais de dois fiscais E `motivo_pendencia` gravado (sem autorização prévia).
 function fiscaisAlertaHtml(m) {
   if (!m || !Array.isArray(m.fiscais_participantes) ||
-      m.fiscais_participantes.length <= 2 || !m.motivo_pendencia) return '';
+      m.fiscais_participantes.length <= 2 || !m.motivo_pendencia ||
+      competenciaFechada(m)) return '';
   return ` <span class="fiscais-alerta" role="button" tabindex="0"` +
     ` style="cursor:pointer;color:var(--amar);font-size:1.4em;vertical-align:middle"` +
     ` title="Mais de dois fiscais sem autorização prévia — clique para detalhes"` +
@@ -859,6 +883,8 @@ window.MEDIA_PRODUTIVIDADE_OCORRENCIA = MEDIA_PRODUTIVIDADE_OCORRENCIA;
 window.diasDaOcorrenciaPorMes   = diasDaOcorrenciaPorMes;
 window.periodosSeSobrepoem      = periodosSeSobrepoem;
 window.normalizarNome           = normalizarNome;
+window.setCompetenciaFechada     = setCompetenciaFechada;
+window.competenciaFechada        = competenciaFechada;
 window.prazoWarningHtml          = prazoWarningHtml;
 window.abrirForaPrazo            = abrirForaPrazo;
 window.zeradoWarningHtml         = zeradoWarningHtml;

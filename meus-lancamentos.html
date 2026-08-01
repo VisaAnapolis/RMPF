@@ -335,11 +335,17 @@
         Promise.all([db_getManuais(_user.email, mes, ano), db_getFechamento(_user.email, mes, ano)]),
         _timeout,
       ]);
+      // Competência fechada: o administrador já considerou tudo, então nenhum
+      // alerta de lançamento continua cobrando decisão nesta tela.
+      window.setCompetenciaFechada?.(!!_fechamento);
+
       // Lançamento reaberto: já foi homologado e voltou à conferência porque a
       // inspeção foi alterada no WCVS depois da homologação, ou ficou
       // incompatível com outra do mesmo dia. Explica a queda de pontuação que o
       // fiscal vê sem ter feito nada — sem sugerir que o RMPF perdeu o dado.
-      const _reab = _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
+      // Com a competência fechada o aviso sai junto com o ícone 🔄 que ele manda
+      // clicar — apontar para um ícone que não existe mais só confundiria.
+      const _reab = _fechamento ? 0 : _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
       document.getElementById('alert-area').innerHTML = _reab
         ? alerta('warn', `<strong>${_reab} lançamento(s)</strong> seu(s) voltaram para conferência. ` +
             `Isso acontece quando a inspeção é alterada no WCVS após a homologação — por exemplo, a data ` +

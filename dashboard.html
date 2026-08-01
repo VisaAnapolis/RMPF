@@ -529,7 +529,14 @@
     tbody.innerHTML = '<tr class="empty-row"><td colspan="13"><div class="spinner"></div></td></tr>';
 
     try {
-      const manuais = await db_getManuais(user.email, mes, ano);
+      // O fechamento vem junto: fechada a competência, o administrador já
+      // considerou tudo e nenhum alerta de lançamento segue cobrando o fiscal.
+      // Falha ao consultá-lo não pode derrubar o painel — segue como aberta.
+      const [manuais, fechamento] = await Promise.all([
+        db_getManuais(user.email, mes, ano),
+        db_getFechamento(user.email, mes, ano).catch(() => null),
+      ]);
+      window.setCompetenciaFechada?.(!!fechamento);
       const result  = calcular([], manuais, 0);
 
       document.getElementById('m-pp').textContent   = formatPontos(result.pp);
@@ -545,13 +552,18 @@
       let alerts = '';
       if (result.atingiuTetoPV)    alerts += alerta('info',  'PV atingiu o teto de 1.000 pontos — excedente descartado.');
       if (result.atingiuTetoFinal) alerts += alerta('info',  'Apuração atingiu o teto de 200%.');
-      const pendentes = manuais.filter(m => m.status === 'enviado').length;
+      // Cobranças de pendência só fazem sentido com a competência aberta: depois
+      // do fechamento o administrador já decidiu o que entrava na apuração, e
+      // não há mais nada que o fiscal possa fazer sobre esses lançamentos.
+      const pendentes = fechamento ? 0 : manuais.filter(m => m.status === 'enviado').length;
       if (pendentes > 0)           alerts += alerta('warn',  `Você tem <strong>${pendentes}</strong> lançamento(s) aguardando homologação.`);
-      const pendentesVisa = manuais.filter(m => m.status === 'pendente' && m.origem === 'visa_csv');
+      const pendentesVisa = fechamento ? [] : manuais.filter(m => m.status === 'pendente' && m.origem === 'visa_csv');
       if (pendentesVisa.length > 0) alerts += alerta('warn', `Você tem <strong>${pendentesVisa.length}</strong> lançamento(s) importado(s) do VISA pendente(s) por falta de autorização do terceiro.`);
       document.getElementById('alert-fiscal').innerHTML = alerts;
 
-      const naoHomologados = manuais.filter(m => m.status !== 'aceito' && m.status !== 'homologado');
+      // 'fechado' é o status que 'aceito'/'homologado' assumem no fechamento —
+      // sem ele na lista, toda a competência fechada reaparecia como pendente.
+      const naoHomologados = manuais.filter(m => m.status !== 'aceito' && m.status !== 'homologado' && m.status !== 'fechado');
 
       if (!naoHomologados.length) {
         tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Nenhuma atividade pendente nesta competência</td></tr>';

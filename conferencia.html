@@ -301,7 +301,20 @@
     try {
       const _timeout = new Promise((_, rej) =>
         setTimeout(() => rej(new Error('Tempo limite esgotado. Verifique sua conexão e clique em Carregar para tentar novamente.')), 15000));
-      _manuais = (await Promise.race([db_getManuais(fiscalEmail, mes, ano), _timeout])).filter(m => m.status !== 'rascunho');
+      // O fechamento vem junto porque, com a competência fechada, o
+      // administrador já considerou tudo: nenhum alerta de lançamento (prazo,
+      // pontuação zerada, reabertura, fiscais sem autorização) segue cobrando
+      // decisão. Falha ao consultá-lo não pode derrubar a conferência — nesse
+      // caso a tela segue como competência aberta.
+      const [_lancs, _fech] = await Promise.race([
+        Promise.all([
+          db_getManuais(fiscalEmail, mes, ano),
+          db_getFechamento(fiscalEmail, mes, ano).catch(() => null),
+        ]),
+        _timeout,
+      ]);
+      _manuais = _lancs.filter(m => m.status !== 'rascunho');
+      window.setCompetenciaFechada?.(!!_fech);
       const result = calcular([], _manuais, 0);
       document.getElementById('m-pp').textContent   = formatPontos(result.pp);
       document.getElementById('m-pn').textContent   = formatPontos(result.pn);
@@ -317,7 +330,9 @@
       // lançamento que ele já aceitou voltou para a fila. O texto atribui a
       // causa à alteração feita no WCVS depois da homologação — dizer que o
       // dado "sumiu" faria parecer que o RMPF perdeu o lançamento.
-      const _reab = _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
+      // Competência fechada: o aviso sai junto com o ícone 🔄 que ele manda
+      // clicar, e não há mais o que homologar novamente.
+      const _reab = _fech ? 0 : _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
       document.getElementById('alert-area').innerHTML = _reab
         ? alerta('warn', `<strong>${_reab} lançamento(s)</strong> deste fiscal foram reabertos porque a ` +
             `inspeção foi alterada no WCVS depois de já ter sido homologada — por exemplo, a data do ` +
