@@ -63,6 +63,22 @@ function complexidadeDecreto(cnae) {
   return EXCECOES_COMPLEXIDADE_DECRETO[norm] || null;
 }
 
+// ── CNAE de enquadramento indicado pelo fiscal ──
+// Subclasse 9999-9/99 do cnae.csv do VISA ("Atividades de Alta Complexidade —
+// RDC nº 153/2017 / IN 66/2020 / Lei 13.874/2019 / Lei 11.598/2007 / Resolução
+// CGSIM 62/2020", equipe AO, complexidade ALTA). Não é código sem classificação:
+// é o enquadramento que o próprio fiscal escolhe no WCVS quando entende que a
+// atividade é de alta complexidade por força dessas normas. Pontua como qualquer
+// outra alta — o que muda é o critério de homologação, que a gerência precisa
+// conferir com mais atenção. A chave é o CNAE só com dígitos, mesmo padrão de
+// complexidadeDecreto acima, para não depender da formatação da subclasse.
+const CNAE_ALTA_INDICADA = '9999999';
+
+function cnaeAltaIndicada(m) {
+  if (!m || !m.visa_cnae) return false;
+  return String(m.visa_cnae).replace(/\D/g, '') === CNAE_ALTA_INDICADA;
+}
+
 const TIPOS_ATIVIDADE = [
   { id: 1,  codigo: "VIS", nome: "Vistoria ou atendimento a denúncia",               itensPontuacao: [1, 2, 3],    somenteCsv: true  },
   { id: 2,  codigo: "ARQ", nome: "Análise de projeto arquitetônico",                  itensPontuacao: [4, 5],       somenteCsv: true  },
@@ -950,6 +966,100 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// Alerta de enquadramento indicado pelo fiscal (CNAE 9999-9/99)
+// ─────────────────────────────────────────────────────────────
+// Diferente dos alertas acima, este não sinaliza perda de pontos: o lançamento
+// pontua como qualquer alta complexidade. Ele só marca que o enquadramento foi
+// escolhido pelo fiscal e por isso a gerência precisa conferi-lo com mais
+// atenção — daí a cor AZUL, e não o amarelo dos alertas de prazo/zerado/fiscais.
+// Como emoji não aceita `color` (o ⚠️ dos outros é amarelo por natureza, não por
+// CSS), o ícone aqui é um SVG inline com fill=currentColor. Mesmo padrão de
+// modal único + delegação de eventos dos demais.
+
+const _SVG_CNAE_ALTA =
+  `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">` +
+  `<path d="M12 3.5 1.8 20.5h20.4L12 3.5Zm0 4.9a1 1 0 0 1 1 1v4.8a1 1 0 0 1-2 0V9.4a1 1 0 0 1 1-1Zm0 8.2a1.15 1.15 0 1 1 0 2.3 1.15 1.15 0 0 1 0-2.3Z"/>` +
+  `</svg>`;
+
+// HTML do ícone (só quando o lançamento veio do VISA com o CNAE 9999-9/99).
+// `gestao` escolhe a redação: quem homologa recebe a instrução no imperativo, o
+// fiscal recebe a informação de que a gerência fará a análise. É argumento
+// explícito porque a decisão é da tela — utils.js carrega antes do guard.js, e
+// ler o perfil da sessão aqui dependeria da ordem de carga.
+function cnaeAltaIndicadaHtml(m, gestao) {
+  if (!cnaeAltaIndicada(m)) return '';
+  const rotulo = gestao
+    ? 'Enquadramento indicado pelo fiscal — clique para analisar'
+    : 'Enquadramento indicado pelo fiscal — clique para detalhes';
+  return ` <span class="cnae-alta-alerta" role="button" tabindex="0"` +
+    ` title="${rotulo}" aria-label="${rotulo}"` +
+    ` data-gestao="${gestao ? '1' : ''}">${_SVG_CNAE_ALTA}</span>`;
+}
+
+// Preenche e exibe o modal a partir do dataset do ícone clicado.
+function abrirCnaeAltaIndicada(ds) {
+  _initCnaeAltaModal();
+  const modal = document.getElementById('modal-cnae-alta');
+  if (!modal) return;
+  const gestao = !!(ds && ds.gestao);
+  modal.querySelector('#ca-body').innerHTML =
+    `<p style="margin:0 0 12px">Inspeção importada do VISA com o ` +
+    `<strong>CNAE 9999-9/99 — Atividades de Alta Complexidade</strong>, ` +
+    `enquadramento indicado pelo próprio fiscal.</p>` +
+    (gestao
+      ? `<p style="margin:0"><strong>Analise o enquadramento</strong> com base na ` +
+        `<strong>atividade desenvolvida</strong> e no <strong>conteúdo do documento ` +
+        `emitido</strong>.</p>`
+      : `<p style="margin:0">A <strong>gerência analisará o enquadramento</strong> com ` +
+        `base na <strong>atividade desenvolvida</strong> e no <strong>documento ` +
+        `emitido</strong>.</p>`);
+  modal.style.display = 'flex';
+}
+
+// Injeta o markup do modal (uma vez) e registra os fechamentos.
+function _initCnaeAltaModal() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('modal-cnae-alta')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    `<div id="modal-cnae-alta" class="modal-backdrop" style="display:none">` +
+    `<div class="modal" style="max-width:480px">` +
+    `<div class="modal-header"><span>Enquadramento indicado pelo fiscal</span>` +
+    `<button class="modal-close" id="ca-close" aria-label="Fechar">✕</button></div>` +
+    `<div class="modal-body" id="ca-body"></div>` +
+    `<div class="modal-footer"><button class="btn btn-default" id="ca-close2">Fechar</button></div>` +
+    `</div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const modal = document.getElementById('modal-cnae-alta');
+  const hide = () => { modal.style.display = 'none'; };
+  document.getElementById('ca-close').addEventListener('click', hide);
+  document.getElementById('ca-close2').addEventListener('click', hide);
+  modal.addEventListener('click', (e) => { if (e.target === modal) hide(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') hide();
+  });
+}
+
+// Ativação por clique ou Enter/Espaço em qualquer .cnae-alta-alerta (delegação).
+function _onCnaeAltaActivate(e) {
+  const el = e.target && e.target.closest ? e.target.closest('.cnae-alta-alerta') : null;
+  if (!el) return;
+  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  abrirCnaeAltaIndicada(el.dataset);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', _onCnaeAltaActivate);
+  document.addEventListener('keydown', _onCnaeAltaActivate);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initCnaeAltaModal);
+  } else {
+    _initCnaeAltaModal();
+  }
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -995,4 +1105,8 @@ window.abrirFiscais              = abrirFiscais;
 window.documentoComNumeroHtml    = documentoComNumeroHtml;
 window.fiscaisAlertaHtml         = fiscaisAlertaHtml;
 window.abrirFiscaisAlerta        = abrirFiscaisAlerta;
+window.CNAE_ALTA_INDICADA        = CNAE_ALTA_INDICADA;
+window.cnaeAltaIndicada          = cnaeAltaIndicada;
+window.cnaeAltaIndicadaHtml      = cnaeAltaIndicadaHtml;
+window.abrirCnaeAltaIndicada     = abrirCnaeAltaIndicada;
 window.visaAppSidebarLink        = visaAppSidebarLink;

@@ -538,6 +538,22 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
   display: inline-block;
 }
 
+/* ── Alerta de enquadramento indicado pelo fiscal (CNAE 9999-9/99) ── */
+/* Azul, e não o amarelo dos demais alertas: este não sinaliza perda de pontos,
+   só direciona a análise da homologação. Como a cor precisa valer de fato, o
+   ícone é SVG (emoji ignora `color`) e herda a cor daqui via currentColor. */
+.cnae-alta-alerta {
+  color: var(--azul);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 4px;
+  line-height: 1;
+}
+.cnae-alta-alerta svg { width: 1.1em; height: 1.1em; display: block; }
+.cnae-alta-alerta:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
+
 /* ── Modal ── */
 .modal-backdrop {
   position: fixed; inset: 0;

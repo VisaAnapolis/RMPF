@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.27.0</span>
+            <span class="badge-date">09/08/2026</span>
+          </div>
+          <div class="changelog-title">Alerta de enquadramento indicado pelo fiscal (CNAE 9999-9/99)</div>
+          <ul class="changelog-changes">
+            <li><strong>Novo ícone de alerta azul na coluna Complexidade</strong> — inspeções importadas do VISA com o CNAE <code>9999-9/99</code> (<em>Atividades de Alta Complexidade</em>) passam a exibir um ícone clicável ao lado da complexidade. É o enquadramento que o próprio fiscal escolhe no WCVS, e por isso a gerência precisa conferi-lo com mais atenção do que nos demais lançamentos.</li>
+            <li><strong>Mensagem diferente para cada público</strong> — em <code>meus-lancamentos.html</code> o fiscal lê que a <em>gerência analisará o enquadramento</em> com base na atividade desenvolvida e no documento emitido; em <code>conferencia.html</code>, quem homologa lê a instrução no imperativo — <em>analise o enquadramento</em> com base na atividade desenvolvida e no conteúdo do documento emitido.</li>
+            <li><strong>Nada muda na pontuação</strong> — o CNAE continua valendo como qualquer alta complexidade (Item 1 do Anexo VII). O alerta não zera nem altera pontos: só direciona o método de análise na homologação.</li>
+            <li><strong>Azul, e não amarelo</strong> — os alertas amarelos do app (prazo, pontuação zerada, autorização de fiscais) sinalizam problema ou perda de pontos; este não. Como emoji não aceita cor via CSS, o ícone é um SVG que herda <code>var(--azul)</code>, com contraste próprio no modo escuro e foco visível pelo teclado.</li>
+            <li><strong>Arquivos</strong> — <code>js/utils.js</code> (constante <code>CNAE_ALTA_INDICADA</code>, <code>cnaeAltaIndicada</code>, <code>cnaeAltaIndicadaHtml</code> e modal); <code>css/rmpf.css</code> (<code>.cnae-alta-alerta</code>); <code>conferencia.html</code>; <code>meus-lancamentos.html</code>; <code>docs/integracao-visa-rmpf.md</code>; <code>js/version.js</code> — 1.27.0; <code>service-worker.js</code> — <code>rmpf-v1.27.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.26.1</span>
             <span class="badge-date">01/08/2026</span>
           </div>

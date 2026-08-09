@@ -113,6 +113,29 @@ Para cada linha do CSV filtrada pelo mês/ano:
 | Baixa | 3 | 6 |
 | Não encontrado (default) | 2 | 12 |
 
+### CNAE `9999-9/99` — enquadramento indicado pelo fiscal
+
+A subclasse `9999-9/99` do `cnae.csv` ("Atividades de Alta Complexidade — RDC nº
+153/2017, IN 66/2020, Lei 13.874/2019, Lei 11.598/2007, Resolução CGSIM 62/2020",
+equipe `AO`, complexidade `ALTA`) **não** é código sem classificação: é o
+enquadramento que o próprio fiscal escolhe no WCVS quando entende que a atividade
+é de alta complexidade por força dessas normas. Na importação ele segue o caminho
+normal de qualquer alta — Item 1, 48 pontos, sem tratamento especial de pontuação.
+
+O que muda é o **critério de homologação**: por ser um enquadramento indicado pelo
+fiscal, a gerência precisa conferi-lo com mais atenção do que nos demais
+lançamentos. `meus-lancamentos.html` e `conferencia.html` exibem um ícone de
+alerta **azul** na coluna Complexidade quando `visa_cnae` (só dígitos) é
+`9999999`, com redação distinta por tela: ao fiscal informa que a gerência
+analisará o enquadramento com base na atividade desenvolvida e no documento
+emitido; a quem homologa, instrui a analisar com base na atividade desenvolvida e
+no conteúdo do documento. A cor azul distingue-o dos alertas amarelos (§15.3),
+que sinalizam perda de pontos — este não zera nem altera pontuação.
+
+Helpers: `CNAE_ALTA_INDICADA`, `cnaeAltaIndicada(m)` e `cnaeAltaIndicadaHtml(m, gestao)`
+em `js/utils.js`. A detecção deriva de `visa_cnae` (nenhum campo novo no
+Firestore), portanto vale retroativamente, inclusive em competências fechadas.
+
 ### Teto de 48 pontos por inspeção (Vistoria)
 
 Em uma Vistoria (VIS), os CNAEs-alvo são o **CNAE informado** na inspeção
