@@ -384,7 +384,7 @@
         <td data-label="OS" class="td-nowrap">${escHtml(m.os_numero || '—')}</td>
         <td data-label="Documento">${window.documentoComNumeroHtml ? window.documentoComNumeroHtml(m) : escHtml(m.documento || '—')}</td>
         <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
-        <td data-label="Complexidade" class="td-center">${window.complexidadeHtml ? window.complexidadeHtml(m) : (m.complexidade || '—')}</td>
+        <td data-label="Complexidade" class="td-center">${window.complexidadeHtml ? window.complexidadeHtml(m) : (m.complexidade || '—')}${window.cnaeAltaIndicadaHtml ? window.cnaeAltaIndicadaHtml(m, isAdmin) : ''}</td>
         <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>
         <td data-label="Fiscais" class="td-center td-nowrap">${window.fiscaisCountHtml(m)}${window.fiscaisAlertaHtml(m)}</td>
         <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao||'—')}</a>` : escHtml(m.descricao||'—')}</td>
