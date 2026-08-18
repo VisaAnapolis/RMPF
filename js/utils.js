@@ -982,12 +982,24 @@ const _SVG_CNAE_ALTA =
   `<path d="M12 3.5 1.8 20.5h20.4L12 3.5Zm0 4.9a1 1 0 0 1 1 1v4.8a1 1 0 0 1-2 0V9.4a1 1 0 0 1 1-1Zm0 8.2a1.15 1.15 0 1 1 0 2.3 1.15 1.15 0 0 1 0-2.3Z"/>` +
   `</svg>`;
 
+// Exibição controlada pelo parâmetro app_config/cnae_alta_alerta (tela de
+// Parametrização). O valor é cacheado aqui porque cnaeAltaIndicadaHtml é
+// síncrona (chamada inline na montagem das tabelas) — cada tela carrega a
+// configuração no init via db_getCnaeAltaAlertaConfig e chama o setter antes
+// de renderizar. Ligado por padrão: se a leitura falhar, o alerta aparece.
+let _cnaeAltaAlertaAtivo = true;
+
+function setCnaeAltaAlertaAtivo(ativo) {
+  _cnaeAltaAlertaAtivo = ativo !== false;
+}
+
 // HTML do ícone (só quando o lançamento veio do VISA com o CNAE 9999-9/99).
 // `gestao` escolhe a redação: quem homologa recebe a instrução no imperativo, o
 // fiscal recebe a informação de que a gerência fará a análise. É argumento
 // explícito porque a decisão é da tela — utils.js carrega antes do guard.js, e
 // ler o perfil da sessão aqui dependeria da ordem de carga.
 function cnaeAltaIndicadaHtml(m, gestao) {
+  if (!_cnaeAltaAlertaAtivo) return '';
   if (!cnaeAltaIndicada(m)) return '';
   const rotulo = gestao
     ? 'Enquadramento indicado pelo fiscal — clique para analisar'
@@ -1108,5 +1120,6 @@ window.abrirFiscaisAlerta        = abrirFiscaisAlerta;
 window.CNAE_ALTA_INDICADA        = CNAE_ALTA_INDICADA;
 window.cnaeAltaIndicada          = cnaeAltaIndicada;
 window.cnaeAltaIndicadaHtml      = cnaeAltaIndicadaHtml;
+window.setCnaeAltaAlertaAtivo    = setCnaeAltaAlertaAtivo;
 window.abrirCnaeAltaIndicada     = abrirCnaeAltaIndicada;
 window.visaAppSidebarLink        = visaAppSidebarLink;

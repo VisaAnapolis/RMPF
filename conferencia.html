@@ -656,6 +656,12 @@
       console.warn('[Conferencia] Falha ao carregar config de fiscais 30h:', e);
     }
 
+    try {
+      window.setCnaeAltaAlertaAtivo((await window.db_getCnaeAltaAlertaConfig()).ativo);
+    } catch (e) {
+      console.warn('[Conferencia] Falha ao carregar config do alerta CNAE 9999-9/99:', e);
+    }
+
     // Fiscal sees own data; Administrador sees all fiscais
     if (user.perfil === 'Fiscal') {
       const sel = document.getElementById('sel-fiscal');

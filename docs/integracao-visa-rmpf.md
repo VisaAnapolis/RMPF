@@ -136,6 +136,15 @@ Helpers: `CNAE_ALTA_INDICADA`, `cnaeAltaIndicada(m)` e `cnaeAltaIndicadaHtml(m, 
 em `js/utils.js`. A detecção deriva de `visa_cnae` (nenhum campo novo no
 Firestore), portanto vale retroativamente, inclusive em competências fechadas.
 
+A exibição do alerta é controlada por um parâmetro na tela de Parametrização
+(card *Alerta — Enquadramento Indicado pelo Fiscal*), persistido em
+`app_config/cnae_alta_alerta` (`db_getCnaeAltaAlertaConfig` /
+`db_updateCnaeAltaAlertaConfig`, `js/firestore.js`). Ligado por padrão; quando
+inativo, `cnaeAltaIndicadaHtml` retorna vazio e o ícone some das duas telas —
+sem qualquer efeito na pontuação. Como a função é síncrona, cada tela carrega a
+configuração no init e a repassa via `setCnaeAltaAlertaAtivo(ativo)`; se a
+leitura falhar, o alerta é exibido (comportamento padrão).
+
 ### Teto de 48 pontos por inspeção (Vistoria)
 
 Em uma Vistoria (VIS), os CNAEs-alvo são o **CNAE informado** na inspeção
