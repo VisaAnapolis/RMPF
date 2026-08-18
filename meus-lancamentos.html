@@ -840,6 +840,12 @@
     document.getElementById('btn-carregar').addEventListener('click', loadManuais);
 
     try {
+      window.setCnaeAltaAlertaAtivo((await window.db_getCnaeAltaAlertaConfig()).ativo);
+    } catch (e) {
+      console.warn('[MeusLancamentos] Falha ao carregar config do alerta CNAE 9999-9/99:', e);
+    }
+
+    try {
       const _toCmp = new Promise((_, rej) => setTimeout(() => rej(new Error('Tempo limite esgotado ao obter próxima competência. Verifique sua conexão.')), 8000));
       ({ mes: _um, ano: _ua } = await Promise.race([db_getProximaCompetencia(user.email), _toCmp]));
     }

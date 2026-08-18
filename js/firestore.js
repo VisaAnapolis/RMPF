@@ -871,6 +871,27 @@ async function db_updateVisaAreaAlimentacaoConfig(ativo) {
   });
 }
 
+// ── App Config / VISA — Alerta de Enquadramento Indicado (CNAE 9999-9/99) ──
+// Liga/desliga a exibição do ícone azul de alerta na coluna Complexidade para
+// as inspeções importadas do VISA com o CNAE 9999-9/99 (enquadramento indicado
+// pelo fiscal — cnaeAltaIndicadaHtml, js/utils.js). Ligado por padrão — não
+// afeta pontuação, apenas a exibição do alerta em meus-lancamentos.html e
+// conferencia.html.
+
+async function db_getCnaeAltaAlertaConfig() {
+  const doc = await window.db.collection('app_config').doc('cnae_alta_alerta').get();
+  if (!doc.exists) return { ativo: true };
+  const d = doc.data();
+  return { ativo: d.ativo !== false };
+}
+
+async function db_updateCnaeAltaAlertaConfig(ativo) {
+  await window.db.collection('app_config').doc('cnae_alta_alerta').set({
+    ativo: Boolean(ativo),
+    last_updated: firebase.firestore.FieldValue.serverTimestamp(),
+  });
+}
+
 // ── App Config / Notificações Push ─────────────────────────
 // Configuração das notificações push, persistida em app_config/notif_config.
 // Lida por initFCM (js/firebase-config.js):
@@ -1347,6 +1368,8 @@ window.db_getFiscais30hConfig   = db_getFiscais30hConfig;
 window.db_updateFiscais30hConfig = db_updateFiscais30hConfig;
 window.db_getVisaAreaAlimentacaoConfig    = db_getVisaAreaAlimentacaoConfig;
 window.db_updateVisaAreaAlimentacaoConfig = db_updateVisaAreaAlimentacaoConfig;
+window.db_getCnaeAltaAlertaConfig    = db_getCnaeAltaAlertaConfig;
+window.db_updateCnaeAltaAlertaConfig = db_updateCnaeAltaAlertaConfig;
 window.db_getNotifConfig        = db_getNotifConfig;
 window.db_updateNotifConfig     = db_updateNotifConfig;
 window.db_validateDeadlineReleaseDate = db_validateDeadlineReleaseDate;

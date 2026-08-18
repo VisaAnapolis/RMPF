@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.28.0</span>
+            <span class="badge-date">18/08/2026</span>
+          </div>
+          <div class="changelog-title">Parâmetro para o alerta de enquadramento indicado pelo fiscal (CNAE 9999-9/99)</div>
+          <ul class="changelog-changes">
+            <li><strong>Novo flag na Parametrização</strong> — o card <em>🔷 Alerta — Enquadramento Indicado pelo Fiscal (CNAE 9999-9/99)</em> permite ao administrador ligar e desligar a exibição do ícone azul de alerta introduzido na v1.27.0. Ligado por padrão; quando inativo, o ícone deixa de aparecer em <code>meus-lancamentos.html</code> e <code>conferencia.html</code>.</li>
+            <li><strong>Nada muda na pontuação</strong> — o parâmetro controla apenas a exibição do alerta. O CNAE 9999-9/99 continua pontuando como qualquer alta complexidade, com o flag ativo ou inativo.</li>
+            <li><strong>Configuração persistida no Firestore</strong> — documento <code>app_config/cnae_alta_alerta</code>, lido no carregamento das duas telas. Se a leitura falhar, o alerta é exibido (comportamento padrão).</li>
+            <li><strong>Arquivos</strong> — <code>js/firestore.js</code> (<code>db_getCnaeAltaAlertaConfig</code>, <code>db_updateCnaeAltaAlertaConfig</code>); <code>js/utils.js</code> (<code>setCnaeAltaAlertaAtivo</code> e gate em <code>cnaeAltaIndicadaHtml</code>); <code>parametrizacao.html</code> (novo card); <code>meus-lancamentos.html</code>; <code>conferencia.html</code>; <code>docs/integracao-visa-rmpf.md</code>; <code>js/version.js</code> — 1.28.0; <code>service-worker.js</code> — <code>rmpf-v1.28.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.27.0</span>
             <span class="badge-date">09/08/2026</span>
           </div>
