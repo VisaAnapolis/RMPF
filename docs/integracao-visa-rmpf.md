@@ -90,10 +90,16 @@ Para cada linha do CSV filtrada pelo mês/ano:
     ├── NÃO existe
     │     → CRIA documento (status: 'enviado')
     │
-    ├── Existe + status NÃO homologado
-    │   ('enviado', 'rascunho', 'recusado', 'pendente')
+    ├── Existe + status NÃO homologado e NÃO recusado
+    │   ('enviado', 'rascunho', 'pendente')
     │     → SOBRESCREVE campos (data, CNAE, complexidade, pontos, descrição)
     │       Mantém: status atual, controle RMPF, created_at
+    │
+    ├── Existe + status 'recusado'
+    │     → IGNORA — recusado pelo gestor, preservado (status e motivo_recusa
+    │       intactos). Alteração feita no WCVS depois da recusa NÃO devolve o
+    │       lançamento à conferência: reavaliação só manualmente, pelo gestor,
+    │       na Conferência (botão "Rever").
     │
     └── Existe + status homologado ('aceito' ou 'fechado')
           → IGNORA + exibe aviso individual:
@@ -101,6 +107,8 @@ Para cada linha do CSV filtrada pelo mês/ano:
 ```
 
 **Por que sobrescrever?** Os dados do CSV podem ser corrigidos retroativamente (data errada, fiscal trocado, CNAE atualizado). A re-importação garante que o RMPF sempre reflita o estado atual do VISA.
+
+**Por que a recusa não é sobrescrita?** A recusa é uma avaliação **negativa e definitiva** do gestor. Se qualquer alteração do fiscal no WCVS pudesse resubmeter o lançamento (como acontecia até a v1.28.0), a avaliação do gestor seria desfeita sem o seu conhecimento. A regra vale igualmente para a importação do SIM (`js/sim-import.js`). A mesma proteção não impede a exclusão do lançamento recusado quando a inspeção **desaparece** do CSV (passe de órfãos) — comportamento mantido por decisão de negócio.
 
 ---
 
@@ -393,6 +401,8 @@ importação, `visa-import.js` busca o CSV via `fetchGitHubCSV('data/cnae.csv')`
        └── Pode importar pelo botão (para qualquer fiscal)
        └── Homologa ou recusa cada lançamento individualmente
        └── Registro homologado → bloqueado para re-importação
+       └── Registro recusado → também bloqueado para re-importação (a recusa é
+           definitiva; só o gestor a reverte, pelo botão "Rever" da Conferência)
 
 3. ADMINISTRADOR (fechamento):
    └── fechamento.html
@@ -457,7 +467,7 @@ Regra: **Plantão fiscal (PLT), Operação fiscal (OPF) e Serviços técnicos re
 | Período mínimo | Abril/2026 |
 | Fiscais por inspeção | Até 3 — cada um recebe lançamento independente |
 | Chave do documento | `visa_{CONTROLE}_{email_normalizado}` |
-| Re-importação | Sobrescreve se não homologado; ignora se homologado |
+| Re-importação | Sobrescreve se não homologado **e não recusado**; ignora homologado, fechado e recusado (recusa só é revertida manualmente pelo gestor na Conferência) |
 | Edição pelo fiscal | Proibida para `origem: 'visa_csv'` |
 | Homologação | Admin homologa individualmente por fiscal; revalida não cumulatividade antes de aceitar pontos > 0 (aviso com decisão caso a caso do admin) |
 | Fonte CNAE | `data/cnae.csv` do VISA, carregado em memória a cada importação |
