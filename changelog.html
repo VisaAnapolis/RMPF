@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.29.0</span>
+            <span class="badge-date">24/08/2026</span>
+          </div>
+          <div class="changelog-title">Lançamento recusado não é mais sobrescrito pela importação (VISA e SIM)</div>
+          <ul class="changelog-changes">
+            <li><strong>Recusa do gestor é definitiva perante a importação</strong> — até a v1.28.0, qualquer alteração do fiscal no WCVS resubmetia o lançamento recusado para conferência (<em>"recusado anteriormente, resubmetido"</em>), apagando o motivo da recusa. Agora o lançamento com status <code>recusado</code> é <strong>preservado</strong> na re-importação: status, motivo da recusa e pontuação homologada nula permanecem intactos, e o log registra <em>"recusado pelo gestor — preservado"</em>.</li>
+            <li><strong>Reavaliação só pelo gestor</strong> — para reverter uma recusa, o fiscal deve procurar o gestor, que reavalia manualmente pelo botão <em>Rever</em> da Conferência. A importação nunca devolve um recusado à fila de conferência.</li>
+            <li><strong>Vale para as duas origens</strong> — a proteção foi aplicada tanto à importação do VISA (<code>inspecoes.csv</code>) quanto à do SIM.</li>
+            <li><strong>O que não muda</strong> — lançamento recusado cuja inspeção <em>desaparece</em> do CSV continua sendo excluído pelo passe de órfãos, como antes. A auditoria da simulação passa a registrar a ação <code>ignorar_recusado</code> para esses casos.</li>
+            <li><strong>Arquivos</strong> — <code>js/visa-import.js</code> (guard de recusado no fluxo de atualização, remoção da resubmissão); <code>js/sim-import.js</code> (idem); <code>docs/integracao-visa-rmpf.md</code> (§6, §15 e §16); <code>js/version.js</code> — 1.29.0; <code>service-worker.js</code> — <code>rmpf-v1.29.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.28.0</span>
             <span class="badge-date">18/08/2026</span>
           </div>

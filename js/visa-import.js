@@ -1584,6 +1584,19 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
                 continue;
               }
+              // Recusado pelo gestor é avaliação definitiva: a importação nunca
+              // o sobrescreve nem o devolve à conferência — alterações feitas no
+              // WCVS depois da recusa não desfazem a decisão. Reavaliação só
+              // manualmente, pelo gestor, na Conferência (botão "Rever").
+              if (existing.status === 'recusado') {
+                ignorados++;
+                anota('ignorar_recusado', {
+                  controle: controleVisa, fiscal: emailFiscal, cnae: alvo.cnae,
+                  data: dataISO, status_atual: existing.status,
+                });
+                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: recusado pelo gestor — preservado. Reavaliação apenas pela Conferência.`, 'warn');
+                continue;
+              }
               const _duplaReducaoVis = alvo.qtd_fiscais != null;
               const updateData = {
                 fiscal_nome: nomeFiscalCsv,
@@ -1685,11 +1698,6 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 updateData.reaberto_pontos_homologado_anterior = null;
               }
 
-              if (existing.status === 'recusado') {
-                updateData.status = 'enviado';
-                updateData.motivo_recusa = null;
-                onProgress(`🔄 CONTROLE ${controleVisa}: recusado anteriormente, resubmetido para conferência.`, 'info');
-              }
               // Verificação de autorização (inspeção com mais de dois fiscais) na atualização
               if (isTerceiro) {
                 const autorizado = isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);

@@ -250,6 +250,14 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
             onProgress(`⚠️ OS ${osNum} — ${nomeFiscalOs}: já homologado, ignorado.`, 'warn');
             continue;
           }
+          // Recusado pelo gestor é avaliação definitiva: a importação nunca o
+          // sobrescreve nem o devolve à conferência. Reavaliação só manualmente,
+          // pelo gestor, na Conferência (botão "Rever").
+          if (existing.status === 'recusado') {
+            ignorados++;
+            onProgress(`⚠️ OS ${osNum} — ${nomeFiscalOs}: recusado pelo gestor — preservado. Reavaliação apenas pela Conferência.`, 'warn');
+            continue;
+          }
           const updateData = {
             fiscal_nome: nomeFiscalOs,
             mes, ano, data: dataISO,
@@ -268,11 +276,6 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
               ? window.dispositivoLegal(SIM_ITEM_PONTUACAO, pontosOs, false, itemDecretoZerado || undefined)
               : (pontosOs === 0 ? (itemDecretoZerado ? `Item ${itemDecretoZerado} do Anexo VII do Decreto 49.723/2023 (não cumulativo — pontuação zerada)` : null) : 'Item 1 do Anexo VII do Decreto 49.723/2023'),
           };
-          if (existing.status === 'recusado') {
-            updateData.status = 'enviado';
-            updateData.motivo_recusa = null;
-            onProgress(`🔄 OS ${osNum}: recusado anteriormente, resubmetido para conferência.`, 'info');
-          }
           await window.db_upsertSIMManual(osNum, emailFiscal, updateData, existing.id, false);
           const estado = await _getEstadoPontosSim(pontosEstadoCache, emailFiscal, mes, ano);
           _aplicarManualNoMapaPontosSim(estado.byDia, existing, -1);
