@@ -71,7 +71,7 @@
       console.log('\uD83D\uDD04 Atualizando de ' + (savedVersion || 'antiga') + ' para ' + APP_VERSION);
       window.__rmpfVersionReloading = true;
 
-      // Limpa localStorage (exceto chaves do Firebase e a própria chave de versão)
+      // Limpa localStorage (exceto chaves do Firebase e a própria chave de versão) eira
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
