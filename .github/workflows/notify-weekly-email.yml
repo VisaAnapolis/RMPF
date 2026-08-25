@@ -1,10 +1,10 @@
 name: Resumo Semanal de Pontos (E-mail)
 
-# Toda segunda-feira às 10h UTC (7h BRT) envia e-mail a cada fiscal ativo
-# com seus pontos homologados da semana e o total da equipe.
+# Envia e-mail a cada fiscal ativo com seus pontos homologados da semana e o
+# total da equipe.
+#
+# Execução agendada desativada: o disparo é manual, pela aba Actions do GitHub.
 on:
-  schedule:
-    - cron: '0 10 * * 1'
   workflow_dispatch:
 
 jobs:

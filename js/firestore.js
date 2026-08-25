@@ -289,6 +289,17 @@ async function getTodosFiscais() {
     .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
 }
 
+// Administradores ativos — destinatários das notificações dirigidas à chefia.
+// `ativo` ausente conta como ativo, mesma convenção dos resumos por e-mail.
+async function getTodosAdministradores() {
+  const snap = await window.db.collection('usuarios')
+    .where('perfil', '==', 'Administrador')
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .filter(u => u.ativo !== false)
+    .sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+}
+
 async function getTodosUsuarios() {
   const snap = await window.db.collection('usuarios').get();
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -1334,6 +1345,7 @@ window.db_getCvsOverride      = getCvsOverride;
 window.db_setCvsOverride      = setCvsOverride;
 window.db_getUsuario          = getUsuario;
 window.db_getTodosFiscais     = getTodosFiscais;
+window.db_getTodosAdministradores = getTodosAdministradores;
 window.db_getTodosUsuarios    = getTodosUsuarios;
 window.db_updateUsuario       = updateUsuario;
 window.db_deleteUsuario        = deleteUsuario;

@@ -113,3 +113,55 @@ async function dispatchEmailFiscal(fiscalEmail, fiscalNome, titulo, corpo) {
 }
 
 window.dispatchEmailFiscal = dispatchEmailFiscal;
+
+/**
+ * Avisa que um lançamento recusado foi alterado no WCVS depois da recusa.
+ *
+ * A importação grava a marca (recusa_alterado_diff) e as telas mostram o ícone
+ * vermelho — mas a importação roda em background na sessão do administrador, e
+ * sem push/e-mail a alteração ficaria esperando alguém abrir o app. O fiscal
+ * precisa saber que a correção dele não teve efeito; o gestor, que mexeram no
+ * que já julgou.
+ *
+ * Falha silenciosamente — a importação nunca pode quebrar por causa disto.
+ *
+ * @param {object} manual  Lançamento recusado (fiscal_email, fiscal_nome, controle, id)
+ */
+async function notificarRecusaAlterada(manual) {
+  try {
+    if (!manual || !manual.fiscal_email) return;
+    const controle = manual.controle || manual.id || '';
+    const nome = manual.fiscal_nome || manual.fiscal_email;
+
+    const tituloFiscal = '⛔ Alteração no WCVS não teve efeito';
+    const corpoFiscal =
+      `O lançamento ${controle}, recusado, foi alterado no WCVS mas a recusa continua ` +
+      `valendo. Se a correção resolve o motivo, procure o gestor.`;
+
+    const tituloAdmin = '⛔ Lançamento recusado foi alterado no WCVS';
+    const corpoAdmin =
+      `O lançamento ${controle} do fiscal ${nome} foi alterado no WCVS depois da recusa. ` +
+      `A importação não aplicou a mudança — use Rever na Conferência se corrigir o motivo.`;
+
+    const envios = [
+      dispararNotificacaoFiscal(manual.fiscal_email, tituloFiscal, corpoFiscal),
+      dispatchEmailFiscal(manual.fiscal_email, manual.fiscal_nome, tituloFiscal, corpoFiscal),
+    ];
+
+    const admins = typeof window.db_getTodosAdministradores === 'function'
+      ? await window.db_getTodosAdministradores()
+      : [];
+    for (const adm of admins) {
+      const email = adm.id || adm.email;
+      if (!email) continue;
+      envios.push(dispararNotificacaoFiscal(email, tituloAdmin, corpoAdmin));
+      envios.push(dispatchEmailFiscal(email, adm.nome, tituloAdmin, corpoAdmin));
+    }
+
+    await Promise.all(envios);
+  } catch (e) {
+    console.warn('[notif] Erro ao notificar alteração pós-recusa:', e);
+  }
+}
+
+window.notificarRecusaAlterada = notificarRecusaAlterada;

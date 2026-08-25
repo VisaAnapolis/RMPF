@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.31.0</span>
+            <span class="badge-date">25/08/2026</span>
+          </div>
+          <div class="changelog-title">Push e e-mail quando o WCVS é alterado depois da recusa; resumos periódicos passam a disparo manual</div>
+          <ul class="changelog-changes">
+            <li><strong>O alerta da v1.30.0 agora avisa fora do app</strong> — até aqui, a alteração feita no WCVS depois da recusa só aparecia como ícone vermelho na tela, e a importação roda em segundo plano na sessão do administrador (a cada ~10 min): a marca podia ser gravada sem ninguém ver. Agora o fiscal e todos os administradores ativos recebem <strong>push e e-mail</strong> no momento em que a marca é gravada.</li>
+            <li><strong>Uma notificação por alteração, não por rodada</strong> — o aviso só sai quando o <code>recusa_alterado_diff</code> muda. Rodadas seguintes da importação sobre o mesmo diff não repetem a mensagem, e desfazer a alteração no WCVS (que remove a marca) não notifica ninguém. Simulação não dispara nada.</li>
+            <li><strong>Mensagem da recusa atualizada</strong> — o aviso enviado ao fiscal quando o gestor recusa passa a dizer que corrigir a inspeção no WCVS <em>não</em> reabre o lançamento automaticamente (comportamento vigente desde a v1.29.0) e que a reavaliação depende do gestor. A recusa, que só enviava push, passa a enviar <strong>também e-mail</strong>.</li>
+            <li><strong>Resumos semanais e mensais deixam de rodar sozinhos</strong> — os quatro <em>workflows</em> agendados de resumo de pontos (semanal e mensal, push e e-mail) tiveram o gatilho <code>schedule</code> removido. Continuam disponíveis por disparo manual na aba Actions do GitHub e, nos mensais, pelo botão do <code>admin.html</code>. As notificações por evento (recusa e alteração pós-recusa) não são afetadas.</li>
+            <li><strong>Arquivos</strong> — <code>.github/workflows/notify-weekly.yml</code>, <code>notify-weekly-email.yml</code>, <code>notify-monthly-summary.yml</code>, <code>notify-monthly-email.yml</code> (remoção do <code>schedule</code>); <code>js/notifications.js</code> (<code>notificarRecusaAlterada</code>); <code>js/firestore.js</code> (<code>getTodosAdministradores</code>); <code>js/visa-import.js</code> e <code>js/sim-import.js</code> (disparo ao gravar a marca); <code>conferencia.html</code> (texto da recusa e envio de e-mail); <code>parametrizacao.html</code> (carrega <code>js/notifications.js</code>); <code>js/version.js</code> — 1.31.0; <code>service-worker.js</code> — <code>rmpf-v1.31.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.30.0</span>
             <span class="badge-date">24/08/2026</span>
           </div>

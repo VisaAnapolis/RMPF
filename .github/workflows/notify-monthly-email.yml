@@ -1,11 +1,12 @@
 name: Resumo Mensal de Pontos (E-mail)
 
-# Todo dia 1º do mês às 13h UTC (10h BRT) envia:
+# Envia:
 #   - Cada fiscal: seus pontos do mês anterior + barra de progresso
 #   - Cada administrador: relatório consolidado dos fiscais abaixo de 1000 pts
+#
+# Execução agendada desativada: o disparo é manual, pela aba Actions do GitHub
+# ou pelo botão no admin.html.
 on:
-  schedule:
-    - cron: '0 13 1 * *'
   workflow_dispatch:        # Permite disparo manual via interface do GitHub
   repository_dispatch:
     types: [monthly-email-summary]  # Disparado pelo botão no admin.html

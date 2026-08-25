@@ -1,11 +1,11 @@
 name: Resumo Semanal de Pontos (FCM Push)
 
-# Toda segunda-feira às 7h UTC (4h de Brasília) envia um push a cada fiscal
-# informando a quantidade de pontos homologados acumulados até o momento.
+# Envia um push a cada fiscal informando a quantidade de pontos homologados
+# acumulados até o momento.
+#
+# Execução agendada desativada: o disparo é manual, pela aba Actions do GitHub.
 on:
-  schedule:
-    - cron: '0 7 * * 1'   # Segunda-feira, 07:00 UTC (04:00 BRT horário padrão / 05:00 BRST horário de verão)
-  workflow_dispatch:        # Permite disparo manual para testes
+  workflow_dispatch:
 
 jobs:
   weekly-summary:

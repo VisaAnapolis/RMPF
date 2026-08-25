@@ -330,6 +330,16 @@ async function importarAuditoriasSIM({ fiscalEmail, fiscalNome, mes, ano, allFis
                 onProgress(
                   `⛔ OS ${osNum} — ${nomeFiscalOs}: alterada na origem DEPOIS da recusa ` +
                   `(${_diffRec.map(d => d.label).join(', ')}) — recusa mantida, alerta sinalizado.`, 'warn');
+                // Só quando a marca muda: repetir o aviso a cada rodada da
+                // importação (~10 min) transformaria o alerta em ruído.
+                if (typeof window.notificarRecusaAlterada === 'function') {
+                  window.notificarRecusaAlterada({
+                    id: existing.id,
+                    controle: existing.controle || `OS ${osNum}`,
+                    fiscal_email: emailFiscal,
+                    fiscal_nome: nomeFiscalOs,
+                  });
+                }
               }
             } else if (_jaMarcado) {
               await window.db_updateManual(existing.id, {

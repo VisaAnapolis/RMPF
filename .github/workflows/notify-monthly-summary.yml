@@ -3,12 +3,13 @@ name: Resumo Mensal de Pontos (FCM Push)
 # Envia notificações push mensais:
 #   - Fiscais: total de pontos homologados no mês corrente
 #   - Administradores: quantidade de fiscais com menos de 1000 pontos homologados (total acumulado)
+#
+# Execução agendada desativada: o disparo é manual, pela aba Actions do GitHub
+# ou pelo botão no admin.html.
 on:
   workflow_dispatch:        # Permite disparo manual via interface do GitHub
   repository_dispatch:
     types: [monthly-push-summary]   # Disparado pelo botão no admin.html
-  schedule:
-    - cron: '0 10 1 * *'   # Todo dia 1º do mês às 10:00 UTC (07:00 BRT)
 
 jobs:
   monthly-summary:
