@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.33.0</span>
+            <span class="badge-date">25/08/2026</span>
+          </div>
+          <div class="changelog-title">Rever lançamento: opção intermediária "Pendente" e "Aceitar" travado no que já está aceito</div>
+          <ul class="changelog-changes">
+            <li><strong>Nova op&ccedil;&atilde;o &ldquo;&#8617; Pendente&rdquo;</strong> &mdash; ao rever um lan&ccedil;amento j&aacute; decidido (aceito, recusado ou homologado), o modal passa a oferecer um caminho do meio entre <em>Aceitar</em> e <em>Recusar</em>: devolver o lan&ccedil;amento &agrave; fila de homologa&ccedil;&atilde;o. O status volta para <code>enviado</code> (badge <em>Enviado</em>, &ldquo;aguardando homologa&ccedil;&atilde;o&rdquo;), a pontua&ccedil;&atilde;o homologada &eacute; zerada e o motivo da recusa sai junto &mdash; o lan&ccedil;amento fica exatamente como estava antes da decis&atilde;o, e a linha volta a exibir o bot&atilde;o <em>&#128221; Homologar</em>. O bot&atilde;o s&oacute; aparece para lan&ccedil;amentos j&aacute; decididos, e a a&ccedil;&atilde;o pede confirma&ccedil;&atilde;o dizendo quantos pontos ser&atilde;o zerados.</li>
+            <li><strong>&ldquo;&#10003; Aceitar&rdquo; nasce desabilitado no que j&aacute; est&aacute; aceito</strong> &mdash; reaceitar com a mesma pontua&ccedil;&atilde;o n&atilde;o gravava nada e o bot&atilde;o verde ativo dava a entender que era preciso confirmar de novo para sair do modal. Agora ele s&oacute; se habilita quando os <em>Pts Homologados</em> mudam &mdash; a &uacute;nica revis&atilde;o que o aceite de fato grava (e que continua notificando o fiscal como <em>Lan&ccedil;amento Sobrescrito</em>). Uma dica sob o campo explica isso e aponta o &ldquo;&#8617; Pendente&rdquo; para quem quer apenas desfazer a decis&atilde;o.</li>
+            <li><strong>O fiscal &eacute; avisado</strong> &mdash; devolver um lan&ccedil;amento aceito ou recusado para a fila dispara push <em>&ldquo;&#128260; Lan&ccedil;amento Devolvido para An&aacute;lise&rdquo;</em>, j&aacute; que a pontua&ccedil;&atilde;o que o fiscal via como homologada deixa de valer. Autorizar uma pend&ecirc;ncia de fiscais (que tamb&eacute;m termina em <code>enviado</code>) segue sem notificar &mdash; ali n&atilde;o havia decis&atilde;o a desfazer.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code> (bot&atilde;o e a&ccedil;&atilde;o de devolver, estado do bot&atilde;o Aceitar, notifica&ccedil;&atilde;o); <code>js/version.js</code> &mdash; 1.33.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.33.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.32.0</span>
             <span class="badge-date">25/08/2026</span>
           </div>
