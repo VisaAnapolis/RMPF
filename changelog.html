@@ -44,6 +44,22 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.32.0</span>
+            <span class="badge-date">25/08/2026</span>
+          </div>
+          <div class="changelog-title">Job manual para repescar recusas que ficaram sem aviso</div>
+          <ul class="changelog-changes">
+            <li><strong>O aviso de recusa ganhou rede de segurança</strong> &mdash; at&eacute; aqui, quem descobria a recusa, montava o texto e disparava era o navegador do gestor. Se faltasse o PAT em <code>app_config/github_token</code>, se a aba fechasse antes do <em>fetch</em> ou se a rede falhasse, o fiscal simplesmente n&atilde;o era avisado &mdash; e ningu&eacute;m ficava sabendo, porque a falha &eacute; silenciosa de prop&oacute;sito.</li>
+            <li><strong>Novo workflow <code>Notificar Recusas Pendentes</code></strong> &mdash; varre o Firestore atr&aacute;s dos lan&ccedil;amentos <code>recusado</code> da compet&ecirc;ncia aberta que ainda n&atilde;o foram avisados e envia push e/ou e-mail ao fiscal. <strong>Disparo manual apenas</strong>, pela aba Actions &mdash; nenhum <code>schedule</code> foi reintroduzido.</li>
+            <li><strong>Pensado para ser testado antes de valer</strong> &mdash; a execu&ccedil;&atilde;o aceita <code>dry_run</code> (padr&atilde;o <em>ligado</em>: lista o que seria enviado, sem enviar e sem marcar), <code>canal</code> (<code>push</code>, <code>email</code> ou ambos), <code>fiscal_email</code> (restringe a um destinat&aacute;rio) e <code>ignorar_marca</code> (repete um teste j&aacute; feito).</li>
+            <li><strong>Nada de aviso repetido</strong> &mdash; cada lan&ccedil;amento notificado recebe a marca <code>recusa_notificada_em</code>, e o job s&oacute; pega quem est&aacute; sem ela. O app grava a mesma marca ao recusar, mas <strong>s&oacute; quando o disparo confirma</strong>: falhando os dois canais, o lan&ccedil;amento fica sem marca e &eacute; justamente o que o job repesca. A marca cai quando o status sai de <code>recusado</code>, para que uma recusa futura do mesmo lan&ccedil;amento avise de novo.</li>
+            <li><strong>Escrita cir&uacute;rgica no Firestore</strong> &mdash; a marca&ccedil;&atilde;o usa <code>updateMask</code>, ent&atilde;o s&oacute; o campo <code>recusa_notificada_em</code> &eacute; tocado; o restante do lan&ccedil;amento fica intacto. Enviado mas n&atilde;o marcado, a execu&ccedil;&atilde;o seguinte reenvia &mdash; um aviso repetido &eacute; menos grave que uma recusa que nunca chega.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>.github/workflows/notify-recusas.yml</code> e <code>.github/scripts/notify_recusas.py</code> (novos); <code>js/notifications.js</code> (as fun&ccedil;&otilde;es de disparo passam a devolver <em>boolean</em>, sem deixar de falhar em sil&ecirc;ncio); <code>conferencia.html</code> (grava e limpa a marca); <code>js/version.js</code> &mdash; 1.32.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.32.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.31.0</span>
             <span class="badge-date">25/08/2026</span>
           </div>

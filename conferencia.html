@@ -559,6 +559,10 @@
         pontos_homologado: statusFinal === 'aceito' ? Number(ponHom) : null,
         motivo_recusa: statusFinal === 'recusado' ? motivo : null,
         motivo_pendencia: null,
+        // Sai de 'recusado' (aceito, pendente, reaberto) => a marca do aviso cai,
+        // para que uma recusa futura deste mesmo lançamento notifique de novo.
+        // Quando É recusa, a marca é gravada abaixo, e só se o disparo confirmar.
+        ...(statusFinal === 'recusado' ? {} : { recusa_notificada_em: null }),
         // O alerta vermelho sinaliza alteração no WCVS ainda NÃO apreciada. Ao
         // decidir (aceitando ou recusando de novo), o administrador já viu a
         // divergência: a marca sai, e só volta se a origem mudar outra vez.
@@ -586,10 +590,21 @@
             `O lançamento ${controle} foi recusado. Motivo: ${motivo}. ` +
             `Corrigir a inspeção no WCVS não reabre automaticamente — ` +
             `para reavaliação, procure o gestor.`;
-          window.dispararNotificacaoFiscal(manual.fiscal_email, tituloRec, corpoRec);
-          if (typeof window.dispatchEmailFiscal === 'function') {
-            window.dispatchEmailFiscal(manual.fiscal_email, manual.fiscal_nome, tituloRec, corpoRec);
-          }
+          // A marca `recusa_notificada_em` só é gravada se algum canal confirmar.
+          // Falhando os dois (sem PAT, aba fechada antes do fetch, rede), o
+          // lançamento fica SEM marca e o job manual notify-recusas.yml o
+          // repesca — é isso que faz a rede de segurança ser real, e não
+          // otimista. Continua fire-and-forget: não trava a tela do gestor.
+          Promise.all([
+            window.dispararNotificacaoFiscal(manual.fiscal_email, tituloRec, corpoRec),
+            typeof window.dispatchEmailFiscal === 'function'
+              ? window.dispatchEmailFiscal(manual.fiscal_email, manual.fiscal_nome, tituloRec, corpoRec)
+              : false,
+          ]).then((res) => {
+            if (res.some(Boolean)) {
+              return db_updateManual(id, { recusa_notificada_em: new Date().toISOString() });
+            }
+          }).catch((e) => console.warn('[notif] Falha ao marcar recusa notificada:', e));
         } else if (statusFinal === 'aceito' && (prevStatus === 'aceito' || prevStatus === 'recusado')) {
           // Revisão de lançamento já avaliado — sobrescrita
           window.dispararNotificacaoFiscal(

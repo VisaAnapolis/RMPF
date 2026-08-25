@@ -1,0 +1,60 @@
+name: Notificar Recusas Pendentes (push + e-mail)
+
+# Rede de segurança do aviso que o navegador do gestor dispara na hora da
+# recusa: varre o Firestore em busca de lançamentos recusados na competência
+# aberta que ainda não foram avisados (sem `recusa_notificada_em`) e envia
+# push e/ou e-mail ao fiscal.
+#
+# Disparo MANUAL apenas — sem `schedule`, por decisão do projeto.
+# Comece com dry_run=true para ver o que seria enviado antes de enviar.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Só listar o que seria enviado (não envia nem marca)'
+        type: boolean
+        required: false
+        default: true
+      canal:
+        description: 'Canais a usar'
+        type: choice
+        required: false
+        default: 'ambos'
+        options: [ambos, push, email]
+      fiscal_email:
+        description: 'Restringir a um fiscal (e-mail). Vazio = todos.'
+        type: string
+        required: false
+        default: ''
+      ignorar_marca:
+        description: 'Reenviar mesmo já notificado (para repetir um teste)'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  notificar:
+    name: Notificar recusas pendentes
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependências
+        run: pip install -r .github/scripts/requirements.txt
+
+      - name: Executar script
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          DRY_RUN:       ${{ inputs.dry_run }}
+          CANAL:         ${{ inputs.canal }}
+          FISCAL_EMAIL:  ${{ inputs.fiscal_email }}
+          IGNORAR_MARCA: ${{ inputs.ignorar_marca }}
+        run: python .github/scripts/notify_recusas.py
