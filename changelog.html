@@ -44,6 +44,23 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.30.0</span>
+            <span class="badge-date">24/08/2026</span>
+          </div>
+          <div class="changelog-title">Alerta vermelho: registro alterado no WCVS depois da recusa</div>
+          <ul class="changelog-changes">
+            <li><strong>Novo ícone vermelho na coluna Status</strong> — quando o fiscal altera a inspeção no WCVS <em>depois</em> de o lançamento ter sido recusado pela chefia, um ícone vermelho passa a aparecer ao lado do badge <em>Recusado</em>, ao lado dos já conhecidos 🔄 e ⚖️. Visível para o fiscal (<code>meus-lancamentos.html</code> e <code>dashboard.html</code>) e para o gestor (<code>conferencia.html</code>).</li>
+            <li><strong>Por que existe</strong> — desde a v1.29.0 o lançamento recusado não é mais sobrescrito pela importação. Sem sinalização, a alteração feita na origem ficaria invisível dos dois lados: o gestor não saberia que mexeram no que ele já julgou, e o fiscal não saberia que a correção não surtiu efeito.</li>
+            <li><strong>O modal mostra o que mudou</strong> — tabela <em>Campo | Como estava na recusa | Como está hoje no WCVS</em>, precedida do <strong>motivo da recusa</strong> — que num lançamento importado do VISA não aparecia em nenhum outro lugar da tela do fiscal, já que a coluna Ações exibe apenas o badge CVS. A orientação muda por perfil: o fiscal é instruído a procurar o gestor; o gestor, a usar <em>Rever</em> se a alteração corrigir o que motivou a recusa.</li>
+            <li><strong>O alerta se apaga sozinho</strong> — se o fiscal desfizer a alteração no WCVS, a importação seguinte remove a marca; e quando o administrador decide o lançamento (aceitando ou recusando de novo), ela também sai, pois a divergência já foi apreciada.</li>
+            <li><strong>Nada é sobrescrito</strong> — a detecção grava apenas <code>recusa_alterado_diff</code> e <code>recusa_alterado_em</code>. Status, motivo da recusa e pontuação permanecem intactos. Com os CSVs de apoio falhos na rodada, a marca não é tocada (mesma salvaguarda dos homologados), e a auditoria da simulação registra <code>ignorar_recusado</code> com <code>alterado: true|false</code>.</li>
+            <li><strong>Vale para VISA e SIM</strong> — no VISA a comparação usa os mesmos 13 campos de origem da reconciliação de homologados; no SIM, <code>data</code>, <code>pontos</code>, <code>item_pontuacao</code> e <code>prazo_os</code>.</li>
+            <li><strong>Arquivos</strong> — <code>js/utils.js</code> (<code>recusaAlterada</code>, <code>recusaAlteradaWarningHtml</code>, <code>abrirRecusaAlterada</code> e modal); <code>css/rmpf.css</code> (<code>.recusa-alterada-alerta</code>); <code>js/visa-import.js</code> e <code>js/sim-import.js</code> (detecção e gravação da marca; <code>simDiffOrigem</code>); <code>meus-lancamentos.html</code>, <code>dashboard.html</code>, <code>conferencia.html</code> (ícone na coluna Status; baixa da marca ao decidir); <code>docs/integracao-visa-rmpf.md</code> (nova seção 15.5); <code>js/version.js</code> — 1.30.0; <code>service-worker.js</code> — <code>rmpf-v1.30.0</code>; <code>changelog.html</code> — esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.29.0</span>
             <span class="badge-date">24/08/2026</span>
           </div>

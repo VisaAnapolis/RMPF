@@ -562,7 +562,7 @@
         const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
         const statusCell = m.status === 'pendente' && m.motivo_pendencia
           ? `${badge('pendente-fiscal')}<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia)}</span>`
-          : badge(m.status);
+          : `${badge(m.status)}${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m) : ''}`;
 
         const motivoOSNorm = (m.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
         const isVigilanciaAtiva = motivoOSNorm === 'VIGILANCIA ATIVA';

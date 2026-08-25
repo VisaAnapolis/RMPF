@@ -1072,6 +1072,134 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ── Alerta: registro alterado no WCVS DEPOIS da recusa ────
+// A recusa do gestor é definitiva perante a importação (o lançamento recusado
+// nunca é sobrescrito). Quando o fiscal mexe na inspeção no transacional depois
+// disso, a importação grava `recusa_alterado_diff` e este ícone denuncia a
+// alteração aos dois lados — sem ele, a mudança ficaria só no log da rodada.
+// Vermelho, e não o amarelo dos demais: aqui há divergência entre o que foi
+// julgado e o que existe hoje na origem. Como emoji ignora `color`, é SVG.
+const _SVG_RECUSA_ALTERADA =
+  `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">` +
+  `<path d="M12 3.5 1.8 20.5h20.4L12 3.5Zm0 4.9a1 1 0 0 1 1 1v4.8a1 1 0 0 1-2 0V9.4a1 1 0 0 1 1-1Zm0 8.2a1.15 1.15 0 1 1 0 2.3 1.15 1.15 0 0 1 0-2.3Z"/>` +
+  `</svg>`;
+
+function recusaAlterada(m) {
+  return !!(m && m.status === 'recusado' &&
+            Array.isArray(m.recusa_alterado_diff) && m.recusa_alterado_diff.length);
+}
+
+// `gestao` muda a redação (o gestor pode rever; o fiscal precisa procurá-lo) e é
+// argumento explícito porque utils.js carrega antes de guard.js — quem sabe o
+// perfil é a tela, não o helper. Mesmo contrato de `cnaeAltaIndicadaHtml`.
+function recusaAlteradaWarningHtml(m, gestao) {
+  if (!recusaAlterada(m)) return '';
+  let diffJson = '';
+  try { diffJson = JSON.stringify(m.recusa_alterado_diff); } catch (_) { diffJson = ''; }
+  const rotulo = 'Alterado no WCVS depois da recusa — clique para detalhes';
+  return ` <span class="recusa-alterada-alerta" role="button" tabindex="0"` +
+    ` title="${rotulo}" aria-label="${rotulo}"` +
+    ` data-gestao="${gestao ? '1' : ''}"` +
+    ` data-motivo="${escHtml(m.motivo_recusa || '')}"` +
+    ` data-diff="${escHtml(diffJson)}">${_SVG_RECUSA_ALTERADA}</span>`;
+}
+
+function abrirRecusaAlterada(ds) {
+  _initRecusaAlteradaModal();
+  const modal = document.getElementById('modal-recusa-alterada');
+  if (!modal) return;
+
+  let diff = [];
+  try { diff = ds.diff ? JSON.parse(ds.diff) : []; } catch (_) { diff = []; }
+  const gestao = !!(ds && ds.gestao);
+
+  // O motivo da recusa abre o modal: num lançamento importado do VISA ele não
+  // aparece em nenhum outro lugar da tela do fiscal (a coluna Ações mostra só o
+  // badge CVS), e sem ele o alerta não diz o que precisa ser corrigido.
+  let html = '';
+  if (ds.motivo) {
+    html += `<p style="margin:0 0 12px"><strong>Motivo da recusa (chefia):</strong><br>` +
+            `${escHtml(ds.motivo)}</p>` +
+            `<hr style="border:0;border-top:1px solid var(--cinzaL);margin:0 0 12px">`;
+  }
+
+  html += gestao
+    ? `<p style="margin:0 0 12px">Este lançamento foi recusado e, depois da recusa, a inspeção ` +
+      `foi alterada no WCVS pelo fiscal. A importação <strong>não aplicou</strong> a alteração — ` +
+      `o lançamento continua recusado, sem pontuação.</p>`
+    : `<p style="margin:0 0 12px">Este lançamento foi recusado pela chefia e a inspeção foi ` +
+      `alterada no WCVS depois disso. A alteração <strong>não</strong> reabre o lançamento nem ` +
+      `restaura a pontuação — a recusa continua valendo.</p>`;
+
+  if (diff.length) {
+    const th = 'text-align:left;padding:4px 6px;border-bottom:1px solid var(--cinzaL)';
+    html += `<table style="width:100%;border-collapse:collapse;font-size:.92em">` +
+      `<thead><tr>` +
+      `<th style="${th}">Campo</th>` +
+      `<th style="${th}">Como estava na recusa</th>` +
+      `<th style="${th}">Como está hoje no WCVS</th>` +
+      `</tr></thead><tbody>`;
+    for (const d of diff) {
+      html += `<tr>` +
+        `<td style="padding:4px 6px"><strong>${escHtml(d.label || d.campo || '')}</strong></td>` +
+        `<td style="padding:4px 6px">${escHtml(d.de === '' || d.de == null ? '—' : String(d.de))}</td>` +
+        `<td style="padding:4px 6px">${escHtml(d.para === '' || d.para == null ? '—' : String(d.para))}</td>` +
+        `</tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+
+  html += gestao
+    ? `<p style="margin:12px 0 0">Se a alteração corrige o que motivou a recusa, use ` +
+      `<strong>Rever</strong> para reavaliar. Caso contrário, nenhuma ação é necessária.</p>`
+    : `<p style="margin:12px 0 0">Se a correção resolve o motivo da recusa, <strong>procure o ` +
+      `gestor</strong>: só ele pode rever a decisão.</p>`;
+
+  modal.querySelector('#ra-body').innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function _initRecusaAlteradaModal() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('modal-recusa-alterada')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    `<div id="modal-recusa-alterada" class="modal-backdrop" style="display:none">` +
+    `<div class="modal" style="max-width:620px">` +
+    `<div class="modal-header"><span>⛔ Alterado no WCVS depois da recusa</span>` +
+    `<button class="modal-close" id="ra-close" aria-label="Fechar">✕</button></div>` +
+    `<div class="modal-body" id="ra-body"></div>` +
+    `<div class="modal-footer"><button class="btn btn-default" id="ra-close2">Entendi</button></div>` +
+    `</div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const modal = document.getElementById('modal-recusa-alterada');
+  const hide = () => { modal.style.display = 'none'; };
+  document.getElementById('ra-close').addEventListener('click', hide);
+  document.getElementById('ra-close2').addEventListener('click', hide);
+  modal.addEventListener('click', (e) => { if (e.target === modal) hide(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') hide();
+  });
+}
+
+function _onRecusaAlteradaActivate(e) {
+  const el = e.target && e.target.closest ? e.target.closest('.recusa-alterada-alerta') : null;
+  if (!el) return;
+  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  abrirRecusaAlterada(el.dataset);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', _onRecusaAlteradaActivate);
+  document.addEventListener('keydown', _onRecusaAlteradaActivate);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initRecusaAlteradaModal);
+  } else {
+    _initRecusaAlteradaModal();
+  }
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -1122,4 +1250,7 @@ window.cnaeAltaIndicada          = cnaeAltaIndicada;
 window.cnaeAltaIndicadaHtml      = cnaeAltaIndicadaHtml;
 window.setCnaeAltaAlertaAtivo    = setCnaeAltaAlertaAtivo;
 window.abrirCnaeAltaIndicada     = abrirCnaeAltaIndicada;
+window.recusaAlterada            = recusaAlterada;
+window.recusaAlteradaWarningHtml = recusaAlteradaWarningHtml;
+window.abrirRecusaAlterada       = abrirRecusaAlterada;
 window.visaAppSidebarLink        = visaAppSidebarLink;

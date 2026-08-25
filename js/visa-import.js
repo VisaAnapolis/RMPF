@@ -1584,19 +1584,6 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
                 continue;
               }
-              // Recusado pelo gestor é avaliação definitiva: a importação nunca
-              // o sobrescreve nem o devolve à conferência — alterações feitas no
-              // WCVS depois da recusa não desfazem a decisão. Reavaliação só
-              // manualmente, pelo gestor, na Conferência (botão "Rever").
-              if (existing.status === 'recusado') {
-                ignorados++;
-                anota('ignorar_recusado', {
-                  controle: controleVisa, fiscal: emailFiscal, cnae: alvo.cnae,
-                  data: dataISO, status_atual: existing.status,
-                });
-                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: recusado pelo gestor — preservado. Reavaliação apenas pela Conferência.`, 'warn');
-                continue;
-              }
               const _duplaReducaoVis = alvo.qtd_fiscais != null;
               const updateData = {
                 fiscal_nome: nomeFiscalCsv,
@@ -1629,6 +1616,57 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFiscal, _duplaReducaoVis, itemDecretoZerado || itemDecretoAlimentacao || undefined)
                   : null,
               };
+              // ── Recusado: avaliação definitiva, nunca sobrescrita ──────
+              // A importação não devolve o lançamento à conferência nem apaga o
+              // motivo da recusa. Mas o que o fiscal mexeu no WCVS depois da
+              // recusa não pode passar em branco: comparamos a origem e, se algo
+              // mudou, gravamos SÓ a marca do alerta (nada de status/pontos),
+              // que as telas exibem em vermelho na coluna Status. Reavaliação
+              // continua sendo só do gestor, na Conferência (botão "Rever").
+              if (existing.status === 'recusado') {
+                ignorados++;
+                let _recusaAlterada = false;
+                // Mesma salvaguarda do homologado: com CSV de apoio falho o diff
+                // é ruído, e alertar à toa mina a confiança no sinal.
+                if (!fontesIncompletas) {
+                  const _diffRec = visaDiffOrigem(existing, updateData);
+                  const _jaMarcado = Array.isArray(existing.recusa_alterado_diff)
+                    ? existing.recusa_alterado_diff : null;
+                  let _mudouMarca = true;
+                  try {
+                    _mudouMarca = JSON.stringify(_jaMarcado || []) !== JSON.stringify(_diffRec);
+                  } catch (_) { _mudouMarca = true; }
+                  if (_diffRec.length) {
+                    _recusaAlterada = true;
+                    if (_mudouMarca) {
+                      await escrever.update(existing.id, {
+                        recusa_alterado_diff: _diffRec,
+                        recusa_alterado_em: new Date().toISOString(),
+                      });
+                      onProgress(
+                        `⛔ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: alterado no WCVS DEPOIS da ` +
+                        `recusa (${_diffRec.map(d => d.label).join(', ')}) — recusa mantida, alerta sinalizado.`, 'warn');
+                    }
+                  } else if (_jaMarcado) {
+                    // Fiscal desfez a alteração no WCVS: o alerta some sozinho.
+                    await escrever.update(existing.id, {
+                      recusa_alterado_diff: null,
+                      recusa_alterado_em: null,
+                    });
+                    onProgress(
+                      `✅ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: inspeção voltou ao que era na ` +
+                      `recusa — alerta de alteração removido.`, 'info');
+                  }
+                }
+                anota('ignorar_recusado', {
+                  controle: controleVisa, fiscal: emailFiscal, cnae: alvo.cnae,
+                  data: dataISO, status_atual: existing.status, alterado: _recusaAlterada,
+                });
+                if (!_recusaAlterada) {
+                  onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: recusado pelo gestor — preservado. Reavaliação apenas pela Conferência.`, 'warn');
+                }
+                continue;
+              }
               // ── Homologado: só sobrescreve se a origem realmente mudou ──
               // Sem diff, a homologação do administrador fica intacta (e sem
               // gravação). Com diff, o dado do WCVS prevalece e o lançamento

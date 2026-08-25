@@ -100,6 +100,8 @@ Para cada linha do CSV filtrada pelo mês/ano:
     │       intactos). Alteração feita no WCVS depois da recusa NÃO devolve o
     │       lançamento à conferência: reavaliação só manualmente, pelo gestor,
     │       na Conferência (botão "Rever").
+    │       Se a origem MUDOU desde a recusa, grava só a marca do alerta
+    │       (recusa_alterado_diff / recusa_alterado_em) — ver §15.5.
     │
     └── Existe + status homologado ('aceito' ou 'fechado')
           → IGNORA + exibe aviso individual:
@@ -458,6 +460,29 @@ Regra: **Plantão fiscal (PLT), Operação fiscal (OPF) e Serviços técnicos re
 
 **Helpers** (`js/visa-import.js`): `ehAtividadeDiaInteiroManual(m)` (tipo ∈ `TIPOS_DIA_INTEIRO_MANUAL = ['PLT','OPF','SRV']`, origem não importada, status ≠ recusado) e `atividadesDiaInteiroNoDia(fiscalEmail, dataISO, excluirId)`.
 
+## 15.5. Alerta vermelho — registro alterado no WCVS depois da recusa
+
+Como o lançamento recusado nunca é sobrescrito (§6), uma alteração feita pelo fiscal no WCVS **depois** da recusa não produz nenhum efeito no RMPF — e, sem sinalização, ficaria invisível: o gestor não saberia que o fiscal mexeu no que ele já julgou, e o fiscal não saberia que a correção não surtiu efeito. Daí o alerta.
+
+**Detecção (na importação).** Ao encontrar um lançamento `recusado`, a importação monta o `updateData` normalmente (é cálculo puro, não grava) e compara com o documento salvo:
+
+| Origem | Função | Campos comparados |
+|---|---|---|
+| VISA | `visaDiffOrigem` (`js/visa-import.js`) | `VISA_CAMPOS_ORIGEM` — os mesmos 13 campos da reconciliação de homologados |
+| SIM | `simDiffOrigem` (`js/sim-import.js`) | `SIM_CAMPOS_ORIGEM` = `data`, `pontos`, `item_pontuacao`, `prazo_os` |
+
+Havendo diferença, grava **somente** dois campos — `recusa_alterado_diff` (array `{campo, label, de, para}`) e `recusa_alterado_em` (ISO) —, jamais `status`, `pontos` ou `motivo_recusa`. Se o fiscal desfizer a alteração no WCVS, a rodada seguinte encontra diff vazio e **limpa a marca sozinha**. A gravação só ocorre quando o diff muda, então rodadas repetidas não escrevem à toa.
+
+Salvaguardas: com os CSVs de apoio falhos (`fontesIncompletas`) o diff é ruído e a marca não é tocada — mesma proteção dos homologados; a auditoria da simulação registra a ação `ignorar_recusado` com `alterado: true|false`.
+
+**Exibição.** Ícone SVG **vermelho** (`var(--verm)`, que já acompanha o modo escuro) na coluna **Status**, ao lado do badge "Recusado" — junto dos irmãos 🔄 (reabertura) e ⚖️ (dispositivo legal). Aparece em `meus-lancamentos.html`, `dashboard.html` (fiscal) e `conferencia.html` (gestor). É vermelho, e não o amarelo dos demais alertas, porque não sinaliza perda de pontos: sinaliza divergência entre o que a chefia julgou e o que existe hoje na origem.
+
+O modal abre com o **motivo da recusa** — que num lançamento importado do VISA não aparece em nenhum outro lugar da tela do fiscal, já que a coluna Ações mostra apenas o badge CVS —, seguido da tabela *Campo | Como estava na recusa | Como está hoje no WCVS* e da orientação por perfil: o fiscal é instruído a procurar o gestor (a alteração não reabre nem repontua); o gestor, a usar "Rever" se a alteração corrigir o que motivou a recusa.
+
+**Baixa do alerta.** A marca é apagada quando o administrador decide o lançamento em `conferencia.html` (aceitando ou recusando de novo) — ele já viu a divergência — e volta apenas se a origem mudar outra vez.
+
+**Helpers** (`js/utils.js`): `recusaAlterada(m)`, `recusaAlteradaWarningHtml(m, gestao)`, `abrirRecusaAlterada(ds)`. CSS: `.recusa-alterada-alerta` (`css/rmpf.css`).
+
 ---
 
 ## 16. Regras de Negócio — Resumo Rápido
@@ -468,6 +493,7 @@ Regra: **Plantão fiscal (PLT), Operação fiscal (OPF) e Serviços técnicos re
 | Fiscais por inspeção | Até 3 — cada um recebe lançamento independente |
 | Chave do documento | `visa_{CONTROLE}_{email_normalizado}` |
 | Re-importação | Sobrescreve se não homologado **e não recusado**; ignora homologado, fechado e recusado (recusa só é revertida manualmente pelo gestor na Conferência) |
+| Recusado alterado no WCVS (§15.5) | Não sobrescreve; grava só `recusa_alterado_diff`/`recusa_alterado_em` e exibe ícone **vermelho** na coluna Status (fiscal e gestor). Marca sai quando o gestor decide, ou quando o fiscal desfaz a alteração na origem |
 | Edição pelo fiscal | Proibida para `origem: 'visa_csv'` |
 | Homologação | Admin homologa individualmente por fiscal; revalida não cumulatividade antes de aceitar pontos > 0 (aviso com decisão caso a caso do admin) |
 | Fonte CNAE | `data/cnae.csv` do VISA, carregado em memória a cada importação |

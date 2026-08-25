@@ -391,7 +391,7 @@
         <td data-label="Pontos Requeridos" class="td-num">${m.pontos!=null?formatPontos(m.pontos):'—'}${window.zeradoWarningHtml(m)}</td>
         <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
         <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado!=null?formatPontos(m.pontos_homologado):'—'}</td>
-        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : (m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status))}${window.reabertoWarningHtml(m)}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
+        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : (m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status))}${window.reabertoWarningHtml(m)}${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m, isAdmin) : ''}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
         <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
         <td data-label="Ações" class="nao-imprimir" style="white-space:nowrap">${acoes}</td>
       </tr>`;
@@ -559,6 +559,11 @@
         pontos_homologado: statusFinal === 'aceito' ? Number(ponHom) : null,
         motivo_recusa: statusFinal === 'recusado' ? motivo : null,
         motivo_pendencia: null,
+        // O alerta vermelho sinaliza alteração no WCVS ainda NÃO apreciada. Ao
+        // decidir (aceitando ou recusando de novo), o administrador já viu a
+        // divergência: a marca sai, e só volta se a origem mudar outra vez.
+        recusa_alterado_diff: null,
+        recusa_alterado_em: null,
       }, _limpezaReab));
       document.getElementById('modal-hom').style.display = 'none';
       const msg = _homPendente && status === 'aceito'
