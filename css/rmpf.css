@@ -554,6 +554,23 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
 .cnae-alta-alerta svg { width: 1.1em; height: 1.1em; display: block; }
 .cnae-alta-alerta:focus-visible { outline: 2px solid var(--azul); outline-offset: 2px; }
 
+/* ── Alerta de registro alterado no WCVS depois da recusa ── */
+/* Vermelho: não é perda de pontos (amarelo) nem direcionamento de análise
+   (azul) — é divergência entre o que a chefia julgou e o que existe hoje na
+   origem. SVG pelo mesmo motivo do alerta acima: emoji ignora `color`.
+   `--verm` já troca sozinho no modo escuro (bloco prefers-color-scheme). */
+.recusa-alterada-alerta {
+  color: var(--verm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 4px;
+  line-height: 1;
+}
+.recusa-alterada-alerta svg { width: 1.1em; height: 1.1em; display: block; }
+.recusa-alterada-alerta:focus-visible { outline: 2px solid var(--verm); outline-offset: 2px; }
+
 /* ── Modal ── */
 .modal-backdrop {
   position: fixed; inset: 0;
