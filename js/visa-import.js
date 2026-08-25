@@ -1646,6 +1646,16 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                       onProgress(
                         `⛔ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: alterado no WCVS DEPOIS da ` +
                         `recusa (${_diffRec.map(d => d.label).join(', ')}) — recusa mantida, alerta sinalizado.`, 'warn');
+                      // Só quando a marca muda: repetir o aviso a cada rodada da
+                      // importação (~10 min) transformaria o alerta em ruído.
+                      if (!simulacao && typeof window.notificarRecusaAlterada === 'function') {
+                        window.notificarRecusaAlterada({
+                          id: existing.id,
+                          controle: controleVisa,
+                          fiscal_email: emailFiscal,
+                          fiscal_nome: nomeFiscalCsv,
+                        });
+                      }
                     }
                   } else if (_jaMarcado) {
                     // Fiscal desfez a alteração no WCVS: o alerta some sozinho.

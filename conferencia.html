@@ -578,11 +578,18 @@
       if (manual && typeof window.dispararNotificacaoFiscal === 'function') {
         const controle = manual.controle || id;
         if (statusFinal === 'recusado') {
-          window.dispararNotificacaoFiscal(
-            manual.fiscal_email,
-            '⚠️ Lançamento Recusado',
-            `O lançamento ${controle} foi recusado. Motivo: ${motivo}`
-          );
+          // A recusa é definitiva perante a importação: mexer no WCVS depois
+          // dela não reabre mais o lançamento (mudou na v1.29.0), e o fiscal
+          // precisa saber disso junto com o motivo — daí push E e-mail.
+          const tituloRec = '⚠️ Lançamento Recusado';
+          const corpoRec =
+            `O lançamento ${controle} foi recusado. Motivo: ${motivo}. ` +
+            `Corrigir a inspeção no WCVS não reabre automaticamente — ` +
+            `para reavaliação, procure o gestor.`;
+          window.dispararNotificacaoFiscal(manual.fiscal_email, tituloRec, corpoRec);
+          if (typeof window.dispatchEmailFiscal === 'function') {
+            window.dispatchEmailFiscal(manual.fiscal_email, manual.fiscal_nome, tituloRec, corpoRec);
+          }
         } else if (statusFinal === 'aceito' && (prevStatus === 'aceito' || prevStatus === 'recusado')) {
           // Revisão de lançamento já avaliado — sobrescrita
           window.dispararNotificacaoFiscal(
