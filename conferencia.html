@@ -138,6 +138,10 @@
             <div class="form-group">
               <label class="form-label required" for="hom-pts-hom">Pts Homologados</label>
               <input type="number" class="form-control" id="hom-pts-hom" min="0">
+              <div class="form-hint" id="hom-aceitar-hint" style="display:none">
+                Lançamento já aceito — altere os Pts Homologados para habilitar “✓ Aceitar”,
+                ou use “↩ Pendente” para devolvê-lo à fila de homologação.
+              </div>
             </div>
           </div>
           <div id="hom-pendencia-aviso" style="display:none;margin-bottom:.5rem" class="alert alert-warn">
@@ -152,6 +156,7 @@
         </div>
         <div class="modal-footer">
           <button class="btn btn-default" id="modal-close2">Cancelar</button>
+          <button class="btn btn-warn" id="btn-pendente" style="display:none" title="Devolve o lançamento à fila de homologação">↩ Pendente</button>
           <button class="btn btn-danger" id="btn-recusar">✗ Recusar</button>
           <button class="btn btn-primary" id="btn-aceitar">✓ Aceitar</button>
         </div>
@@ -227,7 +232,29 @@
   let _manuais     = [];
   let _perfil       = '';
   let _homPendente = false; // true quando o modal foi aberto para autorizar (status 'pendente')
+  // Pts Homologados com que o modal abriu, quando o lançamento JÁ estava aceito.
+  // null = lançamento ainda não aceito (o botão "Aceitar" fica sempre ativo).
+  let _homAceitoValorOriginal = null;
   let _fiscais30hAtivo = false; // flag de Parametrização — regra de produtividade dos fiscais de 30h
+
+  // "Aceitar" um lançamento que já está aceito, com a mesma pontuação, não muda
+  // nada — e ver o botão verde ativo ao lado de "Recusar" faz o admin achar que
+  // precisa reaceitar para sair do modal. Então ele nasce desabilitado nesse
+  // caso e só se habilita quando a pontuação muda, que é a única revisão que o
+  // aceite ainda grava. Para desfazer a decisão existe o "↩ Pendente".
+  function atualizarBotaoAceitar() {
+    const btn  = document.getElementById('btn-aceitar');
+    const hint = document.getElementById('hom-aceitar-hint');
+    if (_homAceitoValorOriginal === null) {
+      btn.disabled = false;
+      hint.style.display = 'none';
+      return;
+    }
+    const atual = document.getElementById('hom-pts-hom').value;
+    const mudou = atual !== '' && Number(atual) !== Number(_homAceitoValorOriginal);
+    btn.disabled = !mudou;
+    hint.style.display = mudou ? 'none' : '';
+  }
 
   function buildSidebar(perfil) {
     const links = perfil === 'Fiscal' ? [
@@ -454,6 +481,16 @@
     document.getElementById('btn-aceitar').textContent   = isPendente ? '✓ Autorizar' : '✓ Aceitar';
     // Ocultar campo de pontos homologados na autorização (não faz parte desse passo)
     document.getElementById('hom-pts-hom').closest('.form-group').style.display = isPendente ? 'none' : '';
+    // ── Rever um lançamento já decidido ───────────────────────────────────
+    // Aceito/recusado/homologado ganham a opção intermediária: devolver o
+    // lançamento à fila de homologação (status `enviado`, badge "Enviado"),
+    // desfazendo a decisão sem ter de aceitar nem recusar de novo.
+    const isDecidido = ['aceito', 'recusado', 'homologado'].includes(m.status);
+    document.getElementById('btn-pendente').style.display = isDecidido ? '' : 'none';
+    _homAceitoValorOriginal = (m.status === 'aceito' || m.status === 'homologado')
+      ? String(valorPreenchido)
+      : null;
+    atualizarBotaoAceitar();
     document.getElementById('hom-alert').innerHTML = '';
     document.getElementById('modal-hom').style.display = 'flex';
   }
@@ -492,6 +529,23 @@
     // Captura dados do lançamento antes de atualizar (para a notificação)
     const manual = _manuais.find(x => x.id === id);
     const prevStatus = manual ? manual.status : null;
+
+    // ── Devolver para "Pendente" (fila de homologação) ────────────────────
+    // Opção intermediária ao rever um lançamento já decidido: em vez de aceitar
+    // ou recusar outra vez, o admin desfaz a decisão e o lançamento volta para
+    // `enviado` — o mesmo estado de antes da homologação. A pontuação
+    // homologada e o motivo da recusa saem junto, senão sobrariam de uma
+    // decisão que não vale mais.
+    if (status === 'enviado') {
+      const okDevolver = confirm(
+        'Devolver este lançamento para a fila de homologação?\n\n' +
+        'A decisão atual é desfeita' +
+        (manual && manual.pontos_homologado != null
+          ? ` e os ${formatPontos(manual.pontos_homologado)} pt(s) homologados são zerados`
+          : '') +
+        '. O lançamento volta a aparecer como pendente de homologação.');
+      if (!okDevolver) return;
+    }
 
     const motivoOSNorm = (manual?.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
     if (status === 'aceito' && motivoOSNorm === 'PLANTAO FISCAL' && Number(ponHom) !== 0) {
@@ -572,7 +626,9 @@
       document.getElementById('modal-hom').style.display = 'none';
       const msg = _homPendente && status === 'aceito'
         ? 'Lançamento <strong>autorizado</strong> e enviado para conferência.'
-        : `Lançamento <strong>${statusFinal}</strong>.`;
+        : (status === 'enviado'
+            ? 'Lançamento devolvido para <strong>pendente de homologação</strong>.'
+            : `Lançamento <strong>${statusFinal}</strong>.`);
       document.getElementById('alert-area').innerHTML = alerta('ok', msg);
       const _scrollY = window.scrollY;
       await loadConferencia();
@@ -605,6 +661,15 @@
               return db_updateManual(id, { recusa_notificada_em: new Date().toISOString() });
             }
           }).catch((e) => console.warn('[notif] Falha ao marcar recusa notificada:', e));
+        } else if (statusFinal === 'enviado'
+                   && (prevStatus === 'aceito' || prevStatus === 'homologado' || prevStatus === 'recusado')) {
+          // Decisão desfeita: o fiscal viu o lançamento como aceito (com pontos)
+          // ou recusado, e agora ele voltou para a fila — precisa saber.
+          window.dispararNotificacaoFiscal(
+            manual.fiscal_email,
+            '🔄 Lançamento Devolvido para Análise',
+            `O lançamento ${controle} voltou para pendente de homologação e será reavaliado.`
+          );
         } else if (statusFinal === 'aceito' && (prevStatus === 'aceito' || prevStatus === 'recusado')) {
           // Revisão de lançamento já avaliado — sobrescrita
           window.dispararNotificacaoFiscal(
@@ -653,6 +718,8 @@
 
   document.getElementById('btn-aceitar').addEventListener('click', () => homologar('aceito'));
   document.getElementById('btn-recusar').addEventListener('click', () => homologar('recusado'));
+  document.getElementById('btn-pendente').addEventListener('click', () => homologar('enviado'));
+  document.getElementById('hom-pts-hom').addEventListener('input', atualizarBotaoAceitar);
   ['modal-close','modal-close2'].forEach(id => {
     document.getElementById(id).addEventListener('click', () => {
       document.getElementById('modal-hom').style.display = 'none';
