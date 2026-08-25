@@ -22,27 +22,31 @@ const _NOTIF_REPO = 'garrado/RMPF';
  * @param {string} fiscalEmail  E-mail do fiscal destinatário
  * @param {string} titulo       Título da notificação
  * @param {string} corpo        Corpo/texto da notificação
+ * @returns {Promise<boolean>}  true se ao menos um despacho foi aceito pelo
+ *   GitHub. Quem chama usa isso para saber se o aviso saiu — sem esse retorno
+ *   não há como distinguir "entregue" de "falhou em silêncio", e o job
+ *   notify-recusas.yml não teria como saber o que precisa repescar.
  */
 async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
   try {
     const snap = await window.db.collection('usuarios').doc(fiscalEmail).get();
-    if (!snap.exists) return;
+    if (!snap.exists) return false;
 
     const data = snap.data() || {};
     const tokens = Array.isArray(data.rmpf_fcmTokens)
       ? data.rmpf_fcmTokens.filter(t => typeof t === 'string' && t.trim()).map(t => t.trim())
       : [];
 
-    if (!tokens.length) return; // Fiscal sem rmpf_fcmTokens — precisa fazer login no RMPF para registrar
+    if (!tokens.length) return false; // Fiscal sem rmpf_fcmTokens — precisa fazer login no RMPF para registrar
 
     const ghToken = await window.db_getGitHubToken();
     if (!ghToken) {
       console.warn('[notif] Token do GitHub não configurado — notificação não enviada.');
-      return;
+      return false;
     }
 
     // Dispara um repository_dispatch por token (um por dispositivo registrado)
-    await Promise.all([...new Set(tokens)].map(async (fcm_token) => {
+    const resultados = await Promise.all([...new Set(tokens)].map(async (fcm_token) => {
       const resp = await fetch(`https://api.github.com/repos/${_NOTIF_REPO}/dispatches`, {
         method: 'POST',
         headers: {
@@ -59,10 +63,14 @@ async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
 
       if (!resp.ok && resp.status !== 204) {
         console.warn('[notif] Falha ao despachar notificação: HTTP', resp.status);
+        return false;
       }
+      return true;
     }));
+    return resultados.some(Boolean);
   } catch (e) {
     console.warn('[notif] Erro ao enviar notificação push:', e);
+    return false;
   }
 }
 
@@ -76,13 +84,14 @@ window.dispararNotificacaoFiscal = dispararNotificacaoFiscal;
  * @param {string} fiscalNome   Nome do fiscal
  * @param {string} titulo       Assunto / título do e-mail
  * @param {string} corpo        Corpo da mensagem (pode conter HTML simples)
+ * @returns {Promise<boolean>}  true se o despacho foi aceito pelo GitHub.
  */
 async function dispatchEmailFiscal(fiscalEmail, fiscalNome, titulo, corpo) {
   try {
     const ghToken = await window.db_getGitHubToken();
     if (!ghToken) {
       console.warn('[notif] Token do GitHub não configurado — e-mail não enviado.');
-      return;
+      return false;
     }
 
     const resp = await fetch(`https://api.github.com/repos/${_NOTIF_REPO}/dispatches`, {
@@ -106,9 +115,12 @@ async function dispatchEmailFiscal(fiscalEmail, fiscalNome, titulo, corpo) {
 
     if (!resp.ok && resp.status !== 204) {
       console.warn('[notif] Falha ao despachar e-mail: HTTP', resp.status);
+      return false;
     }
+    return true;
   } catch (e) {
     console.warn('[notif] Erro ao enviar e-mail ao fiscal:', e);
+    return false;
   }
 }
 
