@@ -571,6 +571,21 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
 .recusa-alterada-alerta svg { width: 1.1em; height: 1.1em; display: block; }
 .recusa-alterada-alerta:focus-visible { outline: 2px solid var(--verm); outline-offset: 2px; }
 
+/* ── Motivo da recusa (ícone ao lado do badge "Recusado") ── */
+/* Mesmo vermelho do alerta acima: é a decisão da chefia, não perda de pontos.
+   Ícone distinto (círculo com ✗) para não se confundir com aquele triângulo. */
+.motivo-recusa-alerta {
+  color: var(--verm);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 4px;
+  line-height: 1;
+}
+.motivo-recusa-alerta svg { width: 1.1em; height: 1.1em; display: block; }
+.motivo-recusa-alerta:focus-visible { outline: 2px solid var(--verm); outline-offset: 2px; }
+
 /* ── Modal ── */
 .modal-backdrop {
   position: fixed; inset: 0;

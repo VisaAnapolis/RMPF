@@ -44,6 +44,22 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.34.0</span>
+            <span class="badge-date">26/08/2026</span>
+          </div>
+          <div class="changelog-title">Motivo da recusa vis&iacute;vel ao fiscal tamb&eacute;m nos lan&ccedil;amentos importados do VISA/SIM</div>
+          <ul class="changelog-changes">
+            <li><strong>O problema</strong> &mdash; o motivo da recusa s&oacute; chegava ao fiscal em lan&ccedil;amento <em>manual</em>, como texto na coluna <em>A&ccedil;&otilde;es</em> de <em>Meus Lan&ccedil;amentos</em>. Num lan&ccedil;amento importado dos CSVs do VISA (ou do SIM) essa coluna mostra apenas o badge <code>CVS</code>/<code>SIM</code> (somente leitura): o fiscal via o badge <em>Recusado</em> e mais nada. O motivo ficava restrito ao modal de homologa&ccedil;&atilde;o de <code>conferencia.html</code> &mdash; tela para a qual o perfil Fiscal &eacute; redirecionado &mdash; e ao push/e-mail do momento da recusa, que se perde. O &iacute;cone vermelho que abria o motivo s&oacute; aparecia no caso particular de a inspe&ccedil;&atilde;o ter sido alterada no WCVS <em>depois</em> da recusa (<code>recusa_alterado_diff</code>, v1.29.0).</li>
+            <li><strong>&Iacute;cone &#9940; ao lado do badge &ldquo;Recusado&rdquo;</strong> &mdash; novo <code>motivoRecusaHtml()</code> em <code>js/utils.js</code>: todo lan&ccedil;amento com <code>status: 'recusado'</code> e <code>motivo_recusa</code> exibe um &iacute;cone vermelho clic&aacute;vel na coluna <em>Status</em>, qualquer que seja a origem. O clique (ou Enter/Espa&ccedil;o) abre um modal com o motivo escrito pela chefia &mdash; mesmo padr&atilde;o de modal &uacute;nico + delega&ccedil;&atilde;o dos alertas de prazo, pontua&ccedil;&atilde;o zerada e reabertura.</li>
+            <li><strong>A orienta&ccedil;&atilde;o muda por origem e por perfil</strong> &mdash; num lan&ccedil;amento importado, o modal diz ao fiscal que a linha &eacute; somente leitura (da&iacute; n&atilde;o haver bot&atilde;o de corrigir), que mexer na inspe&ccedil;&atilde;o no sistema de origem <strong>n&atilde;o</strong> reabre o lan&ccedil;amento nem restaura a pontua&ccedil;&atilde;o, e que a reavalia&ccedil;&atilde;o passa pelo gestor &mdash; a mesma regra que o push da recusa j&aacute; anunciava. Num lan&ccedil;amento manual, aponta o <em>&#9999;&#65039; Corrigir e Reenviar</em>. Para o administrador, aponta o <em>&#9999;&#65039; Rever</em>.</li>
+            <li><strong>Sem &iacute;cone duplicado</strong> &mdash; quando existe o alerta de altera&ccedil;&atilde;o no WCVS depois da recusa, que j&aacute; abre com o motivo no topo, o novo &iacute;cone se omite: aquele alerta, mais espec&iacute;fico, tem preced&ecirc;ncia.</li>
+            <li><strong>Onde aparece</strong> &mdash; <em>Meus Lan&ccedil;amentos</em> e <em>Dashboard</em> (telas do fiscal) e tamb&eacute;m <em>Confer&ecirc;ncia</em>, para o administrador ler a pr&oacute;pria decis&atilde;o sem abrir o modal de revis&atilde;o.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>js/utils.js</code> (<code>motivoRecusaHtml</code>, modal e delega&ccedil;&atilde;o); <code>css/rmpf.css</code> (<code>.motivo-recusa-alerta</code>); <code>meus-lancamentos.html</code>, <code>dashboard.html</code>, <code>conferencia.html</code> (coluna Status); <code>js/version.js</code> &mdash; 1.34.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.34.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.33.0</span>
             <span class="badge-date">25/08/2026</span>
           </div>
