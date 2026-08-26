@@ -1200,6 +1200,117 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ── Motivo da recusa (ícone ⛔ em qualquer tela) ──────────
+// O motivo da recusa só chegava ao fiscal em lançamento MANUAL, como texto na
+// coluna Ações de meus-lancamentos.html. Num lançamento importado do VISA/SIM
+// essa coluna mostra apenas o badge CVS/SIM (somente leitura), então o fiscal
+// via o badge "Recusado" e nada mais: o motivo ficava restrito ao modal de
+// homologação de conferencia.html — tela que o Fiscal nem abre (é redirecionado)
+// — e ao push/e-mail do momento da recusa, que se perde. O ícone ⛔ ao lado do
+// badge resolve isso e vale para as duas origens. Mesmo padrão de modal único +
+// delegação dos demais alertas.
+
+// Vermelho pelo mesmo motivo do alerta de recusa alterada, e SVG porque emoji
+// ignora `color`. Círculo com ✗ para não se confundir com o triângulo daquele.
+const _SVG_MOTIVO_RECUSA =
+  `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" focusable="false">` +
+  `<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm3.54 12.12a1 1 0 1 1-1.42 1.42L12 13.41l-2.12 2.13a1 1 0 0 1-1.42-1.42L10.59 12 8.46 9.88a1 1 0 0 1 1.42-1.42L12 10.59l2.12-2.13a1 1 0 0 1 1.42 1.42L13.41 12l2.13 2.12Z"/>` +
+  `</svg>`;
+
+// `gestao` muda a orientação final (o gestor pode rever; o fiscal precisa
+// procurá-lo) e é argumento explícito porque utils.js carrega antes de guard.js
+// — quem sabe o perfil é a tela. Mesmo contrato de `recusaAlteradaWarningHtml`.
+function motivoRecusaHtml(m, gestao) {
+  if (!m || m.status !== 'recusado' || !m.motivo_recusa) return '';
+  // Quando há alteração no WCVS depois da recusa, o alerta ⚠️ vermelho já abre
+  // com o motivo no topo do modal. Dois ícones vermelhos lado a lado na mesma
+  // célula só confundiriam — aquele, mais específico, tem precedência.
+  if (recusaAlterada(m)) return '';
+  const rotulo = 'Lançamento recusado — clique para ver o motivo';
+  return ` <span class="motivo-recusa-alerta" role="button" tabindex="0"` +
+    ` title="${rotulo}" aria-label="${rotulo}"` +
+    ` data-gestao="${gestao ? '1' : ''}"` +
+    ` data-origem="${escHtml(m.origem || '')}"` +
+    ` data-motivo="${escHtml(m.motivo_recusa)}">${_SVG_MOTIVO_RECUSA}</span>`;
+}
+
+function abrirMotivoRecusa(ds) {
+  _initMotivoRecusaModal();
+  const modal = document.getElementById('modal-motivo-recusa');
+  if (!modal) return;
+
+  const gestao   = !!(ds && ds.gestao);
+  const origem   = ds && ds.origem;
+  const importado = origem === 'visa_csv' || origem === 'sim_csv';
+
+  let html =
+    `<p style="margin:0 0 12px"><strong>Motivo da recusa (chefia):</strong><br>` +
+    `${escHtml(ds.motivo || '—')}</p>` +
+    `<hr style="border:0;border-top:1px solid var(--cinzaL);margin:0 0 12px">`;
+
+  if (gestao) {
+    html += `<p style="margin:0">Este lançamento está recusado e sem pontuação homologada. ` +
+            `Para reavaliar, use <strong>Rever</strong>.</p>`;
+  } else if (importado) {
+    // O fiscal não tem botão nenhum nesta linha: a origem é o WCVS/SIM e a
+    // coluna Ações mostra só o badge. Sem dizer isso, ele tenta "corrigir e
+    // reenviar" um lançamento que não é editável aqui.
+    html += `<p style="margin:0 0 12px">Este lançamento foi importado do sistema de origem e é ` +
+            `<strong>somente leitura</strong> aqui — por isso não há botão de corrigir e reenviar.</p>` +
+            `<p style="margin:0">Corrigir a inspeção no sistema de origem <strong>não</strong> reabre ` +
+            `o lançamento nem restaura a pontuação. Se a recusa não procede, ` +
+            `<strong>procure o gestor</strong>: só ele pode rever a decisão.</p>`;
+  } else {
+    html += `<p style="margin:0">Corrija o que motivou a recusa e use ` +
+            `<strong>✏️ Corrigir e Reenviar</strong> em <em>Meus Lançamentos</em> para ` +
+            `submeter o lançamento de novo.</p>`;
+  }
+
+  modal.querySelector('#mr-body').innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function _initMotivoRecusaModal() {
+  if (typeof document === 'undefined' || !document.body) return;
+  if (document.getElementById('modal-motivo-recusa')) return;
+  const wrap = document.createElement('div');
+  wrap.innerHTML =
+    `<div id="modal-motivo-recusa" class="modal-backdrop" style="display:none">` +
+    `<div class="modal" style="max-width:520px">` +
+    `<div class="modal-header"><span>⛔ Motivo da recusa</span>` +
+    `<button class="modal-close" id="mr-close" aria-label="Fechar">✕</button></div>` +
+    `<div class="modal-body" id="mr-body"></div>` +
+    `<div class="modal-footer"><button class="btn btn-default" id="mr-close2">Entendi</button></div>` +
+    `</div></div>`;
+  document.body.appendChild(wrap.firstElementChild);
+  const modal = document.getElementById('modal-motivo-recusa');
+  const hide = () => { modal.style.display = 'none'; };
+  document.getElementById('mr-close').addEventListener('click', hide);
+  document.getElementById('mr-close2').addEventListener('click', hide);
+  modal.addEventListener('click', (e) => { if (e.target === modal) hide(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.style.display === 'flex') hide();
+  });
+}
+
+function _onMotivoRecusaActivate(e) {
+  const el = e.target && e.target.closest ? e.target.closest('.motivo-recusa-alerta') : null;
+  if (!el) return;
+  if (e.type === 'keydown' && e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault();
+  abrirMotivoRecusa(el.dataset);
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('click', _onMotivoRecusaActivate);
+  document.addEventListener('keydown', _onMotivoRecusaActivate);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _initMotivoRecusaModal);
+  } else {
+    _initMotivoRecusaModal();
+  }
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -1253,4 +1364,6 @@ window.abrirCnaeAltaIndicada     = abrirCnaeAltaIndicada;
 window.recusaAlterada            = recusaAlterada;
 window.recusaAlteradaWarningHtml = recusaAlteradaWarningHtml;
 window.abrirRecusaAlterada       = abrirRecusaAlterada;
+window.motivoRecusaHtml          = motivoRecusaHtml;
+window.abrirMotivoRecusa         = abrirMotivoRecusa;
 window.visaAppSidebarLink        = visaAppSidebarLink;
