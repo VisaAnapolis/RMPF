@@ -42,73 +42,21 @@ jobs:
             exit 1
           fi
           echo "✅ Mirror sincronizado."
-      - name: Garantir deploy do Pages corporativo
-        env:
-          MIRROR_PAT: ${{ secrets.MIRROR_PAT }}
+      # A publicação do site NÃO acontece mais daqui. Quem publica é o
+      # pages-corporativo.yml, que viaja neste mesmo push e roda dentro de
+      # VisaAnapolis/RMPF autenticado pelo GITHUB_TOKEN de lá. Este passo só
+      # aponta onde acompanhar — e, por não usar token nenhum, não tem como
+      # apodrecer: era o `POST /pages/builds` com MIRROR_PAT que vinha
+      # devolvendo 401 desde 24/08/2026 e deixando o site três versões atrás.
+      - name: Onde acompanhar a publicação
         run: |
           SHA=$(cd repo-mirror && git rev-parse refs/heads/main)
-          API="https://api.github.com/repos/VisaAnapolis/RMPF"
-
-          gh_api() {
-            curl -s \
-              -H "Authorization: Bearer $MIRROR_PAT" \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "$@"
-          }
-
-          # Estado consolidado do deploy do commit espelhado: success (publicado),
-          # pending (ainda rodando ou nada apareceu) ou failed (terminou sem sucesso).
-          #
-          # A fonte autoritativa é /pages/builds/latest, que responde qual commit
-          # está no ar independentemente de como o Pages de lá publica. A varredura
-          # de runs vem depois, como reforço, e casa `pages` em qualquer posição do
-          # path: no Pages servido por GitHub Actions não existe nenhum run
-          # `dynamic/pages/pages-build-deployment`, e casar só esse literal fazia o
-          # passo esperar 18 minutos e falhar mesmo com o site já publicado.
-          state() {
-            local latest publicado st
-            latest=$(gh_api "$API/pages/builds/latest")
-            publicado=$(echo "$latest" | jq -r '.commit // empty')
-            st=$(echo "$latest" | jq -r '.status // empty')
-            if [ "$publicado" = "$SHA" ] && [ "$st" = "built" ]; then
-              echo success
-              return
-            fi
-
-            gh_api "$API/actions/runs?head_sha=$SHA&per_page=100" \
-              | jq -r '[.workflow_runs[]? | select((.path // "") | test("pages"))]
-                       | if any(.[]; .conclusion == "success") then "success"
-                         elif any(.[]; .status != "completed") or length == 0 then "pending"
-                         else "failed" end'
-          }
-
-          for TENTATIVA in 1 2 3; do
-            echo "Tentativa $TENTATIVA/3: aguardando deploy do Pages corporativo para $SHA..."
-            for _ in $(seq 1 36); do
-              S=$(state || echo pending)
-              if [ "$S" = "success" ]; then
-                echo "✅ Site corporativo publicado com o commit espelhado."
-                exit 0
-              fi
-              if [ "$S" = "failed" ]; then
-                break
-              fi
-              sleep 10
-            done
-            if [ "$TENTATIVA" -lt 3 ]; then
-              echo "Deploy não concluiu com sucesso; solicitando novo build do Pages corporativo..."
-              HTTP=$(gh_api -o /dev/null -w "%{http_code}" -X POST "$API/pages/builds")
-              echo "Pedido de rebuild: HTTP $HTTP"
-              # Um MIRROR_PAT expirado ou sem escopo se manifesta exatamente aqui,
-              # e antes passava batido no meio do log como um número solto.
-              case "$HTTP" in
-                401|403) echo "::error::MIRROR_PAT rejeitado pelo Pages de VisaAnapolis/RMPF (HTTP $HTTP) — token expirado ou sem permissão de Pages/Administration. Renove o secret MIRROR_PAT." ;;
-                404)     echo "::error::Pages não encontrado em VisaAnapolis/RMPF (HTTP 404) — o GitHub Pages do repositório corporativo pode estar desativado, ou o MIRROR_PAT não enxerga o repositório. Confira Settings → Pages." ;;
-              esac
-              sleep 15
-            fi
-          done
-          PUBLICADO=$(gh_api "$API/pages/builds/latest" | jq -r '.commit // "desconhecido"')
-          echo "::error::Deploy do Pages corporativo não concluiu com sucesso após 3 tentativas. Esperado: $SHA — publicado: $PUBLICADO. O site https://visaanapolis.github.io/RMPF/ está desatualizado — veja https://github.com/VisaAnapolis/RMPF/actions e Settings → Pages."
-          exit 1
+          {
+            echo "### Espelho enviado"
+            echo
+            echo "Commit \`$SHA\` em \`VisaAnapolis/RMPF\`."
+            echo
+            echo "A publicação do site roda lá, no workflow **Publicar Pages (corporativo)**:"
+            echo "- Execuções: https://github.com/VisaAnapolis/RMPF/actions/workflows/pages-corporativo.yml"
+            echo "- Site: https://visaanapolis.github.io/RMPF/"
+          } >> "$GITHUB_STEP_SUMMARY"
