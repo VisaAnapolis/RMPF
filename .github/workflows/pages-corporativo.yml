@@ -1,0 +1,69 @@
+name: Publicar Pages (corporativo)
+
+# Publica https://visaanapolis.github.io/RMPF/ a partir do próprio
+# VisaAnapolis/RMPF, e não de fora.
+#
+# Por que existe: até a v1.35.0 quem publicava o site era o mirror.yml lá em
+# garrado/RMPF, chamando `POST /pages/builds` do repositório corporativo com um
+# PAT guardado no secret MIRROR_PAT. Esse token expirou em algum ponto entre
+# 18/08 e 24/08/2026 e o site congelou na v1.33.0 por três versões, sem que
+# ninguém percebesse — o log só dizia "Pedido de rebuild: HTTP 401" no meio de
+# 18 minutos de espera. Todo PAT expira; a única correção definitiva é não
+# depender de nenhum.
+#
+# Este workflow chega ao repositório corporativo carona no `git push --mirror`
+# e roda LÁ, autenticado pelo GITHUB_TOKEN que o próprio GitHub emite a cada
+# execução: não é secret, não é renovado por ninguém, não vence. A guarda
+# `github.repository` é o espelho da que os demais workflows usam — eles rodam
+# só em garrado/RMPF, este roda só em VisaAnapolis/RMPF.
+#
+# Pré-requisito, uma única vez: em VisaAnapolis/RMPF → Settings → Pages →
+# Build and deployment → Source = "GitHub Actions". O passo `configure-pages`
+# abaixo tenta fazer isso sozinho (`enablement: true`); se a organização
+# bloquear, é essa a chave a virar na mão.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Um deploy de cada vez, sem cancelar o que já está publicando: cancelar no meio
+# deixaria o site numa versão indefinida.
+concurrency:
+  group: pages-corporativo
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    name: Publicar site corporativo
+    runs-on: ubuntu-latest
+    if: github.repository == 'VisaAnapolis/RMPF'
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # O site é o repositório inteiro servido na raiz — dashboard.html,
+      # js/, css/ e afins —, exatamente como o build por branch servia.
+      - name: Empacotar o site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Publicar
+        id: deploy
+        uses: actions/deploy-pages@v4

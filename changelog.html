@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.36.0</span>
+            <span class="badge-date">27/08/2026</span>
+          </div>
+          <div class="changelog-title">O site corporativo passa a se publicar sozinho &mdash; fim do token que travava o deploy</div>
+          <ul class="changelog-changes">
+            <li><strong>O que estava acontecendo</strong> &mdash; o site <code>visaanapolis.github.io/RMPF</code> ficou parado na <strong>v1.33.0</strong> por tr&ecirc;s vers&otilde;es. O <code>git push --mirror</code> nunca falhou: o <code>main</code> de <code>VisaAnapolis/RMPF</code> estava em dia o tempo todo. O que falhava era o passo seguinte, em que o <code>mirror.yml</code> pedia de fora que o Pages corporativo republicasse, via <code>POST /pages/builds</code> autenticado pelo secret <code>MIRROR_PAT</code>. Esse token expirou entre 18/08 e 24/08 e a chamada passou a devolver <strong>HTTP 401</strong> em toda execu&ccedil;&atilde;o. Como o <em>mesmo</em> token era usado para consultar se o build havia ocorrido, a checagem tamb&eacute;m voltava vazia e o job concluía &ldquo;ainda pendente&rdquo; at&eacute; esgotar 18 minutos &mdash; um c&oacute;digo 401 solto no meio do log era todo o aviso que existia.</li>
+            <li><strong>A corre&ccedil;&atilde;o definitiva &eacute; n&atilde;o depender de token nenhum</strong> &mdash; todo PAT expira, e renov&aacute;-lo s&oacute; adia o mesmo apag&atilde;o. Novo <code>.github/workflows/pages-corporativo.yml</code>: ele viaja no pr&oacute;prio espelhamento e roda <strong>dentro</strong> de <code>VisaAnapolis/RMPF</code>, publicando o site com <code>actions/deploy-pages</code> autenticado pelo <code>GITHUB_TOKEN</code> que o GitHub emite a cada execu&ccedil;&atilde;o &mdash; n&atilde;o &eacute; secret, ningu&eacute;m renova, n&atilde;o vence. A guarda <code>github.repository == 'VisaAnapolis/RMPF'</code> &eacute; o espelho da que os demais workflows j&aacute; usavam: eles rodam s&oacute; no reposit&oacute;rio de origem, este roda s&oacute; no corporativo.</li>
+            <li><strong><code>mirror.yml</code> volta a fazer uma coisa s&oacute;</strong> &mdash; espelhar. O passo do Pages saiu inteiro, junto com a depend&ecirc;ncia do <code>MIRROR_PAT</code>; no lugar ficou um resumo com os links de onde acompanhar a publica&ccedil;&atilde;o. O job passa de at&eacute; 19 minutos (quase todos de espera in&uacute;til) para poucos segundos, e deixa de ficar vermelho por um motivo que n&atilde;o &eacute; dele.</li>
+            <li><strong>Uma chave a virar, uma vez</strong> &mdash; em <code>VisaAnapolis/RMPF</code> &rarr; Settings &rarr; Pages &rarr; <em>Build and deployment</em>, a origem precisa ser <strong>GitHub Actions</strong>. O passo <code>configure-pages</code> tenta ajustar isso sozinho (<code>enablement: true</code>); se a organiza&ccedil;&atilde;o bloquear, &eacute; a &uacute;nica interven&ccedil;&atilde;o manual necess&aacute;ria &mdash; e s&oacute; desta vez.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>.github/workflows/pages-corporativo.yml</code> (novo); <code>.github/workflows/mirror.yml</code>; <code>js/version.js</code> &mdash; 1.36.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.36.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.35.0</span>
             <span class="badge-date">27/08/2026</span>
           </div>
