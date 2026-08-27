@@ -340,12 +340,19 @@
       // incompatível com outra do mesmo dia. Explica a queda de pontuação que o
       // fiscal vê sem ter feito nada — sem sugerir que o RMPF perdeu o dado.
       const _reab = _manuais.filter(m => m.reaberto_motivo && m.status === 'enviado').length;
-      document.getElementById('alert-area').innerHTML = _reab
-        ? alerta('warn', `<strong>${_reab} lançamento(s)</strong> seu(s) voltaram para conferência. ` +
+      // Os dois banners dividem a mesma área e podem coexistir: um lançamento
+      // reaberto e outro recusado na mesma competência é situação comum. Daí a
+      // composição — escrever direto no innerHTML apagaria o outro.
+      const _alertas = [];
+      if (_reab) {
+        _alertas.push(alerta('warn', `<strong>${_reab} lançamento(s)</strong> seu(s) voltaram para conferência. ` +
             `Isso acontece quando a inspeção é alterada no WCVS após a homologação — por exemplo, a data ` +
             `do documento foi alterada. ` +
-            `Clique no ícone 🔄 na coluna Status para ver o motivo — não é preciso lançar nada de novo.`)
-        : '';
+            `Clique no ícone 🔄 na coluna Status para ver o motivo — não é preciso lançar nada de novo.`));
+      }
+      // Sem consulta nova: `_manuais` já é a competência do seletor.
+      _alertas.push(window.alertaRecusadosHtml(_manuais.filter(m => m.status === 'recusado')));
+      document.getElementById('alert-area').innerHTML = _alertas.join('');
       renderTabela();
     } catch(e) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="17">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;

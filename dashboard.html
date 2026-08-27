@@ -521,6 +521,23 @@
       });
   }
 
+  // ── Banner de lançamentos recusados ───────────────────────
+  // A consulta é por competência (índice composto fiscal_email+mes+ano+status
+  // em firestore.indexes.json). Falhando — índice ausente, permissão, rede —
+  // o banner some, então a falha precisa aparecer no console: em silêncio ela
+  // é indistinguível de "não há recusa nenhuma".
+  async function carregarAlertaRecusados(email, mes, ano) {
+    const el = document.getElementById('alert-recusados');
+    if (!el) return;
+    try {
+      const recusados = await db_getManuaisRecusados(email, mes, ano);
+      el.innerHTML = window.alertaRecusadosHtml(recusados, { link: true });
+    } catch (e) {
+      console.warn('[Dashboard] Falha ao buscar lançamentos recusados:', e);
+      el.innerHTML = '';
+    }
+  }
+
   // ── Fiscal view ───────────────────────────────────────────
   async function loadFiscal(user) {
     const mes = Number(document.getElementById('sel-mes').value);
@@ -717,15 +734,19 @@
       catch (e) { console.warn('[Dashboard] Falha ao obter próxima competência:', e); }
       document.getElementById('sel-mes').value = _um;
       document.getElementById('sel-ano').value = _ua;
-      // Show persistent banner if there are any refused records for the open competência
-      db_getManuaisRecusados(user.email, _um, _ua).then(recusados => {
-        if (recusados.length > 0) {
-          document.getElementById('alert-recusados').innerHTML = alerta('danger',
-            `Você tem <strong>${recusados.length}</strong> lançamento(s) recusado(s). <a href="meus-lancamentos.html">Ver lançamentos</a>`);
-        }
-      }).catch(() => {});
+      // Banner persistente com os lançamentos recusados da competência à vista,
+      // cada um com o motivo escrito pela chefia. Segue o seletor: recarrega no
+      // botão Carregar e se limpa quando a competência escolhida não tem recusa.
+      carregarAlertaRecusados(user.email, _um, _ua);
       loadFiscal(user);
-      document.getElementById('btn-carregar').addEventListener('click', () => loadFiscal(user));
+      document.getElementById('btn-carregar').addEventListener('click', () => {
+        loadFiscal(user);
+        carregarAlertaRecusados(
+          user.email,
+          Number(document.getElementById('sel-mes').value),
+          Number(document.getElementById('sel-ano').value)
+        );
+      });
       // Carregar sincronizações do VISA
       carregarSyncVISA('fiscal');
     } else if (user.perfil === 'Administrador') {
