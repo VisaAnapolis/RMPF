@@ -171,17 +171,66 @@ def tokens_fcm(fiscal_email):
     return out
 
 
-def send_fcm(token, titulo, corpo):
+def remover_token_morto(fiscal_email, token):
+    """Tira um token expirado de usuarios/{email}.rmpf_fcmTokens.
+
+    removeAllFromArray atua só nesse campo — a coleção `usuarios` é compartilhada
+    com VISA e AUDITORIA e nenhum outro campo pode ser tocado aqui. É também
+    atômico: sem ler-modificar-gravar, dois envios simultâneos não se
+    sobrescrevem. Mesmo idioma dos resumos mensal e semanal.
+
+    Sem esta poda o array só crescia — cada execução repetia envios para
+    aparelhos que já não existem, e o histórico enchia de avisos de falha.
+    """
+    doc_name = (f"projects/{PROJECT_ID}/databases/(default)/documents/"
+                f"usuarios/{fiscal_email}")
+    body = {
+        "writes": [{
+            "transform": {
+                "document": doc_name,
+                "fieldTransforms": [{
+                    "fieldPath": "rmpf_fcmTokens",
+                    "removeAllFromArray": {"values": [{"stringValue": token}]},
+                }],
+            }
+        }]
+    }
+    r = requests.post(f"{BASE_URL}:commit", json=body, headers=_auth_headers())
+    r.raise_for_status()
+    print(f"  🧹 Token morto removido de {fiscal_email}.")
+
+
+def send_fcm(token, titulo, corpo, fiscal_email=""):
     """Push data-only — a notificação visível é montada pelo service worker
-    do RMPF; um bloco `notification` aqui geraria aviso duplicado."""
+    do RMPF; um bloco `notification` aqui geraria aviso duplicado.
+
+    Urgency high + TTL de 24h: sem cabeçalho de urgência o web push data-only
+    entra como prioridade baixa e pode ficar represado até o navegador acordar;
+    o TTL segura o aviso enquanto o aparelho estiver offline.
+
+    Retorna True se o FCM aceitou; False se o token estava morto (nesse caso ele
+    é removido do cadastro, porque insistir nele não entrega nada).
+    """
     payload = {
         "message": {
             "token": token,
             "data": {"title": titulo, "body": corpo, "link": DASHBOARD_URL},
+            "webpush": {"headers": {"Urgency": "high", "TTL": "86400"}},
         }
     }
     r = requests.post(FCM_URL, json=payload, headers=_auth_headers())
+    if r.status_code == 404 or (
+        r.status_code == 400 and "not a valid FCM registration token" in r.text
+    ):
+        print(f"  ⚠️  Token inválido/expirado (HTTP {r.status_code}) — removendo do cadastro.")
+        if fiscal_email:
+            try:
+                remover_token_morto(fiscal_email, token)
+            except Exception as exc:
+                print(f"::warning::Falha ao remover token morto de {fiscal_email}: {exc}")
+        return False
     r.raise_for_status()
+    return True
 
 
 # ── Helpers de e-mail ─────────────────────────────────────────────────────────
@@ -320,8 +369,11 @@ for item in pendentes:
     if ENVIA_PUSH:
         for token in tokens_fcm(fiscal_email):
             try:
-                send_fcm(token, titulo, corpo)
-                ok = True
+                # Token morto não conta como envio: se todos estiverem mortos, a
+                # marca de "avisado" não é gravada e o e-mail (ou a próxima
+                # execução) ainda pode alcançar o fiscal.
+                if send_fcm(token, titulo, corpo, fiscal_email):
+                    ok = True
             except Exception as exc:
                 print(f"::warning::Push falhou para {fiscal_email} ({controle}): {exc}")
 

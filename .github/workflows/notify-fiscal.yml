@@ -20,6 +20,7 @@ jobs:
           FCM_TOKEN:        ${{ github.event.client_payload.fcm_token }}
           TITULO:           ${{ github.event.client_payload.titulo }}
           CORPO:            ${{ github.event.client_payload.corpo }}
+          FISCAL_EMAIL:     ${{ github.event.client_payload.fiscal_email }}
         run: |
           pip install google-auth --quiet
           python3 - <<'EOF'
@@ -27,38 +28,111 @@ jobs:
           import google.oauth2.service_account
           import google.auth.transport.requests
 
+          PROJECT_ID    = 'visam-3a30b'
+          FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+          FCM_URL       = f'https://fcm.googleapis.com/v1/projects/{PROJECT_ID}/messages:send'
+
           # ── Autenticação OAuth2 com a Service Account do Firebase ──
+          # Além do escopo de mensageria, pedimos datastore: quando o FCM recusa um
+          # token por UNREGISTERED, este job o REMOVE de rmpf_fcmTokens — mesma
+          # limpeza que os resumos mensal e semanal já faziam. Sem ela o array só
+          # crescia e todo envio seguinte repetia um despacho já perdido.
           sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
           creds = google.oauth2.service_account.Credentials.from_service_account_info(
               sa_info,
-              scopes=['https://www.googleapis.com/auth/firebase.messaging'],
+              scopes=[
+                  'https://www.googleapis.com/auth/firebase.messaging',
+                  'https://www.googleapis.com/auth/datastore',
+              ],
           )
           creds.refresh(google.auth.transport.requests.Request())
+          headers = {
+              'Authorization': 'Bearer ' + creds.token,
+              'Content-Type': 'application/json',
+          }
+
+
+          def is_unregistered(resp_str):
+              """True se o erro do FCM indicar token não registrado (aparelho sem
+              a inscrição de push que originou o token)."""
+              try:
+                  err = json.loads(resp_str)
+                  for detail in err.get('error', {}).get('details', []):
+                      if detail.get('errorCode') in ('UNREGISTERED', 'INVALID_ARGUMENT'):
+                          return True
+              except Exception:
+                  pass
+              return False
+
+
+          def remove_fcm_token(email, token):
+              """Tira o token de usuarios/{email}.rmpf_fcmTokens.
+
+              removeAllFromArray atua só nesse campo — a coleção `usuarios` é
+              compartilhada com VISA e AUDITORIA e nenhum outro campo pode ser
+              tocado aqui. É também atômico: sem ler-modificar-gravar, dois envios
+              simultâneos não se sobrescrevem.
+              """
+              if not email:
+                  print('::warning::Token morto, mas o despacho não trouxe fiscal_email — '
+                        'nada foi removido do cadastro.')
+                  return
+              doc_name = (f'projects/{PROJECT_ID}/databases/(default)/documents/'
+                          f'usuarios/{email}')
+              body = json.dumps({
+                  'writes': [{
+                      'transform': {
+                          'document': doc_name,
+                          'fieldTransforms': [{
+                              'fieldPath': 'rmpf_fcmTokens',
+                              'removeAllFromArray': {'values': [{'stringValue': token}]},
+                          }],
+                      }
+                  }]
+              }).encode()
+              req = urllib.request.Request(f'{FIRESTORE_URL}:commit', data=body,
+                                           method='POST', headers=headers)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      r.read()
+                  print(f'🧹 Token morto removido de {email}.')
+              except urllib.error.HTTPError as e:
+                  print(f'::warning::Falha ao remover token de {email}: {e.read().decode()}')
+
 
           # ── Payload FCM (data-only para evitar notificação duplicada no VISA) ──
+          token = os.environ['FCM_TOKEN']
           payload = json.dumps({
               'message': {
-                  'token': os.environ['FCM_TOKEN'],
+                  'token': token,
                   'data': {
                       'title': os.environ['TITULO'],
                       'body':  os.environ['CORPO'],
                       'link':  'https://visaanapolis.github.io/RMPF/dashboard.html',
                   },
+                  # Push data-only na web entra como prioridade BAIXA por padrão e
+                  # pode ficar represado até o navegador acordar. Urgency high
+                  # entrega na hora; o TTL de 24h segura o aviso se o aparelho
+                  # estiver offline, em vez de descartá-lo.
+                  'webpush': {'headers': {'Urgency': 'high', 'TTL': '86400'}},
               },
           }).encode()
 
           # ── Envio via FCM HTTP v1 ──────────────────────────────────
-          url = 'https://fcm.googleapis.com/v1/projects/visam-3a30b/messages:send'
-          req = urllib.request.Request(url, data=payload, method='POST')
-          req.add_header('Authorization', 'Bearer ' + creds.token)
-          req.add_header('Content-Type', 'application/json')
+          req = urllib.request.Request(FCM_URL, data=payload, method='POST', headers=headers)
 
           try:
               with urllib.request.urlopen(req) as resp:
-                  body = resp.read().decode()
-                  print(f'✅ Notificação enviada com sucesso: {body}')
+                  print(f'✅ Notificação enviada com sucesso: {resp.read().decode()}')
           except urllib.error.HTTPError as e:
               body = e.read().decode()
+              # Token morto não é falha do envio — é lixo a recolher. O job poda e
+              # termina em verde, para não encher o histórico de execuções vermelhas
+              # por algo que ele próprio acabou de resolver.
+              if e.code == 404 or is_unregistered(body):
+                  print(f'⚠️ Token inválido/expirado (HTTP {e.code}) — removendo do cadastro.')
+                  remove_fcm_token(os.environ.get('FISCAL_EMAIL', '').strip(), token)
+                  sys.exit(0)
               print(f'::error::FCM retornou HTTP {e.code}: {body}', file=sys.stderr)
               sys.exit(1)
           EOF

@@ -1,0 +1,213 @@
+name: Teste de Push (FCM)
+
+# Envia uma notificação de TESTE a um único usuário e imprime o diagnóstico
+# completo de cada token — para descobrir onde o push está parando sem depender
+# de uma recusa real acontecer.
+#
+# Disparo:
+#   - Aba Actions do GitHub (workflow_dispatch, informando o e-mail); ou
+#   - Botão "🔔 Enviar teste para mim" em Parametrização → Notificações Push,
+#     que despacha repository_dispatch do tipo notify-teste-push.
+#
+# O log responde, para o e-mail informado:
+#   • quantos tokens do RMPF estão cadastrados (rmpf_fcmTokens);
+#   • o veredito do FCM para CADA um (aceito, ou morto e podado);
+#   • se existe token LEGADO do VISA (fcmTokens / fcm_token) no mesmo documento.
+#
+# Esse último ponto é o que explica o sintoma "no VISA chega e no RMPF não":
+# os dois apps vivem na MESMA origem (visaanapolis.github.io) e no MESMO projeto
+# Firebase, mas cada um registra o seu próprio service worker, e o token nasce
+# preso ao worker que o gerou. O token do VISA não serve ao RMPF — usá-lo abriria
+# o app errado ao clicar na notificação —, por isso o RMPF nunca o reaproveita.
+# Ter token do VISA e nenhum do RMPF é exatamente o quadro de "só o VISA chega".
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: 'E-mail do usuário que receberá o push de teste'
+        required: true
+        type: string
+  repository_dispatch:
+    types: [notify-teste-push]
+
+jobs:
+  teste-push:
+    name: Enviar push de teste via FCM
+    runs-on: ubuntu-latest
+    if: github.repository == 'garrado/RMPF'
+    permissions: {}   # Não usa o GITHUB_TOKEN — apenas FIREBASE_SERVICE_ACCOUNT_JSON
+
+    steps:
+      - name: Enviar teste e diagnosticar tokens
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          ALVO_EMAIL: ${{ github.event.inputs.email || github.event.client_payload.fiscal_email }}
+        run: |
+          pip install google-auth --quiet
+          python3 - <<'EOF'
+          import json, os, sys, urllib.request, urllib.error, urllib.parse
+          import google.oauth2.service_account
+          import google.auth.transport.requests
+
+          PROJECT_ID    = 'visam-3a30b'
+          FIRESTORE_URL = f'https://firestore.googleapis.com/v1/projects/{PROJECT_ID}/databases/(default)/documents'
+          FCM_URL       = f'https://fcm.googleapis.com/v1/projects/{PROJECT_ID}/messages:send'
+          DASHBOARD     = 'https://visaanapolis.github.io/RMPF/dashboard.html'
+
+          email = (os.environ.get('ALVO_EMAIL') or '').strip()
+          if not email:
+              print('::error::Nenhum e-mail informado no disparo.', file=sys.stderr)
+              sys.exit(1)
+
+          sa_info = json.loads(os.environ['FIREBASE_SA_JSON'])
+          creds = google.oauth2.service_account.Credentials.from_service_account_info(
+              sa_info,
+              scopes=[
+                  'https://www.googleapis.com/auth/firebase.messaging',
+                  'https://www.googleapis.com/auth/datastore',
+              ],
+          )
+          creds.refresh(google.auth.transport.requests.Request())
+          headers = {
+              'Authorization': 'Bearer ' + creds.token,
+              'Content-Type': 'application/json',
+          }
+
+
+          def campo_array(fields, nome):
+              arr = fields.get(nome, {}).get('arrayValue', {}).get('values', [])
+              return [v.get('stringValue', '').strip() for v in arr
+                      if v.get('stringValue', '').strip()]
+
+
+          def is_unregistered(resp_str):
+              try:
+                  err = json.loads(resp_str)
+                  for detail in err.get('error', {}).get('details', []):
+                      if detail.get('errorCode') in ('UNREGISTERED', 'INVALID_ARGUMENT'):
+                          return True
+              except Exception:
+                  pass
+              return False
+
+
+          def remove_fcm_token(token):
+              """Poda o token morto de rmpf_fcmTokens (só esse campo, atômico)."""
+              doc_name = (f'projects/{PROJECT_ID}/databases/(default)/documents/'
+                          f'usuarios/{email}')
+              body = json.dumps({
+                  'writes': [{
+                      'transform': {
+                          'document': doc_name,
+                          'fieldTransforms': [{
+                              'fieldPath': 'rmpf_fcmTokens',
+                              'removeAllFromArray': {'values': [{'stringValue': token}]},
+                          }],
+                      }
+                  }]
+              }).encode()
+              req = urllib.request.Request(f'{FIRESTORE_URL}:commit', data=body,
+                                           method='POST', headers=headers)
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      r.read()
+                  print('     🧹 token morto removido do cadastro')
+              except urllib.error.HTTPError as e:
+                  print(f'     ::warning::falha ao remover: {e.read().decode()}')
+
+
+          # ── Lê o cadastro do usuário ──────────────────────────────────────────
+          url = f'{FIRESTORE_URL}/usuarios/{urllib.parse.quote(email, safe="")}'
+          try:
+              with urllib.request.urlopen(urllib.request.Request(url, headers=headers)) as r:
+                  doc = json.loads(r.read())
+          except urllib.error.HTTPError as e:
+              print(f'::error::Usuário {email} não encontrado no Firestore (HTTP {e.code}).',
+                    file=sys.stderr)
+              sys.exit(1)
+
+          fields    = doc.get('fields', {})
+          tokens    = campo_array(fields, 'rmpf_fcmTokens')
+          permissao = fields.get('rmpf_notifPermissao', {}).get('stringValue', '—')
+          diag      = fields.get('rmpf_notifDiag', {}).get('stringValue', '—')
+
+          # Tokens de OUTROS apps no mesmo documento — apenas para diagnóstico.
+          # Nunca são usados como destino: pertencem ao service worker do VISA e a
+          # notificação abriria o app errado.
+          legado_arr = campo_array(fields, 'fcmTokens')
+          legado_str = fields.get('fcm_token', {}).get('stringValue', '').strip()
+          n_legado   = len(legado_arr) + (1 if legado_str else 0)
+
+          print(f'👤 {email}')
+          print(f'   permissão do navegador (rmpf_notifPermissao): {permissao}')
+          print(f'   diagnóstico do último registro (rmpf_notifDiag): {diag}')
+          print(f'   tokens do RMPF (rmpf_fcmTokens): {len(tokens)}')
+          print(f'   tokens legados do VISA (fcmTokens/fcm_token): {n_legado}')
+          print('')
+
+          if not tokens:
+              print('::warning::Nenhum token do RMPF cadastrado — por isso nada chega '
+                    'a este usuário.')
+              if n_legado:
+                  print('::warning::Existe token do VISA neste mesmo documento. É o quadro '
+                        'clássico de "no VISA chega e no RMPF não": os apps dividem a origem '
+                        'e o projeto Firebase, mas o token pertence ao service worker que o '
+                        'gerou. O RMPF não reaproveita o token do VISA de propósito — a '
+                        'notificação abriria o app errado. O usuário precisa registrar o '
+                        'aparelho no RMPF: abrir o Dashboard e usar o botão de notificações '
+                        'no cabeçalho.')
+              else:
+                  print('   O usuário precisa abrir o Dashboard do RMPF e ativar as '
+                        'notificações pelo botão do cabeçalho.')
+              sys.exit(1)
+
+          # ── Envia o teste a cada token ────────────────────────────────────────
+          titulo = '🔔 Teste de notificação — RMPF'
+          corpo  = 'Se você está lendo isto, o push do RMPF está funcionando neste aparelho.'
+
+          entregues, mortos, falhos = 0, 0, 0
+          for i, token in enumerate(tokens, 1):
+              payload = json.dumps({
+                  'message': {
+                      'token': token,
+                      'data': {'title': titulo, 'body': corpo, 'link': DASHBOARD},
+                      'webpush': {'headers': {'Urgency': 'high', 'TTL': '86400'}},
+                  },
+              }).encode()
+              req = urllib.request.Request(FCM_URL, data=payload, method='POST', headers=headers)
+              rotulo = f'{token[:12]}…{token[-6:]}'
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      r.read()
+                  entregues += 1
+                  print(f'  {i}. ✅ {rotulo} — aceito pelo FCM')
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode()
+                  if e.code == 404 or is_unregistered(body):
+                      mortos += 1
+                      print(f'  {i}. ⚠️ {rotulo} — token morto (HTTP {e.code})')
+                      remove_fcm_token(token)
+                  else:
+                      falhos += 1
+                      print(f'  {i}. 🚨 {rotulo} — HTTP {e.code}: {body}')
+
+          print('')
+          print(f'Resumo: {entregues} aceito(s), {mortos} podado(s), {falhos} com erro.')
+
+          if entregues:
+              print('O FCM aceitou o envio. Se mesmo assim nada aparecer no aparelho, '
+                    'a falha está do lado do dispositivo: notificações desligadas no '
+                    'sistema, o app aberto sem o handler de foreground (corrigido na '
+                    'v1.37.0) ou, no iPhone, o RMPF aberto pelo Safari em vez do ícone '
+                    'instalado na tela de início — o iOS só entrega push ao app instalado.')
+              sys.exit(0)
+
+          if mortos and not falhos:
+              print('::error::Todos os tokens estavam mortos e foram removidos. O usuário '
+                    'precisa registrar o aparelho de novo (Dashboard → botão de '
+                    'notificações no cabeçalho).', file=sys.stderr)
+          else:
+              print('::error::Nenhum envio foi aceito pelo FCM — veja os erros acima.',
+                    file=sys.stderr)
+          sys.exit(1)
+          EOF

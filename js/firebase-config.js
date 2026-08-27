@@ -204,14 +204,16 @@ async function maybeShowFCMInviteModal(email, jaRecusou = false) {
 
   // Cadência: indeciso → promo_dias (+ campanha "re-oferecer agora"); já recusou
   // → denied_reminder_dias, sem campanha (a campanha não afeta quem recusou).
-  let dias, campaign;
-  if (jaRecusou) {
-    dias = await _resolveReminderDays();
-    campaign = 0;
-  } else {
-    const cfg = await _resolvePromoConfig();
-    dias = cfg.dias; campaign = cfg.campaign;
-  }
+  //
+  // A campanha "Re-oferecer agora" vale para AMBOS. Antes ela era zerada para
+  // quem havia recusado o convite — justamente o público que o administrador
+  // quer alcançar ao clicar no botão. Com o clique não produzindo efeito visível
+  // em ninguém que já tivesse dito "Não, obrigado", o botão parecia quebrado.
+  // A cadência automática continua diferente (recusou → intervalo maior); só a
+  // campanha manual passa a furar o throttle dos dois lados.
+  const cfg = await _resolvePromoConfig();
+  const campaign = cfg.campaign;
+  const dias = jaRecusou ? await _resolveReminderDays() : cfg.dias;
   if (!_fcmPromo_shouldShow(dias, campaign)) return;
   if (document.getElementById('fcm-invite-modal')) return;
 
@@ -409,6 +411,29 @@ async function maybeShowFCMReminderBanner() {
 // um escopo dedicado dentro de /RMPF/ e passamos esse registro ao getToken().
 // O escopo é distinto do service-worker.js principal (que controla /RMPF/),
 // evitando que um sobrescreva o outro.
+// ── Token deste dispositivo (higiene de rmpf_fcmTokens) ──────────────────────
+// rmpf_fcmTokens é lido por notifications.js e pelos jobs do GitHub Actions, que
+// disparam UM envio por token. Um token só vale enquanto a PushSubscription que
+// o originou existir: reinstalar o PWA, limpar os dados do navegador ou trocar
+// de versão gera um token NOVO e mata o anterior. Como o initFCM apenas
+// ACRESCENTAVA, o array acumulava tokens mortos — o FCM respondia UNREGISTERED
+// e o push "não chegava" sem que nada aparecesse para o administrador.
+//
+// Guardamos aqui o último token registrado por ESTE navegador para poder
+// substituí-lo em vez de empilhar. A chave é preservada pela limpeza de versão
+// do index.html (KEYS_PRESERVADAS).
+const _FCM_TOKEN_LOCAL_KEY = 'rmpf_fcmTokenLocal';
+const _FCM_MAX_TOKENS      = 5; // teto por usuário — corta resíduo histórico
+
+function _fcmTokenLocalGet() {
+  try { return localStorage.getItem(_FCM_TOKEN_LOCAL_KEY) || ''; }
+  catch (e) { return ''; }
+}
+
+function _fcmTokenLocalSet(token) {
+  try { localStorage.setItem(_FCM_TOKEN_LOCAL_KEY, token); } catch (e) { /* noop */ }
+}
+
 const _FCM_SW_PATH  = './firebase-messaging-sw.js';
 const _FCM_SW_SCOPE = './firebase-cloud-messaging-push-scope';
 
@@ -456,6 +481,48 @@ async function _registerFcmServiceWorker() {
   // exige um worker ATIVO, senão falha com "no active Service Worker".
   await _aguardarServiceWorkerAtivo(reg);
   return reg;
+}
+
+// ── Notificação com o app ABERTO (foreground) ────────────────────────────────
+// O service worker do FCM só monta a notificação (onBackgroundMessage) quando NÃO
+// há aba visível do app. Com o RMPF aberto, o SW entrega a mensagem ao documento
+// e cabe à página exibi-la. Como não havia handler de foreground, toda
+// notificação recebida com o app aberto era descartada em silêncio — parte do
+// "as notificações não chegam" relatado por quem deixa o RMPF aberto no
+// computador ou no PWA.
+//
+// Exibimos pelo registro do próprio SW do RMPF (e não por new Notification) para
+// que o visual, o ícone e o clique sejam idênticos aos do background.
+let _fcmForegroundLigado = false;
+
+function _registrarHandlerForeground(messaging, swReg) {
+  if (_fcmForegroundLigado) return;
+  _fcmForegroundLigado = true;
+  try {
+    messaging.onMessage((payload) => {
+      try {
+        const notif = payload.notification || {};
+        const dados = payload.data || {};
+        const title = notif.title || dados.title || 'RMPF';
+        const body  = notif.body  || dados.body  || '';
+        const url   = dados.link || 'https://visaanapolis.github.io/RMPF/dashboard.html';
+        if (!swReg || typeof swReg.showNotification !== 'function') return;
+        swReg.showNotification(title, {
+          body,
+          icon:  '/RMPF/icons/rmpf-192.png',
+          badge: '/RMPF/icons/rmpf-192.png',
+          // Colapsa repetições do mesmo aviso quando o usuário troca de página
+          // com o app aberto, em vez de empilhar cópias idênticas.
+          tag:   'rmpf-' + title,
+          data:  { url },
+        });
+      } catch (e) {
+        console.warn('[FCM] Falha ao exibir notificação em foreground:', e);
+      }
+    });
+  } catch (e) {
+    console.warn('[FCM] onMessage indisponível:', e);
+  }
 }
 
 /**
@@ -592,15 +659,44 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
 
     // Campo exclusivo do RMPF. NÃO migra data.fcmTokens (legado, possivelmente
     // atrelado ao SW do VISA) nem data.fcm_token (campo do VISA / AUDITORIA).
-    const existing = Array.isArray(data.rmpf_fcmTokens)
+    let existing = Array.isArray(data.rmpf_fcmTokens)
       ? [...new Set(data.rmpf_fcmTokens.filter(t => typeof t === 'string' && t.trim()))]
       : [];
+
+    // Descarta o token que ESTE dispositivo havia registrado antes: ele morreu
+    // junto com a PushSubscription que o gerou e só serviria para produzir um
+    // envio recusado com UNREGISTERED a cada notificação.
+    const tokenAnterior = _fcmTokenLocalGet();
+    if (tokenAnterior && tokenAnterior !== token) {
+      existing = existing.filter(t => t !== tokenAnterior);
+    }
+
     if (!existing.includes(token)) existing.push(token);
+
+    // Teto por usuário: ninguém usa mais que alguns aparelhos. Mantém os mais
+    // recentes (o desta sessão foi para o fim da lista) e corta o resíduo
+    // histórico que multiplicava os despachos de notificação — um por token.
+    if (existing.length > _FCM_MAX_TOKENS) existing = existing.slice(-_FCM_MAX_TOKENS);
 
     // Persiste tokens sem sobrescrever os demais campos do usuário. O
     // salvarDiag('ok') abaixo regrava rmpf_notifDiag, limpando uma eventual
     // recusa anterior ('convite_recusado') de quem ativou depois pelo cabeçalho.
     await userRef.set({ rmpf_fcmTokens: existing }, { merge: true });
+    _fcmTokenLocalSet(token);
+    if (window.currentUser) window.currentUser.rmpf_fcmTokens = existing;
+
+    // Mensagem recebida com o app ABERTO: o service worker entrega ao documento
+    // em vez de exibir (onBackgroundMessage não roda quando há aba visível). Sem
+    // um handler de foreground a notificação era simplesmente descartada — o
+    // usuário com o RMPF aberto nunca via o aviso. Exibimos pelo registro do SW
+    // para ficar idêntica à de background, inclusive no clique.
+    _registrarHandlerForeground(messaging, swReg);
+
+    // O botão do cabeçalho é montado pelo guard.js em paralelo a este initFCM;
+    // com o token agora registrado, some com ele sem exigir recarga da página.
+    const btnOptIn = document.getElementById('fcm-optin-btn');
+    if (btnOptIn) _refreshFCMOptInButton(btnOptIn);
+
     await salvarDiag('ok');
   } catch (e) {
     console.warn('[FCM] initFCM erro:', e);
@@ -619,14 +715,38 @@ window.initFCM = async function initFCM(email, _skipPromo = false) {
 // ensureFCMOptInButton, chamado pelo guard.js após a autenticação. Assim cobre
 // todas as páginas internas sem duplicar markup em cada HTML.
 
+/**
+ * Este navegador tem token do RMPF registrado?
+ *
+ * A permissão do navegador é da ORIGEM inteira, e visaanapolis.github.io serve o
+ * VISA na raiz: quem autorizou notificações pelo VISA chega ao RMPF já em
+ * 'granted'. Só a permissão, portanto, não diz nada sobre o push do RMPF — o que
+ * vale é existir token em rmpf_fcmTokens (e o registro desta sessão ter dado
+ * 'ok'). Sem esta checagem, um usuário 'granted' cujo getToken falhou ficava sem
+ * NENHUM caminho para tentar de novo: o botão de ativar vinha oculto.
+ */
+function _fcmTemTokenRegistrado() {
+  const u = window.currentUser || {};
+  const arr = Array.isArray(u.rmpf_fcmTokens) ? u.rmpf_fcmTokens : [];
+  return arr.some(t => typeof t === 'string' && t.trim());
+}
+
 /** Ajusta rótulo/visibilidade do botão conforme Notification.permission. */
 function _refreshFCMOptInButton(btn) {
   const p = Notification.permission;
-  if (p === 'granted') { btn.style.display = 'none'; return; } // já ativo → oculta
+  if (p === 'granted' && _fcmTemTokenRegistrado()) {
+    btn.style.display = 'none';   // permitido E com token → nada a fazer
+    return;
+  }
   btn.style.display = '';
   if (p === 'denied') {
     btn.textContent = '🔕 Reativar notificações';
     btn.dataset.state = 'denied';
+  } else if (p === 'granted') {
+    // Permitido no navegador, mas sem token do RMPF: o registro falhou (rede,
+    // VAPID, service worker) ou o token foi invalidado. Oferece a repescagem.
+    btn.textContent = '🔔 Registrar notificações';
+    btn.dataset.state = 'granted_sem_token';
   } else {
     btn.textContent = 'Ativar 🔔';
     btn.dataset.state = 'default';
