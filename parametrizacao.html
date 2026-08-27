@@ -125,17 +125,21 @@
       <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
         Configure um Personal Access Token (PAT) Fine-Grained com as permissões abaixo.
         Este token é usado para importar CSVs de inspeções, auditorias e CNAE do repositório
-        privado <code>garrado/VISA</code>, e também para disparar workflows manualmente nesta
-        página.<br><br>
+        privado <code>garrado/VISA</code>, para disparar workflows manualmente nesta
+        página e para <strong>avisar o fiscal na hora em que um lançamento é recusado</strong>.<br><br>
         Permissões necessárias ao criar o token (selecione <em>Only selected repositories</em>
         e inclua <strong>garrado/VISA</strong> e <strong>garrado/RMPF</strong>):
         <ul style="margin:.6rem 0 0 1.2rem;line-height:1.8">
           <li><code>garrado/VISA</code> — <strong>Contents → Read-only</strong></li>
-          <li><code>garrado/RMPF</code> — <strong>Actions → Read and write</strong></li>
+          <li><code>garrado/RMPF</code> — <strong>Actions → Read and write</strong>
+              <span style="color:var(--cinzaT)">(botões de disparo manual desta página)</span></li>
+          <li><code>garrado/RMPF</code> — <strong>Contents → Read and write</strong>
+              <span style="color:var(--cinzaT)">(aviso automático da recusa ao fiscal)</span></li>
         </ul>
-        <strong style="color:var(--laranja,#e67e22)">⚠️ Se você já tinha um token salvo anteriormente,
-        é necessário gerar um novo incluindo <code>garrado/RMPF</code> com
-        <em>Actions → Read and write</em> — o token antigo só possuía acesso ao VISA.</strong>
+        <strong style="color:var(--laranja,#e67e22)">⚠️ As duas permissões do RMPF são necessárias, e
+        por motivos diferentes. Sem <em>Contents → Read and write</em>, o push e o e-mail disparados no
+        momento da recusa falham <u>em silêncio</u>: o fiscal não é avisado e ninguém fica sabendo
+        disso. Use <em>🩺 Testar Token</em> abaixo para conferir as duas de uma vez.</strong>
       </p>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
         <input type="password" class="form-control" id="input-github-token"
@@ -145,6 +149,7 @@
       </div>
       <div class="btn-group">
         <button class="btn btn-outline" id="btn-save-github-token" type="button">💾 Salvar Token</button>
+        <button class="btn btn-outline" id="btn-test-github-token" type="button">🩺 Testar Token</button>
       </div>
       <div id="github-token-log" style="margin-top:12px"></div>
     </div>
@@ -169,9 +174,13 @@
     <div class="card" id="card-workflows-notificacao">
       <div class="card-title">📣 Disparo Manual de Notificações</div>
       <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
-        Execute manualmente os workflows mensais de notificação.
+        Execute manualmente os workflows de notificação.
       </p>
-      <div class="btn-group">
+
+      <div style="font-size:.85rem;font-weight:600;color:var(--cinzaT);margin-bottom:6px">
+        Totalização da produtividade (resumo mensal)
+      </div>
+      <div class="btn-group" style="margin-bottom:16px">
         <button class="btn btn-outline" id="btn-run-monthly-email" type="button">
           ✉️ Rodar Mensal por E-mail
         </button>
@@ -179,6 +188,29 @@
           📲 Rodar Mensal Push
         </button>
       </div>
+
+      <div style="font-size:.85rem;font-weight:600;color:var(--cinzaT);margin-bottom:6px">
+        Alertas de lançamento recusado
+      </div>
+      <p style="font-size:.85rem;color:var(--cinzaT);margin-bottom:10px">
+        Rede de segurança do aviso que o navegador dispara na hora da recusa: varre a
+        competência aberta em busca de lançamentos <strong>recusados</strong> ainda sem
+        aviso (sem <code>recusa_notificada_em</code>) e envia push e e-mail ao fiscal.
+        Comece pela simulação para ver o que sairia.
+      </p>
+      <div class="btn-group">
+        <button class="btn btn-outline" id="btn-run-recusas-dry" type="button">
+          🔍 Simular Aviso de Recusas
+        </button>
+        <button class="btn btn-outline" id="btn-run-recusas" type="button">
+          🚨 Notificar Recusas Pendentes
+        </button>
+      </div>
+      <p style="font-size:.8rem;color:var(--cinzaT);margin-top:10px">
+        O resultado (quem foi avisado, por qual canal) sai no log da execução —
+        <a href="https://github.com/garrado/RMPF/actions/workflows/notify-recusas.yml"
+           target="_blank" rel="noopener">ver execuções no GitHub Actions</a>.
+      </p>
       <div id="workflow-notify-log" style="margin-top:12px"></div>
     </div>
 
@@ -683,13 +715,83 @@
           logEl.innerHTML = alerta('danger',
             '🚨 Token inválido ou sem permissão para <code>garrado/RMPF</code>. ' +
             'Gere um novo PAT Fine-Grained incluindo <code>garrado/RMPF</code> com ' +
-            '<strong>Actions → Read and write</strong> e salve novamente.');
+            '<strong>Actions → Read and write</strong> e <strong>Contents → Read and write</strong>, ' +
+            'e salve novamente.');
           return;
         }
         await window.db_setGitHubToken(token);
         logEl.innerHTML = alerta('ok', '✅ Token validado e salvo com sucesso.');
       } catch(e) {
         logEl.innerHTML = alerta('danger', '🚨 Erro ao salvar: ' + escHtml(e.message));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    // ── Diagnóstico do token ───────────────────────────────
+    // As duas permissões do RMPF servem a caminhos diferentes e falham de
+    // formas diferentes: sem Actions, os botões desta página dão erro na cara
+    // do gestor; sem Contents, o aviso da recusa morre num console.warn que
+    // ninguém lê. Este botão torna a segunda tão visível quanto a primeira.
+    document.getElementById('btn-test-github-token').addEventListener('click', async () => {
+      const btn   = document.getElementById('btn-test-github-token');
+      const logEl = document.getElementById('github-token-log');
+      const digitado = document.getElementById('input-github-token').value.trim();
+      const token = digitado || await window.db_getGitHubToken();
+      if (!token) {
+        logEl.innerHTML = alerta('warn', '⚠️ Nenhum token salvo nem digitado para testar.');
+        return;
+      }
+
+      const cabecalhos = {
+        'Authorization': 'Bearer ' + token,
+        'Accept': 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28',
+      };
+
+      btn.disabled = true;
+      logEl.innerHTML = alerta('info', '🩺 Testando as permissões do token...');
+      try {
+        // Actions: leitura basta para provar o escopo dos disparos manuais.
+        const rActions = await fetch('https://api.github.com/repos/garrado/RMPF/actions/workflows',
+          { headers: cabecalhos });
+
+        // Contents: a única prova real é o próprio POST /dispatches, que é o
+        // que o aviso da recusa faz. É inócuo — nenhum workflow do repositório
+        // declara o event_type abaixo, então nada é executado — e devolve 204
+        // exatamente quando a permissão que costuma faltar está presente.
+        const rContents = await fetch('https://api.github.com/repos/garrado/RMPF/dispatches', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, cabecalhos),
+          body: JSON.stringify({ event_type: 'rmpf-token-test' }),
+        });
+
+        const okActions  = rActions.ok;
+        const okContents = rContents.ok || rContents.status === 204;
+
+        const linha = (ok, nome, para, status) => ok
+          ? `<li>✅ <strong>${nome}</strong> — ${para}</li>`
+          : `<li>🚨 <strong>${nome}</strong> — ${para} <em>(HTTP ${status})</em></li>`;
+
+        const corpo =
+          `<ul style="margin:.4rem 0 0 1.1rem;line-height:1.7">` +
+          linha(okActions, 'Actions → Read and write',
+                'disparo manual dos workflows desta página', rActions.status) +
+          linha(okContents, 'Contents → Read and write',
+                'aviso automático ao fiscal na hora da recusa', rContents.status) +
+          `</ul>` +
+          (okActions && okContents
+            ? ''
+            : `<p style="margin:.6rem 0 0">Gere um novo PAT Fine-Grained em ` +
+              `<em>Only selected repositories</em> com <code>garrado/VISA</code> ` +
+              `(Contents → Read-only) e <code>garrado/RMPF</code> (Actions e Contents → ` +
+              `Read and write), e salve acima.</p>`);
+
+        logEl.innerHTML = (okActions && okContents)
+          ? alerta('ok', '✅ Token com as duas permissões necessárias.' + corpo)
+          : alerta('danger', '🚨 Falta permissão no token.' + corpo);
+      } catch(e) {
+        logEl.innerHTML = alerta('danger', '🚨 Erro ao testar o token: ' + escHtml(e.message));
       } finally {
         btn.disabled = false;
       }
@@ -907,10 +1009,16 @@
     const WORKFLOW_FILES = {
       'monthly-email-summary':    'notify-monthly-email.yml',
       'monthly-push-summary':     'notify-monthly-summary.yml',
+      'notify-recusas':           'notify-recusas.yml',
       'deploy-firestore-indexes': 'deploy-firestore-indexes.yml',
     };
 
-    async function dispatchWorkflow(workflowId, btn, label) {
+    // `inputs` é opcional e vai como está no corpo do dispatch. A API de
+    // workflow_dispatch espera os valores em string, inclusive para inputs
+    // declarados `type: boolean` — daí 'true'/'false' nos chamadores. Sem
+    // passar nada, o workflow roda com os defaults dele: no notify-recusas.yml
+    // o default é dry_run=true, que simula e não envia coisa alguma.
+    async function dispatchWorkflow(workflowId, btn, label, inputs) {
       const logEl = document.getElementById('workflow-notify-log');
       const ghToken = await window.db_getGitHubToken();
       if (!ghToken) {
@@ -938,7 +1046,7 @@
               'X-GitHub-Api-Version': '2022-11-28',
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ ref: 'main' }),
+            body: JSON.stringify(Object.assign({ ref: 'main' }, inputs ? { inputs } : {})),
           }
         );
 
@@ -947,7 +1055,8 @@
           if (resp.status === 403 || resp.status === 401) {
             throw new Error(
               `HTTP ${resp.status} — Token sem permissão para disparar workflows no RMPF. ` +
-              `Gere um novo PAT Fine-Grained com garrado/RMPF → Actions → Read and write e salve na seção 🔑 Token do GitHub.`
+              `Gere um novo PAT Fine-Grained com garrado/RMPF → Actions → Read and write ` +
+              `e Contents → Read and write, e salve na seção 🔑 Token do GitHub.`
             );
           }
           throw new Error(`HTTP ${resp.status}${msg ? ` — ${msg}` : ''}`);
@@ -969,6 +1078,22 @@
     document.getElementById('btn-run-monthly-push').addEventListener('click', async () => {
       const btn = document.getElementById('btn-run-monthly-push');
       await dispatchWorkflow('monthly-push-summary', btn, 'Resumo Mensal Push');
+    });
+
+    document.getElementById('btn-run-recusas-dry').addEventListener('click', async () => {
+      const btn = document.getElementById('btn-run-recusas-dry');
+      await dispatchWorkflow('notify-recusas', btn, 'Simulação do Aviso de Recusas',
+        { dry_run: 'true', canal: 'ambos' });
+    });
+
+    document.getElementById('btn-run-recusas').addEventListener('click', async () => {
+      // Este é o botão que escreve de verdade: envia e grava recusa_notificada_em.
+      // Um clique a mais só alcança quem ainda não foi avisado, mas o fiscal
+      // recebe push e e-mail — daí a confirmação.
+      if (!confirm('Enviar push e e-mail a todos os fiscais com recusa ainda não avisada na competência aberta?')) return;
+      const btn = document.getElementById('btn-run-recusas');
+      await dispatchWorkflow('notify-recusas', btn, 'Notificar Recusas Pendentes',
+        { dry_run: 'false', canal: 'ambos' });
     });
 
     // ── Deploy Firestore Indexes ──────────────────────────

@@ -57,12 +57,27 @@ jobs:
               "$@"
           }
 
-          # Estado consolidado dos builds do Pages para o commit espelhado:
-          # success (algum deploy publicou), pending (ainda rodando ou nenhum
-          # apareceu) ou failed (todos terminaram sem sucesso).
+          # Estado consolidado do deploy do commit espelhado: success (publicado),
+          # pending (ainda rodando ou nada apareceu) ou failed (terminou sem sucesso).
+          #
+          # A fonte autoritativa é /pages/builds/latest, que responde qual commit
+          # está no ar independentemente de como o Pages de lá publica. A varredura
+          # de runs vem depois, como reforço, e casa `pages` em qualquer posição do
+          # path: no Pages servido por GitHub Actions não existe nenhum run
+          # `dynamic/pages/pages-build-deployment`, e casar só esse literal fazia o
+          # passo esperar 18 minutos e falhar mesmo com o site já publicado.
           state() {
+            local latest publicado st
+            latest=$(gh_api "$API/pages/builds/latest")
+            publicado=$(echo "$latest" | jq -r '.commit // empty')
+            st=$(echo "$latest" | jq -r '.status // empty')
+            if [ "$publicado" = "$SHA" ] && [ "$st" = "built" ]; then
+              echo success
+              return
+            fi
+
             gh_api "$API/actions/runs?head_sha=$SHA&per_page=100" \
-              | jq -r '[.workflow_runs[]? | select(.path == "dynamic/pages/pages-build-deployment")]
+              | jq -r '[.workflow_runs[]? | select((.path // "") | test("pages"))]
                        | if any(.[]; .conclusion == "success") then "success"
                          elif any(.[]; .status != "completed") or length == 0 then "pending"
                          else "failed" end'
@@ -85,8 +100,15 @@ jobs:
               echo "Deploy não concluiu com sucesso; solicitando novo build do Pages corporativo..."
               HTTP=$(gh_api -o /dev/null -w "%{http_code}" -X POST "$API/pages/builds")
               echo "Pedido de rebuild: HTTP $HTTP"
+              # Um MIRROR_PAT expirado ou sem escopo se manifesta exatamente aqui,
+              # e antes passava batido no meio do log como um número solto.
+              case "$HTTP" in
+                401|403) echo "::error::MIRROR_PAT rejeitado pelo Pages de VisaAnapolis/RMPF (HTTP $HTTP) — token expirado ou sem permissão de Pages/Administration. Renove o secret MIRROR_PAT." ;;
+                404)     echo "::error::Pages não encontrado em VisaAnapolis/RMPF (HTTP 404) — o GitHub Pages do repositório corporativo pode estar desativado, ou o MIRROR_PAT não enxerga o repositório. Confira Settings → Pages." ;;
+              esac
               sleep 15
             fi
           done
-          echo "::error::Deploy do Pages corporativo não concluiu com sucesso após 3 tentativas. O site https://visaanapolis.github.io/RMPF/ pode estar desatualizado — veja https://github.com/VisaAnapolis/RMPF/actions"
+          PUBLICADO=$(gh_api "$API/pages/builds/latest" | jq -r '.commit // "desconhecido"')
+          echo "::error::Deploy do Pages corporativo não concluiu com sucesso após 3 tentativas. Esperado: $SHA — publicado: $PUBLICADO. O site https://visaanapolis.github.io/RMPF/ está desatualizado — veja https://github.com/VisaAnapolis/RMPF/actions e Settings → Pages."
           exit 1

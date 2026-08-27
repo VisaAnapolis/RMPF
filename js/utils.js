@@ -1311,6 +1311,55 @@ if (typeof document !== 'undefined') {
   }
 }
 
+// ── Banner de lançamentos recusados (Dashboard e Meus Lançamentos) ──────
+//
+// O ⛔ da coluna Status é discreto por natureza: só aparece na linha, e só
+// depois que o fiscal encontra a linha. Quem foi recusado precisa saber disso
+// ao abrir a tela, com o motivo escrito pela chefia à vista — daí o banner.
+//
+// `lista` são os lançamentos com status 'recusado' da competência aberta.
+// `opts.link` acrescenta o atalho para Meus Lançamentos (só o Dashboard usa;
+// em Meus Lançamentos o fiscal já está na tela da lista).
+const _RECUSADOS_NO_BANNER = 5;
+
+function alertaRecusadosHtml(lista, opts) {
+  const itens = Array.isArray(lista) ? lista.filter(Boolean) : [];
+  if (!itens.length) return '';
+  const link = !!(opts && opts.link);
+
+  const mostrados = itens.slice(0, _RECUSADOS_NO_BANNER);
+  const ocultos   = itens.length - mostrados.length;
+
+  // Um lançamento antigo pode não ter `motivo_recusa` gravado. Ele entra na
+  // lista assim mesmo, só com o controle: o banner não pode encolher — nem
+  // sumir, quando é o único — por causa de um registro sem motivo.
+  const linhas = mostrados.map((m) => {
+    const controle = escHtml(m.controle || m.id || '—');
+    const motivo   = m.motivo_recusa ? escHtml(m.motivo_recusa) : '';
+    return `<li><strong>${controle}</strong>${motivo ? ` &mdash; ${motivo}` : ''}</li>`;
+  }).join('');
+
+  const plural = itens.length > 1;
+  let html =
+    `Você tem <strong>${itens.length}</strong> lançamento(s) <strong>recusado(s)</strong>:` +
+    `<ul style="margin:.5rem 0 0 1.1rem;line-height:1.6">${linhas}` +
+    `${ocultos > 0 ? `<li>…e mais ${ocultos}</li>` : ''}</ul>`;
+
+  // Mesma regra que `abrirMotivoRecusa` já explica no modal do ⛔ — a lista
+  // pode misturar origens, então as duas saídas são ditas de uma vez.
+  html +=
+    `<p style="margin:.6rem 0 0">${plural ? 'Os lançamentos importados' : 'Se o lançamento foi importado'} ` +
+    `do VISA/SIM ${plural ? 'são' : 'é'} <strong>somente leitura</strong> aqui: corrigir a inspeção no ` +
+    `sistema de origem <strong>não</strong> reabre o lançamento nem restaura a pontuação — ` +
+    `para reavaliação, <strong>procure o gestor</strong>. ` +
+    `${plural ? 'Nos lançamentos manuais' : 'Se for manual'}, use ` +
+    `<strong>✏️ Corrigir e Reenviar</strong> em <em>Meus Lançamentos</em>.</p>`;
+
+  if (link) html += `<p style="margin:.5rem 0 0"><a href="meus-lancamentos.html">Ver lançamentos</a></p>`;
+
+  return alerta('danger', html);
+}
+
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -1366,4 +1415,5 @@ window.recusaAlteradaWarningHtml = recusaAlteradaWarningHtml;
 window.abrirRecusaAlterada       = abrirRecusaAlterada;
 window.motivoRecusaHtml          = motivoRecusaHtml;
 window.abrirMotivoRecusa         = abrirMotivoRecusa;
+window.alertaRecusadosHtml       = alertaRecusadosHtml;
 window.visaAppSidebarLink        = visaAppSidebarLink;

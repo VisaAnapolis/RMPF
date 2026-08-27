@@ -660,6 +660,17 @@
             if (res.some(Boolean)) {
               return db_updateManual(id, { recusa_notificada_em: new Date().toISOString() });
             }
+            // Os dois canais falharam. Antes isso só rendia um console.warn em
+            // js/notifications.js, e o gestor saía da tela convencido de que o
+            // fiscal havia sido avisado. A recusa está gravada e a repescagem
+            // existe — o que faltava era alguém saber que ela é necessária.
+            document.getElementById('alert-area').innerHTML += alerta('warn',
+              `A recusa de <strong>${escHtml(controle)}</strong> foi gravada, mas o ` +
+              `<strong>aviso ao fiscal não saiu</strong> — token do GitHub sem ` +
+              `<em>Contents → Read and write</em>, ou fiscal sem dispositivo registrado no RMPF. ` +
+              `O lançamento ficou sem marca de aviso: rode <strong>🚨 Notificar Recusas Pendentes</strong> ` +
+              `em <a href="parametrizacao.html">Parametrização</a>, onde <em>🩺 Testar Token</em> ` +
+              `também diz se é a permissão que falta.`);
           }).catch((e) => console.warn('[notif] Falha ao marcar recusa notificada:', e));
         } else if (statusFinal === 'enviado'
                    && (prevStatus === 'aceito' || prevStatus === 'homologado' || prevStatus === 'recusado')) {
