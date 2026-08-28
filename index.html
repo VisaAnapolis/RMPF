@@ -71,24 +71,43 @@
       console.log('\uD83D\uDD04 Atualizando de ' + (savedVersion || 'antiga') + ' para ' + APP_VERSION);
       window.__rmpfVersionReloading = true;
 
-      // Limpa localStorage (exceto chaves do Firebase e a própria chave de versão) eira
+      // Limpa localStorage (exceto chaves do Firebase e as chaves preservadas abaixo).
+      //
+      // rmpf_fcmTokenLocal guarda o ÚLTIMO token FCM registrado por ESTE
+      // dispositivo. Sem ele, o initFCM não consegue remover o token anterior de
+      // rmpf_fcmTokens e o array acumula tokens mortos a cada versão — cada envio
+      // vira um despacho que o FCM recusa com UNREGISTERED.
+      const KEYS_PRESERVADAS = [VERSION_KEY, 'rmpf_shared_device', 'rmpf_fcmTokenLocal'];
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (!key.startsWith('firebase:') && key !== VERSION_KEY && key !== 'rmpf_shared_device') keysToRemove.push(key);
+        if (!key.startsWith('firebase:') && KEYS_PRESERVADAS.indexOf(key) === -1) keysToRemove.push(key);
       }
       keysToRemove.forEach(function (key) { localStorage.removeItem(key); });
       localStorage.setItem(VERSION_KEY, APP_VERSION);
 
-      // Desregistra todos os Service Workers antigos e limpa caches ..
+      // Desregistra os Service Workers antigos e limpa caches.
+      //
+      // EXCEÇÃO — firebase-messaging-sw.js: desregistrar esse worker destrói a
+      // PushSubscription do navegador, e o token FCM salvo em rmpf_fcmTokens fica
+      // morto na hora. Como esta limpeza roda a CADA troca de versão, era isso que
+      // silenciava o push de toda a base a cada release: o Firestore continuava
+      // com o token antigo e o FCM respondia UNREGISTERED em todo envio.
+      // O worker de cache (service-worker.js) continua sendo desregistrado — é ele
+      // que prende o usuário em código velho, e é reinstalado logo abaixo.
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function (registrations) {
           const unregisterAll = registrations.map(function (reg) {
+            const script = (reg.active || reg.waiting || reg.installing || {}).scriptURL || '';
+            if (script.indexOf('firebase-messaging-sw.js') !== -1) {
+              console.log('[SW] Preservando (push): ' + reg.scope);
+              return Promise.resolve(false);
+            }
             console.log('[SW] Desregistrando: ' + reg.scope);
             return reg.unregister();
           });
           Promise.all(unregisterAll).then(function () {
-            console.log('[SW] Todos os Service Workers desregistrados. Recarregando...');
+            console.log('[SW] Service Workers de cache desregistrados. Recarregando...');
             if ('caches' in window) {
               caches.keys().then(function (cacheNames) {
                 return Promise.all(cacheNames.map(function (name) { return caches.delete(name); }));

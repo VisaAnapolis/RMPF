@@ -232,6 +232,12 @@ jobs:
                   'message': {
                       'token': fcm_token,
                       'data': {'title': titulo, 'body': corpo, 'link': link},
+                      # Push data-only na web entra como prioridade BAIXA por padrão:
+                      # o navegador pode segurar a entrega até acordar por conta
+                      # própria, e o aviso chega horas depois ou não chega. Urgency
+                      # high entrega na hora; o TTL de 24h guarda o aviso enquanto o
+                      # aparelho estiver offline, em vez de descartá-lo.
+                      'webpush': {'headers': {'Urgency': 'high', 'TTL': '86400'}},
                   },
               }).encode()
               req = urllib.request.Request(FCM_URL, data=payload, method='POST', headers=headers)

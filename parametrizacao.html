@@ -521,11 +521,23 @@
       <div class="btn-group">
         <button class="btn btn-primary" id="btn-save-notif-config" type="button">💾 Salvar Configuração</button>
         <button class="btn btn-default" id="btn-reoffer-promo" type="button">📣 Re-oferecer agora</button>
+        <button class="btn btn-default" id="btn-notif-diag" type="button">📊 Diagnóstico da frota</button>
+        <button class="btn btn-default" id="btn-notif-teste" type="button">🔔 Enviar teste para mim</button>
       </div>
       <p style="font-size:.82rem;color:var(--cinzaT);margin-top:10px">
-        <strong>Re-oferecer agora:</strong> faz o convite reaparecer para <strong>todos</strong> os usuários
-        que ainda não decidiram, no próximo acesso, ignorando o intervalo acima. Não afeta quem já aceitou ou negou.
+        <strong>Re-oferecer agora:</strong> faz o convite reaparecer no próximo acesso para quem ainda não
+        decidiu <em>e também para quem recusou o convite</em> — estes seguem com a permissão do navegador em
+        <code>default</code> e podem ativar quando quiserem. Não afeta quem já aceitou nem quem bloqueou no navegador
+        (a estes o navegador não permite reabrir o diálogo; recebem o lembrete de reativação manual).
+        <br>
+        <strong>Diagnóstico da frota:</strong> mostra quantos usuários realmente têm token de push registrado —
+        é o número que explica por que uma notificação chega ou não.
+        <br>
+        <strong>Enviar teste para mim:</strong> dispara um push real para os seus próprios aparelhos, percorrendo
+        todo o caminho (Firestore → GitHub Actions → FCM → service worker). Serve para confirmar se a falha está
+        no envio ou no cadastro dos tokens.
       </p>
+      <div id="notif-campanha-info" style="margin-top:8px;font-size:.82rem;color:var(--cinzaT)"></div>
       <div id="notif-config-log" style="margin-top:12px"></div>
     </div>
 
@@ -1011,6 +1023,7 @@
       'monthly-push-summary':     'notify-monthly-summary.yml',
       'notify-recusas':           'notify-recusas.yml',
       'deploy-firestore-indexes': 'deploy-firestore-indexes.yml',
+      'notify-teste-push':        'notify-teste-push.yml',
     };
 
     // `inputs` é opcional e vai como está no corpo do dispatch. A API de
@@ -1018,8 +1031,11 @@
     // declarados `type: boolean` — daí 'true'/'false' nos chamadores. Sem
     // passar nada, o workflow roda com os defaults dele: no notify-recusas.yml
     // o default é dry_run=true, que simula e não envia coisa alguma.
-    async function dispatchWorkflow(workflowId, btn, label, inputs) {
-      const logEl = document.getElementById('workflow-notify-log');
+    // `logAlvo` permite que um card fora da seção de workflows (o de Notificações
+    // Push, por exemplo) receba o retorno no seu próprio log, em vez de mandar o
+    // usuário procurar a resposta em outro ponto da página.
+    async function dispatchWorkflow(workflowId, btn, label, inputs, logAlvo) {
+      const logEl = logAlvo || document.getElementById('workflow-notify-log');
       const ghToken = await window.db_getGitHubToken();
       if (!ghToken) {
         logEl.innerHTML = alerta('warn', '⚠️ Configure o token do GitHub antes de rodar os workflows.');
@@ -1530,15 +1546,56 @@
       const inpPromo   = document.getElementById('notif-promo-dias');
       const btnSalvar  = document.getElementById('btn-save-notif-config');
       const btnReoffer = document.getElementById('btn-reoffer-promo');
+      const btnDiag    = document.getElementById('btn-notif-diag');
+      const btnTeste   = document.getElementById('btn-notif-teste');
+      const infoEl     = document.getElementById('notif-campanha-info');
       const logEl      = document.getElementById('notif-config-log');
       if (!inpDias || !btnSalvar) return;
+
+      /** Data/hora da última campanha — confirma que o botão realmente gravou. */
+      function mostrarCampanha(ts) {
+        if (!infoEl) return;
+        if (!ts) {
+          infoEl.innerHTML = 'Nenhuma campanha "Re-oferecer agora" disparada até o momento.';
+          return;
+        }
+        infoEl.innerHTML = 'Última campanha disparada em <strong>'
+          + escHtml(new Date(ts).toLocaleString('pt-BR')) + '</strong>.';
+      }
 
       try {
         const config = await window.db_getNotifConfig();
         inpDias.value = config.denied_reminder_dias;
         if (inpPromo) inpPromo.value = config.promo_dias;
+        mostrarCampanha(config.promo_campaign);
       } catch(e) {
         logEl.innerHTML = alerta('warn', '⚠️ Não foi possível carregar a configuração: ' + escHtml(e.message));
+      }
+
+      /**
+       * Classifica cada usuário pelo que de fato determina a entrega do push.
+       * A permissão do navegador não basta: só chega notificação a quem tem token
+       * em rmpf_fcmTokens. "Permitiu sem token" é o caso silencioso — o usuário
+       * jura que aceitou e nada chega.
+       */
+      function classificarFrota(usuarios) {
+        const r = { total: 0, ativos: 0, semToken: 0, negou: 0, recusouConvite: 0, pendente: 0 };
+        usuarios.forEach(u => {
+          if (u.ativo === false) return;
+          r.total++;
+          const tokens = Array.isArray(u.rmpf_fcmTokens)
+            ? u.rmpf_fcmTokens.filter(t => typeof t === 'string' && t.trim()) : [];
+          // 'denied' vem ANTES do token: quem ativou, recebeu token e depois
+          // bloqueou no navegador continua com o token no array, mas ele está
+          // morto. Contá-lo como ativo inflaria o número que devia denunciar o
+          // problema.
+          if (u.rmpf_notifPermissao === 'denied')           r.negou++;
+          else if (tokens.length)                           r.ativos++;
+          else if (u.rmpf_notifPermissao === 'granted')     r.semToken++;
+          else if (u.rmpf_notifDiag === 'convite_recusado') r.recusouConvite++;
+          else                                              r.pendente++;
+        });
+        return r;
       }
 
       btnSalvar.addEventListener('click', async () => {
@@ -1566,21 +1623,120 @@
         }
       });
 
-      // ── Re-oferecer agora (campanha): força o convite a todos os 'default' ──
+      // ── Re-oferecer agora (campanha): força o convite a quem não tem push ──
+      // O clique informa QUANTAS pessoas serão alcançadas antes e depois de gravar.
+      // Sem esse número o administrador não tinha como distinguir "não funcionou"
+      // de "funcionou, mas ninguém do público-alvo entrou no app ainda".
       if (btnReoffer) {
         btnReoffer.addEventListener('click', async () => {
-          if (!confirm('Isto fará o convite de notificações reaparecer para TODOS os usuários '
-            + 'que ainda não decidiram, no próximo acesso. Continuar?')) return;
           btnReoffer.disabled = true;
-          logEl.innerHTML = alerta('info', '⏳ Disparando campanha…');
+          logEl.innerHTML = alerta('info', '⏳ Levantando o público-alvo…');
           try {
-            await window.db_updateNotifConfig({ promo_campaign: Date.now() });
+            const frota = classificarFrota(await window.db_getTodosUsuarios());
+            const alvo  = frota.pendente + frota.recusouConvite;
+
+            if (!alvo) {
+              logEl.innerHTML = alerta('warn',
+                '⚠️ Nenhum usuário no público-alvo do convite. '
+                + `Da frota ativa (${frota.total}): <strong>${frota.ativos}</strong> já com push funcionando, `
+                + `<strong>${frota.semToken}</strong> permitiram mas estão sem token e `
+                + `<strong>${frota.negou}</strong> bloquearam no navegador — a campanha não alcança nenhum desses. `
+                + 'Quem bloqueou só volta pelo lembrete de reativação manual.');
+              return;
+            }
+
+            if (!confirm(`O convite reaparecerá no próximo acesso para ${alvo} usuário(s) `
+              + `(${frota.pendente} que ainda não decidiram e ${frota.recusouConvite} que recusaram o convite). `
+              + 'Continuar?')) {
+              logEl.innerHTML = '';
+              return;
+            }
+
+            logEl.innerHTML = alerta('info', '⏳ Disparando campanha…');
+            const marca = Date.now();
+            await window.db_updateNotifConfig({ promo_campaign: marca });
+            mostrarCampanha(marca);
             logEl.innerHTML = alerta('ok',
-              '✅ Campanha disparada. Quem ainda não decidiu verá o convite no próximo acesso.');
+              `✅ Campanha disparada para <strong>${alvo}</strong> usuário(s). `
+              + 'Cada um verá o convite ao abrir o Dashboard ou Meus Lançamentos — '
+              + 'as duas telas que carregam o SDK de notificações.');
           } catch(e) {
             logEl.innerHTML = alerta('danger', '🚨 Erro ao disparar: ' + escHtml(e.message));
           } finally {
             btnReoffer.disabled = false;
+          }
+        });
+      }
+
+      // ── Diagnóstico da frota ────────────────────────────────────────────────
+      // Sob demanda (uma leitura da coleção `usuarios`), para não onerar toda
+      // abertura da Parametrização.
+      if (btnDiag) {
+        btnDiag.addEventListener('click', async () => {
+          btnDiag.disabled = true;
+          logEl.innerHTML = alerta('info', '⏳ Lendo o cadastro de usuários…');
+          try {
+            const f = classificarFrota(await window.db_getTodosUsuarios());
+            logEl.innerHTML = alerta('info',
+              `<strong>Frota ativa: ${f.total} usuário(s)</strong><br>`
+              + `🟢 <strong>${f.ativos}</strong> com token registrado — estes recebem push.<br>`
+              + `🟡 <strong>${f.semToken}</strong> permitiram no navegador mas estão <strong>sem token</strong>: `
+              + 'o registro falhou ou o token expirou. Peça que abram o Dashboard e usem '
+              + '"🔔 Registrar notificações" no cabeçalho.<br>'
+              + `🔴 <strong>${f.negou}</strong> bloquearam no navegador — só voltam reativando manualmente.<br>`
+              + `🟠 <strong>${f.recusouConvite}</strong> recusaram o convite (permissão ainda em <code>default</code>).<br>`
+              + `⚪ <strong>${f.pendente}</strong> ainda não decidiram.<br>`
+              + '<span style="font-size:.85em">O detalhe por usuário está em Administração → coluna Notificações.</span>');
+          } catch(e) {
+            logEl.innerHTML = alerta('danger', '🚨 Erro ao levantar o diagnóstico: ' + escHtml(e.message));
+          } finally {
+            btnDiag.disabled = false;
+          }
+        });
+      }
+
+      // ── Teste de push ponta a ponta ─────────────────────────────────────────
+      // Percorre o caminho real (Firestore → PAT do GitHub → repository_dispatch
+      // → FCM → service worker), separando "o envio está quebrado" de "o aparelho
+      // não tem token".
+      if (btnTeste) {
+        btnTeste.addEventListener('click', async () => {
+          const email = (window.currentUser || {}).email;
+          if (!email) return;
+          btnTeste.disabled = true;
+          logEl.innerHTML = alerta('info', '⏳ Enviando notificação de teste…');
+          try {
+            const eu = await window.db_getUsuario(email);
+            const tokens = Array.isArray((eu || {}).rmpf_fcmTokens)
+              ? (eu.rmpf_fcmTokens || []).filter(t => typeof t === 'string' && t.trim()) : [];
+
+            if (!tokens.length) {
+              logEl.innerHTML = alerta('warn',
+                '⚠️ Sua conta não tem nenhum token de push registrado — por isso nada chegaria a você. '
+                + 'Abra o Dashboard e use o botão de notificações no cabeçalho para registrar este aparelho.');
+              return;
+            }
+
+            // Workflow dedicado: uma única execução testa TODOS os seus tokens e
+            // imprime o veredito do FCM para cada um, podando os mortos. Usa
+            // workflow_dispatch (permissão Actions do PAT), e não
+            // repository_dispatch (que exige Contents) — é o caminho que já
+            // funciona nos demais botões desta tela.
+            await dispatchWorkflow('notify-teste-push', btnTeste,
+              'Teste de Push (FCM)', { email }, logEl);
+
+            // Se o despacho falhou, dispatchWorkflow já explicou o motivo (PAT sem
+            // permissão, por exemplo) — não sobrepor com uma promessa de entrega.
+            if (logEl.querySelector('.alert-danger')) return;
+            logEl.innerHTML += alerta('info',
+              `Seus <strong>${tokens.length}</strong> aparelho(s) registrado(s) serão testados um a um. `
+              + 'A entrega leva alguns segundos. O resultado detalhado — o que o FCM respondeu para cada '
+              + 'token, e se algum foi podado por estar morto — sai no log da execução '
+              + '<em>Teste de Push (FCM)</em>, na aba Actions do GitHub.');
+          } catch(e) {
+            logEl.innerHTML = alerta('danger', '🚨 Erro no teste: ' + escHtml(e.message));
+          } finally {
+            btnTeste.disabled = false;
           }
         });
       }

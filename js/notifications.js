@@ -57,7 +57,11 @@ async function dispararNotificacaoFiscal(fiscalEmail, titulo, corpo) {
         },
         body: JSON.stringify({
           event_type: 'notify-fiscal',
-          client_payload: { fcm_token, titulo, corpo },
+          // fiscal_email vai junto para que o workflow possa REMOVER o token de
+          // usuarios/{email}.rmpf_fcmTokens quando o FCM responder UNREGISTERED
+          // (token morto). Sem isso o array só crescia, e cada envio seguinte
+          // repetia um despacho que já se sabia perdido.
+          client_payload: { fcm_token, titulo, corpo, fiscal_email: fiscalEmail },
         }),
       });
 
