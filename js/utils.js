@@ -481,6 +481,26 @@ function pontosComFator30h(pontos, email, regraAtiva) {
   return round2(base);
 }
 
+// ── Homologação conjunta: pontuação replicada aos demais participantes ──
+// A inspeção é uma só, mas o valor correto varia por lançamento: o fator 30h é
+// do fiscal e a não cumulatividade (plantão/OPF/relatório de alta no mesmo dia)
+// pode ter zerado um participante e não o outro. Copiar o número digitado para
+// todos, portanto, erraria os dois casos.
+// A replicação é PROPORCIONAL: o que o administrador decide é o quanto do valor
+// padrão daquele documento ele homologa, e essa mesma proporção vale para cada
+// participante sobre a base dele. Mantendo o padrão (fator 1) cada um recebe o
+// próprio valor; alvo zerado continua zerado; cortando pela metade, todos caem
+// pela metade. Padrão zero (Plantão Fiscal) não tem proporção a extrair — segue
+// a base de cada um, que também é zero.
+function pontosHomologadosReplicados(docAberto, valorDigitado, alvo, regra30hAtiva) {
+  const padraoAberto = pontosComFator30h(
+    (docAberto || {}).pontos, (docAberto || {}).fiscal_email, regra30hAtiva);
+  const fator = padraoAberto > 0 ? (Number(valorDigitado) || 0) / padraoAberto : 1;
+  const padraoAlvo = pontosComFator30h(
+    (alvo || {}).pontos, (alvo || {}).fiscal_email, regra30hAtiva);
+  return round2(padraoAlvo * fator);
+}
+
 /** Normaliza um nome para casamento tolerante (trim, minúsculas, sem acentos). */
 function normalizarNome(nome) {
   return String(nome || '')
@@ -1404,6 +1424,7 @@ window.FATOR_30H             = FATOR_30H;
 window.FISCAIS_30H           = FISCAIS_30H;
 window.ehFiscal30h           = ehFiscal30h;
 window.pontosComFator30h     = pontosComFator30h;
+window.pontosHomologadosReplicados = pontosHomologadosReplicados;
 window.carregarFeriadosMunicipais = carregarFeriadosMunicipais;
 window.feriadosEmCache          = feriadosEmCache;
 window.feriadosMoveisNacionais  = feriadosMoveisNacionais;
