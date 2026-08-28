@@ -44,6 +44,22 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.38.0</span>
+            <span class="badge-date">28/08/2026</span>
+          </div>
+          <div class="changelog-title">CNAE reclassificado no WCVS: a homologa&ccedil;&atilde;o passa para o lan&ccedil;amento do CNAE atual, em vez de deixar uma linha zerada na fila</div>
+          <ul class="changelog-changes">
+            <li><strong>O que acontecia</strong> &mdash; o CNAE faz parte da identidade do lan&ccedil;amento (o documento &eacute; <code>visa_{CONTROLE}_{CNAE}_{email}</code>), ent&atilde;o trocar a atividade no WCVS nunca &eacute; uma atualiza&ccedil;&atilde;o: &eacute; um registro novo mais um registro que sumiu do CSV. Quando o que sumiu j&aacute; estava homologado, a reconcilia&ccedil;&atilde;o o preservava zerado, com o selo <em>Reaberto</em>, e ele ficava na Confer&ecirc;ncia at&eacute; algu&eacute;m despach&aacute;-lo &mdash; duas linhas do mesmo fato para o administrador resolver.</li>
+            <li><strong>O que passa a acontecer</strong> &mdash; havendo lan&ccedil;amento do CNAE atual, a homologa&ccedil;&atilde;o <strong>migra</strong> para ele, que j&aacute; nasce com a pontua&ccedil;&atilde;o daquele CNAE, e a linha antiga &eacute; removida. A inspe&ccedil;&atilde;o volta a ser uma linha s&oacute;, com o valor correto, aguardando nova homologa&ccedil;&atilde;o.</li>
+            <li><strong>Alerta s&oacute; para o administrador</strong> &mdash; o lan&ccedil;amento de destino recebe o &iacute;cone &#128257; ao lado do status na Confer&ecirc;ncia (invis&iacute;vel para o fiscal) e um aviso no modal de homologa&ccedil;&atilde;o, dizendo sob qual CNAE a inspe&ccedil;&atilde;o estava homologada e com quantos pontos. O texto mant&eacute;m a instru&ccedil;&atilde;o acion&aacute;vel: se a atividade anterior <em>tamb&eacute;m</em> foi inspecionada, basta marc&aacute;-la no WCVS em &ldquo;Marque as demais atividades inspecionadas nesta visita&rdquo; que ela volta como lan&ccedil;amento pr&oacute;prio na importa&ccedil;&atilde;o seguinte. O alerta some quando o administrador decide.</li>
+            <li><strong>Alcan&ccedil;a o que j&aacute; est&aacute; na tela</strong> &mdash; a guarda anti-vaiv&eacute;m pulava para sempre os registros marcados como CNAE reclassificado. Agora ela tenta a migra&ccedil;&atilde;o antes de pular, ent&atilde;o as linhas zeradas criadas por vers&otilde;es anteriores tamb&eacute;m s&atilde;o resolvidas na pr&oacute;xima importa&ccedil;&atilde;o. Quem o administrador j&aacute; despachou fica como est&aacute;.</li>
+            <li><strong>Quando nada muda</strong> &mdash; sem lan&ccedil;amento de destino (CNAE atual sem compet&ecirc;ncia no <code>cnae.csv</code> ou fora do teto de 48 pontos) n&atilde;o h&aacute; para onde migrar, e a preserva&ccedil;&atilde;o zerada de sempre continua valendo &mdash; assim como com os CSVs de apoio falhos, em que a homologa&ccedil;&atilde;o &eacute; mantida por seguran&ccedil;a.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>js/visa-import.js</code> &mdash; <code>_motivoCnaeMigrado</code>, <code>_destinoCnaeMigrado</code>, migra&ccedil;&atilde;o no la&ccedil;o de &oacute;rf&atilde;os e contador <code>migrados</code>; <code>js/utils.js</code> &mdash; <code>cnaeMigradoWarningHtml</code> e o modal; <code>conferencia.html</code> &mdash; &iacute;cone, aviso da homologa&ccedil;&atilde;o e limpeza ao decidir; <code>js/visa-auto-import.js</code> e <code>parametrizacao.html</code> &mdash; relat&oacute;rios; <code>js/version.js</code> &mdash; 1.38.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.38.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.37.1</span>
             <span class="badge-date">28/08/2026</span>
           </div>

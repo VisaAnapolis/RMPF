@@ -78,6 +78,7 @@ async function registrarImportStateVisa(r, mes, ano, blobShas, opts) {
     leituras: opts.leituras != null ? opts.leituras : null,
     criados: (r && r.criados) || 0, atualizados: (r && r.atualizados) || 0,
     ignorados: (r && r.ignorados) || 0, excluidos: (r && r.excluidos) || 0,
+    migrados: (r && r.migrados) || 0,
     reabertos: (r && r.reabertos) || 0,
     reabertos_orfaos: (r && r.reabertos_orfaos) || 0,
     reabertos_incompat: (r && r.reabertos_incompat) || 0,
@@ -260,7 +261,13 @@ async function verificarEImportarVISA(user) {
       if (reab) {
         _visaAutoMsg(`🔄 ${reab} lançamento(s) reaberto(s) para nova homologação — confira na Conferência.`, 'warn');
       }
-      _visaAutoToastHide(reab ? 12000 : 6000);
+      const migr = (r && r.migrados) || 0;
+      if (migr) {
+        _visaAutoMsg(
+          `🔁 ${migr} lançamento(s) com CNAE reclassificado no WCVS: a homologação passou para o ` +
+          `lançamento do CNAE atual — confira a pontuação na Conferência.`, 'warn');
+      }
+      _visaAutoToastHide((reab || migr) ? 12000 : 6000);
     } catch (e) {
       // Outro admin já está importando (lock) — sai em silêncio.
       const msg = String(e && e.message || '');

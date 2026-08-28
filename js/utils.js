@@ -704,10 +704,26 @@ function reabertoWarningHtml(m) {
     ` data-diff="${escHtml(diffJson)}">🔄</span>`;
 }
 
+// ── CNAE reclassificado no WCVS: homologação migrada para este lançamento ──
+// A versão antiga (outro CNAE) foi removida pela importação; este aqui já traz a
+// pontuação do CNAE atual e precisa de nova homologação. É aviso de conferência,
+// não de pontuação do fiscal: só o administrador vê.
+function cnaeMigradoWarningHtml(m, isAdmin) {
+  if (!isAdmin || !m || !m.cnae_migrado_motivo) return '';
+  return ` <span class="reaberto-alerta" role="button" tabindex="0"` +
+    ` style="cursor:pointer;color:var(--amar)"` +
+    ` title="Atividade reclassificada no WCVS — clique para detalhes"` +
+    ` data-tipo="cnae_migrado"` +
+    ` data-motivo="${escHtml(m.cnae_migrado_motivo || '')}"` +
+    ` data-anterior="${escHtml(m.cnae_migrado_pontos_anterior == null ? '' : String(m.cnae_migrado_pontos_anterior))}"` +
+    ` data-diff="">🔁</span>`;
+}
+
 const _REABERTO_TITULO = {
   origem: 'Inspeção alterada no WCVS',
   orfao: 'Data da inspeção alterada no WCVS',
   cnae_reclassificado: 'Atividade não selecionada na inspeção (WCVS)',
+  cnae_migrado: 'Atividade reclassificada no WCVS',
   incompatibilidade: 'Lançamento incompatível no mesmo dia',
 };
 
@@ -723,7 +739,9 @@ function abrirReaberto(ds) {
   // fazer no WCVS para a atividade voltar a pontuar); um parágrafo de abertura
   // aqui só repetiria a mesma informação antes dela. Nos outros casos a abertura
   // tranquiliza quem vê a pontuação cair: o lançamento não foi perdido.
-  const intro = ds.tipo === 'cnae_reclassificado'
+  // Em CNAE reclassificado (não selecionado / migrado) o próprio motivo já é a
+  // instrução completa; uma abertura genérica só repetiria a informação.
+  const intro = (ds.tipo === 'cnae_reclassificado' || ds.tipo === 'cnae_migrado')
     ? ''
     : `Este lançamento <strong>já tinha sido homologado</strong> e voltou para a conferência. ` +
       `Nada foi perdido: ele continua na sua lista e será homologado de novo assim que o ` +
@@ -734,7 +752,10 @@ function abrirReaberto(ds) {
     `<p style="margin:0 0 12px">${escHtml(ds.motivo || '—')}</p>`;
 
   if (ds.anterior) {
-    html += `<p style="margin:0 0 12px"><strong>Pontuação homologada anteriormente:</strong> ` +
+    const rotuloAnterior = ds.tipo === 'cnae_migrado'
+      ? 'Pontuação homologada no CNAE anterior'
+      : 'Pontuação homologada anteriormente';
+    html += `<p style="margin:0 0 12px"><strong>${rotuloAnterior}:</strong> ` +
             `${escHtml(ds.anterior)} pt(s).</p>`;
   }
 
@@ -1399,6 +1420,7 @@ window.abrirForaPrazo            = abrirForaPrazo;
 window.zeradoWarningHtml         = zeradoWarningHtml;
 window.abrirZeradoMotivo         = abrirZeradoMotivo;
 window.reabertoWarningHtml       = reabertoWarningHtml;
+window.cnaeMigradoWarningHtml    = cnaeMigradoWarningHtml;
 window.abrirReaberto             = abrirReaberto;
 window.fiscaisCountHtml          = fiscaisCountHtml;
 window.abrirFiscais              = abrirFiscais;

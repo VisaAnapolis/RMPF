@@ -377,6 +377,54 @@ function _motivoCnaeReclassificado(controle, cnaeAntigo, cnaesAtuais, documento,
     'Se ela não foi inspecionada, não é preciso fazer nada.';
 }
 
+// CNAE reclassificado com lan\u00e7amento novo j\u00e1 criado: a homologa\u00e7\u00e3o MIGRA para a
+// linha do CNAE atual (que j\u00e1 nasce com a pontua\u00e7\u00e3o daquele CNAE) e a linha antiga
+// sai. O administrador n\u00e3o herda uma linha zerada para despachar \u2014 herda um alerta
+// na pr\u00f3pria linha que vai homologar.
+function _motivoCnaeMigrado(controle, cnaeAntigo, cnaeNovo, pontosNovos, documento, numero) {
+  const doc = String(documento || '').trim();
+  const num = (numero == null) ? '' : String(numero).trim();
+  // "o documento X" em vez de "o X": os tipos variam em gênero (o termo, a
+  // certidão, a manifestação) e concordar com cada um exigiria uma tabela.
+  const refDoc = doc
+    ? ('o documento ' + doc + (num ? ' nº ' + num : '') + ' (inspeção ' + controle + ')')
+    : ('a inspeção CONTROLE ' + controle);
+  const pts = (pontosNovos == null || pontosNovos === '') ? '' : ' (' + pontosNovos + ' pt)';
+  return 'A atividade (CNAE) ' + (cnaeAntigo || '—') + ', sob a qual esta inspeção estava homologada, ' +
+    'não está mais selecionada como atividade inspecionada' +
+    (cnaeNovo ? ' — no WCVS a inspeção está como ' + cnaeNovo : '') + '. ' +
+    'Este lançamento já traz a pontuação do CNAE atual' + pts + ': confira e homologue o novo valor. ' +
+    'A linha do CNAE anterior foi removida para não duplicar a mesma inspeção. ' +
+    'Se a atividade ' + (cnaeAntigo || '—') + ' TAMBÉM foi inspecionada nesta ocasião, abra no WCVS ' +
+    refDoc + ' e, em "Marque as demais atividades inspecionadas nesta visita", selecione essa ' +
+    'atividade e grave: na próxima importação ela entra como lançamento próprio e volta a pontuar.';
+}
+
+// Destino da migra\u00e7\u00e3o: entre os CNAEs que a inspe\u00e7\u00e3o tem hoje, o lan\u00e7amento que
+// carrega a pontua\u00e7\u00e3o (maior valor; empate \u2192 o CNAE informado na pr\u00f3pria inspe\u00e7\u00e3o).
+// \u00c9 ele que recebe o alerta e vai \u00e0 confer\u00eancia no lugar da vers\u00e3o antiga. Sem
+// destino (CNAE novo sem compet\u00eancia, ou que n\u00e3o coube no teto de 48) n\u00e3o h\u00e1 para
+// onde migrar \u2014 a\u00ed vale a preserva\u00e7\u00e3o zerada de sempre.
+async function _destinoCnaeMigrado(controle, fiscalEmail, cnaesAtuais, cnaeAntigo, daRodada) {
+  let melhor = null;
+  for (const cnae of cnaesAtuais) {
+    if (!cnae || cnae === cnaeAntigo) continue;
+    let doc = (daRodada && daRodada.get(fiscalEmail + '::' + controle + '::' + cnae)) || null;
+    if (!doc) {
+      try { doc = await window.db_getVISAManual(controle, fiscalEmail, cnae); } catch (_) { doc = null; }
+    }
+    if (!doc) continue;
+    if (!melhor) { melhor = doc; continue; }
+    const pNovo = Number(doc.pontos || 0);
+    const pAtual = Number(melhor.pontos || 0);
+    if (pNovo > pAtual ||
+        (pNovo === pAtual && doc.cnae_origem === 'INS' && melhor.cnae_origem !== 'INS')) {
+      melhor = doc;
+    }
+  }
+  return melhor;
+}
+
 function _motivoReaberturaConflito(descricaoConflito) {
   return 'Este lançamento ficou incompatível com outro do mesmo dia: ' + descricaoConflito + '. ' +
     'O conflito surgiu DEPOIS da homologação — por isso os dois lançamentos envolvidos voltaram à ' +
@@ -1229,6 +1277,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     // versão antiga como "data alterada na origem", quando na verdade já existe um
     // lançamento atualizado da MESMA inspeção sob o CNAE novo.
     const processedControleFiscal = new Map();
+    // "fiscalEmail::controleVisa::cnae" → lançamento como ficou nesta rodada.
+    // Serve à migração de CNAE reclassificado: o destino costuma ter sido criado
+    // agora mesmo, e na simulação ele nem chega ao banco para ser lido de volta.
+    const lancamentosDaRodada = new Map();
     const marcarProcessadoControleFiscal = (email, controle, cnae) => {
       const k = email + '::' + controle;
       if (!processedControleFiscal.has(k)) processedControleFiscal.set(k, new Set());
@@ -1773,6 +1825,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               await escrever.upsert(controleVisa, emailFiscal, updateData, existing.id, false, alvo.cnae);
               _aplicarManualNoMapaPontosVisa(estadoPontos.byDia, existing, -1);
               const manualAtualizado = { ...existing, ...updateData, id: existing.id };
+              lancamentosDaRodada.set(
+                emailFiscal + '::' + controleVisa + '::' + alvo.cnae, manualAtualizado);
               _aplicarManualNoMapaPontosVisa(estadoPontos.byDia, manualAtualizado, 1);
               estadoPontos.docsById.set(existing.id, manualAtualizado);
               atualizados++;
@@ -1796,7 +1850,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 controle: controleVisa, fiscal: emailFiscal, cnae: alvo.cnae, data: dataISO,
                 status_atual: null,
               });
-              await escrever.upsert(controleVisa, emailFiscal, {
+              const _novoDoc = {
                 controle: 'VISA-' + controleVisa,
                 fiscal_email: emailFiscal,
                 fiscal_nome: nomeFiscalCsv,
@@ -1830,7 +1884,11 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                 dispositivo_legal: window.dispositivoLegal
                   ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFiscal, _duplaReducaoVisCreate, itemDecretoZerado || itemDecretoAlimentacao || undefined)
                   : null,
-              }, null, true, alvo.cnae);
+              };
+              const _novoId = await escrever.upsert(controleVisa, emailFiscal, _novoDoc, null, true, alvo.cnae);
+              lancamentosDaRodada.set(
+                emailFiscal + '::' + controleVisa + '::' + alvo.cnae,
+                { ..._novoDoc, id: _novoId || null });
               _aplicarManualNoMapaPontosVisa(estadoPontos.byDia, {
                 data: dataISO, pontos: pontosFiscal, origem: 'visa_csv', status: statusInicial,
               }, 1);
@@ -1846,6 +1904,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
     // Exclui lançamentos VISA que foram removidos do CSV e ainda não foram homologados
     let excluidos = 0;
+    let migrados = 0;
     try {
       const candidatos = fiscalEmail
         ? await window.db_getManuais(fiscalEmail, mes, ano)
@@ -1855,7 +1914,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         if (m.status === 'fechado') continue;              // mês fechado: intocável
         // Órfão já sinalizado numa rodada anterior: preservar SEM regravar. Sem
         // este desvio ele voltaria a 'enviado' e a rodada seguinte o apagaria.
-        if (m.reaberto_tipo === 'orfao' || m.reaberto_tipo === 'cnae_reclassificado') continue;
+        if (m.reaberto_tipo === 'orfao') continue;
         const key = (m.fiscal_email || '') + '::' + (m.visa_controle || '') + '::' + (m.visa_cnae || '');
         if (processedKeys.has(key)) continue;
 
@@ -1867,6 +1926,72 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         const reclassificado = !!(cnaesAtuais && cnaesAtuais.size);
 
         const homologado = m.status === 'aceito' || m.status === 'homologado';
+        // Marcado como CNAE reclassificado numa rodada anterior. Sem motivo, o
+        // administrador já despachou a linha antiga: a marca fica só como
+        // anti-vaivém e nada mais é feito com ela.
+        const jaSinalizadoReclass = m.reaberto_tipo === 'cnae_reclassificado';
+        if (jaSinalizadoReclass && !m.reaberto_motivo) continue;
+
+        // ── CNAE reclassificado: migra a homologação para o CNAE atual ──
+        // A inspeção é uma só: deixar a versão antiga zerada na fila obriga o
+        // administrador a despachar duas linhas do mesmo fato. Aqui o lançamento
+        // do CNAE atual — que já nasceu com a pontuação daquele CNAE — recebe o
+        // alerta da homologação anterior e a linha antiga é removida. Vale também
+        // para os registros marcados por versões anteriores (jaSinalizadoReclass).
+        if (reclassificado && (homologado || jaSinalizadoReclass)) {
+          if (fontesIncompletas) {
+            onProgress(
+              `⚠️ CONTROLE ${m.visa_controle} — CNAE ${m.visa_cnae} ausente do CSV, mas os arquivos ` +
+              `de apoio falharam nesta rodada. Homologação mantida por segurança.`, 'warn');
+            continue;
+          }
+          const destino = await _destinoCnaeMigrado(
+            m.visa_controle, m.fiscal_email, Array.from(cnaesAtuais), m.visa_cnae,
+            lancamentosDaRodada);
+          if (destino) {
+            // Pontos da homologação anterior: no registro recém-homologado estão em
+            // pontos_homologado; no que uma rodada anterior já zerou, em
+            // reaberto_pontos_homologado_anterior.
+            const pontosAnteriores = (m.pontos_homologado != null)
+              ? m.pontos_homologado
+              : (m.reaberto_pontos_homologado_anterior != null ? m.reaberto_pontos_homologado_anterior : null);
+            // Destino já apreciado pelo administrador: ele conferiu o CNAE atual
+            // depois da troca, então o alerta seria ruído — só a linha antiga sai.
+            const destinoDecidido = destino.status === 'aceito' || destino.status === 'homologado' ||
+                                    destino.status === 'fechado';
+            if (!destinoDecidido) {
+              // Só o alerta: status, pontos e motivo_pendencia do destino são
+              // assunto da importação normal (o 3º fiscal sem autorização, por
+              // exemplo, continua pendente).
+              await escrever.update(destino.id, {
+                cnae_migrado_de: m.visa_cnae || null,
+                cnae_migrado_pontos_anterior: pontosAnteriores,
+                cnae_migrado_em: new Date().toISOString(),
+                cnae_migrado_motivo: _motivoCnaeMigrado(
+                  m.visa_controle, m.visa_cnae, destino.visa_cnae, destino.pontos,
+                  m.documento, m.numero),
+              });
+            }
+            await escrever.remover(m.id);
+            migrados++;
+            anota('migrar_cnae', {
+              controle: m.visa_controle, fiscal: m.fiscal_email, cnae: m.visa_cnae,
+              data: m.data, status_atual: m.status,
+              motivo: 'Homologação migrada para o CNAE ' + (destino.visa_cnae || '—') +
+                      (destinoDecidido ? ' (destino já apreciado — sem alerta)' : ''),
+            });
+            onProgress(
+              `🔁 CONTROLE ${m.visa_controle} — CNAE ${m.visa_cnae} reclassificado no WCVS: ` +
+              `homologação migrada para o CNAE ${destino.visa_cnae} ` +
+              `(${destino.pontos == null ? '—' : destino.pontos} pt) e versão antiga removida.`, 'warn');
+            continue;
+          }
+          // Sem destino (CNAE atual sem competência ou fora do teto de 48): nada
+          // para onde migrar — segue a preservação zerada de sempre.
+        }
+        // Reclassificado já sinalizado e sem destino: preservar SEM regravar.
+        if (jaSinalizadoReclass) continue;
+
         if (homologado) {
           // Homologado que saiu da competência na origem NÃO é apagado em silêncio:
           // fica visível, zerado, aguardando decisão do administrador.
@@ -1963,11 +2088,18 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       `<strong>${atualizados}</strong> atualizado(s), ` +
       `<strong>${ignorados}</strong> ignorado(s), ` +
       `<strong>${excluidos}</strong> excluído(s), ` +
+      `<strong>${migrados}</strong> migrado(s) de CNAE, ` +
       `<strong>${totalReabertos}</strong> reaberto(s), ` +
       `<strong>${sincronizados}</strong> sincronizado(s), ` +
       `<strong>${erros}</strong> erro(s).`,
       erros > 0 ? 'warn' : 'ok'
     );
+    if (migrados) {
+      onProgress(
+        `🔁 ${migrados} lançamento(s) com CNAE reclassificado no WCVS: a homologação passou para o ` +
+        `lançamento do CNAE atual (com a pontuação dele) e a versão antiga foi removida — o ` +
+        `administrador vê o alerta na própria linha que vai homologar.`, 'warn');
+    }
     if (sincronizados) {
       onProgress(
         `🔗 ${sincronizados} homologado(s) atualizado(s) só nos dados informativos ` +
@@ -1980,7 +2112,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     }
 
     return {
-      criados, atualizados, ignorados, excluidos, erros,
+      criados, atualizados, ignorados, excluidos, migrados, erros,
       reabertos, reabertos_orfaos, reabertos_incompat, zerados_incompat,
       sincronizados,
       relatorio,
