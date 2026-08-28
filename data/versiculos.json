@@ -1,6 +1,6 @@
 {
-  "versao": 1,
-  "traducao": "Almeida Revista e Corrigida (ARC)",
+  "versao": 2,
+  "traducao": "Almeida Revista e Corrigida (ARC), salvo indicação em contrário na entrada",
   "inicio": "2026-07-26",
   "abertura": [
     {
@@ -16,180 +16,419 @@
   ],
   "rotativos": [
     {
+      "ref": "Lucas 1:28",
+      "traducao": "Ave-Maria",
+      "texto": "Entrando, o anjo disse-lhe: Ave, cheia de graça, o Senhor é contigo."
+    },
+    {
       "ref": "João 3:16",
-      "texto": "Porque Deus amou o mundo de tal maneira que deu o seu Filho unigênito, para que todo aquele que nele crê não pereça, mas tenha a vida eterna."
+      "traducao": "Ave-Maria",
+      "texto": "Com efeito, de tal modo Deus amou o mundo, que lhe deu seu Filho único, para que todo o que nele crê não pereça, mas tenha a vida eterna."
+    },
+    {
+      "ref": "Lucas 1:38",
+      "traducao": "Ave-Maria",
+      "texto": "Então disse Maria: Eis aqui a serva do Senhor, faça-se em mim segundo a tua palavra."
     },
     {
       "ref": "Salmos 23:1",
-      "texto": "O SENHOR é o meu pastor; nada me faltará."
+      "traducao": "Ave-Maria",
+      "texto": "O Senhor é meu pastor, nada me faltará."
+    },
+    {
+      "ref": "Lucas 1:46-48",
+      "traducao": "Ave-Maria",
+      "texto": "Minha alma glorifica ao Senhor e meu espírito exulta de alegria em Deus, meu Salvador, porque olhou para a humildade de sua serva."
     },
     {
       "ref": "Provérbios 3:5-6",
-      "texto": "Confia no SENHOR de todo o teu coração e não te estribes no teu próprio entendimento. Reconhece-o em todos os teus caminhos, e ele endireitará as tuas veredas."
+      "traducao": "Ave-Maria",
+      "texto": "Confia no Senhor de todo o teu coração e não te firmes em tua própria sabedoria. Pensa nele em todos os teus caminhos, e ele aplainará as tuas veredas."
+    },
+    {
+      "ref": "João 2:5",
+      "traducao": "Ave-Maria",
+      "texto": "Disse, então, sua mãe aos serventes: Fazei o que ele vos disser."
     },
     {
       "ref": "Filipenses 4:13",
-      "texto": "Posso todas as coisas naquele que me fortalece."
+      "traducao": "CNBB",
+      "texto": "Tudo posso naquele que me fortalece."
+    },
+    {
+      "ref": "João 19:26-27",
+      "traducao": "Ave-Maria",
+      "texto": "Jesus, vendo sua mãe e perto dela o discípulo que amava, disse à sua mãe: Mulher, eis aí o teu filho. Depois disse ao discípulo: Eis aí a tua mãe."
     },
     {
       "ref": "Isaías 41:10",
       "texto": "Não temas, porque eu sou contigo; não te assombres, porque eu sou teu Deus; eu te esforço, e te ajudo, e te sustento com a destra da minha justiça."
     },
     {
+      "ref": "Lucas 1:37",
+      "traducao": "Ave-Maria",
+      "texto": "porque a Deus nenhuma coisa é impossível."
+    },
+    {
       "ref": "Salmos 46:1",
       "texto": "Deus é o nosso refúgio e fortaleza, socorro bem presente na angústia."
     },
     {
+      "ref": "João 6:35",
+      "traducao": "Ave-Maria",
+      "texto": "Jesus respondeu-lhes: Eu sou o pão da vida; aquele que vem a mim não terá fome, e o que crê em mim jamais terá sede."
+    },
+    {
       "ref": "Jeremias 29:11",
-      "texto": "Porque eu bem sei os pensamentos que penso de vós, diz o SENHOR; pensamentos de paz e não de mal, para vos dar o fim que esperais."
+      "traducao": "Ave-Maria",
+      "texto": "Pois eu bem sei os desígnios que formei a vosso respeito — oráculo do Senhor —, desígnios de prosperidade e não de calamidade, a fim de vos dar futuro e esperança."
+    },
+    {
+      "ref": "João 6:54",
+      "traducao": "Ave-Maria",
+      "texto": "Quem come a minha carne e bebe o meu sangue tem a vida eterna, e eu o ressuscitarei no último dia."
     },
     {
       "ref": "Mateus 11:28",
-      "texto": "Vinde a mim, todos os que estais cansados e oprimidos, e eu vos aliviarei."
+      "traducao": "Ave-Maria",
+      "texto": "Vinde a mim, vós todos que estais aflitos sob o fardo, e eu vos aliviarei."
+    },
+    {
+      "ref": "João 6:56",
+      "traducao": "Ave-Maria",
+      "texto": "Quem come a minha carne e bebe o meu sangue permanece em mim e eu nele."
     },
     {
       "ref": "Romanos 8:28",
       "texto": "E sabemos que todas as coisas contribuem juntamente para o bem daqueles que amam a Deus, daqueles que são chamados por seu decreto."
     },
     {
+      "ref": "Lucas 22:19",
+      "traducao": "Ave-Maria",
+      "texto": "Em seguida, tomou o pão e deu graças, partiu-o e deu-lho, dizendo: Isto é o meu corpo, que é dado por vós; fazei isto em memória de mim."
+    },
+    {
       "ref": "Isaías 40:31",
-      "texto": "Mas os que esperam no SENHOR renovarão as suas forças e subirão com asas como águias; correrão e não se cansarão; caminharão e não se fatigarão."
+      "traducao": "Ave-Maria",
+      "texto": "Mas aqueles que contam com o Senhor renovam suas forças; ele dá-lhes asas de águia. Correm sem se cansar, vão para a frente sem se fatigar."
+    },
+    {
+      "ref": "João 15:5",
+      "traducao": "Ave-Maria",
+      "texto": "Eu sou a videira, vós, os ramos. Quem permanece em mim e eu nele, esse produz muito fruto; porque sem mim nada podeis fazer."
     },
     {
       "ref": "Salmos 91:1",
       "texto": "Aquele que habita no esconderijo do Altíssimo, à sombra do Onipotente descansará."
     },
     {
+      "ref": "Mateus 28:20",
+      "traducao": "Ave-Maria",
+      "texto": "Ensinai-os a observar tudo o que vos prescrevi. Eis que estou convosco todos os dias, até o fim do mundo."
+    },
+    {
       "ref": "Josué 1:9",
       "texto": "Não to mandei eu? Esforça-te e tem bom ânimo; não pasmes, nem te espantes, porque o SENHOR, teu Deus, é contigo, por onde quer que andares."
+    },
+    {
+      "ref": "João 14:27",
+      "traducao": "Ave-Maria",
+      "texto": "Deixo-vos a paz, dou-vos a minha paz. Não vo-la dou como o mundo a dá. Não se perturbe o vosso coração, nem se atemorize."
     },
     {
       "ref": "Provérbios 16:3",
       "texto": "Confia ao SENHOR as tuas obras, e teus pensamentos serão estabelecidos."
     },
     {
+      "ref": "Mateus 16:18",
+      "traducao": "Ave-Maria",
+      "texto": "E eu te declaro: tu és Pedro, e sobre esta pedra edificarei a minha Igreja; as portas do inferno não prevalecerão contra ela."
+    },
+    {
       "ref": "Salmos 121:1-2",
       "texto": "Levantarei os meus olhos para os montes, de onde vem o meu socorro. O meu socorro vem do SENHOR, que fez o céu e a terra."
+    },
+    {
+      "ref": "Mateus 18:20",
+      "traducao": "Ave-Maria",
+      "texto": "Pois onde dois ou três estiverem reunidos em meu nome, aí estou eu no meio deles."
     },
     {
       "ref": "Filipenses 4:6-7",
       "texto": "Não estejais inquietos por coisa alguma; antes, as vossas petições sejam em tudo conhecidas diante de Deus, pela oração e súplicas, com ação de graças. E a paz de Deus, que excede todo o entendimento, guardará os vossos corações e os vossos sentimentos em Cristo Jesus."
     },
     {
+      "ref": "João 20:23",
+      "traducao": "Ave-Maria",
+      "texto": "Àqueles a quem perdoardes os pecados, eles lhes serão perdoados; àqueles a quem os retiverdes, eles lhes serão retidos."
+    },
+    {
       "ref": "Mateus 6:33",
       "texto": "Mas buscai primeiro o Reino de Deus, e a sua justiça, e todas estas coisas vos serão acrescentadas."
     },
     {
+      "ref": "Tiago 5:14-15",
+      "traducao": "Ave-Maria",
+      "texto": "Está doente algum de vós? Chame os sacerdotes da Igreja e estes façam oração sobre ele, ungindo-o com óleo em nome do Senhor. A oração da fé salvará o enfermo e o Senhor o restabelecerá."
+    },
+    {
       "ref": "1 Coríntios 13:13",
-      "texto": "Agora, pois, permanecem a fé, a esperança e o amor, estes três; mas o maior destes é o amor."
+      "traducao": "Ave-Maria",
+      "texto": "Por ora subsistem a fé, a esperança e a caridade — as três. Porém, a maior delas é a caridade."
+    },
+    {
+      "ref": "Atos 2:42",
+      "traducao": "Ave-Maria",
+      "texto": "Eles perseveravam na doutrina dos apóstolos, na comunhão fraterna, na fração do pão e nas orações."
     },
     {
       "ref": "Salmos 37:5",
       "texto": "Entrega o teu caminho ao SENHOR; confia nele, e ele o fará."
     },
     {
+      "ref": "Mateus 25:40",
+      "traducao": "Ave-Maria",
+      "texto": "Em verdade eu vos declaro: todas as vezes que fizestes isso a um destes meus irmãos mais pequeninos, foi a mim mesmo que o fizestes."
+    },
+    {
       "ref": "Miquéias 6:8",
       "texto": "Ele te declarou, ó homem, o que é bom; e que é o que o SENHOR pede de ti, senão que pratiques a justiça, e ames a beneficência, e andes humildemente com o teu Deus?"
+    },
+    {
+      "ref": "Mateus 5:6",
+      "traducao": "Ave-Maria",
+      "texto": "Bem-aventurados os que têm fome e sede de justiça, porque serão saciados."
     },
     {
       "ref": "2 Coríntios 5:17",
       "texto": "Assim que, se alguém está em Cristo, nova criatura é: as coisas velhas já passaram; eis que tudo se fez novo."
     },
     {
+      "ref": "Mateus 5:7",
+      "traducao": "Ave-Maria",
+      "texto": "Bem-aventurados os misericordiosos, porque alcançarão misericórdia."
+    },
+    {
       "ref": "Salmos 119:105",
       "texto": "Lâmpada para os meus pés é a tua palavra e luz para o meu caminho."
+    },
+    {
+      "ref": "Lucas 6:36",
+      "traducao": "Ave-Maria",
+      "texto": "Sede misericordiosos, como também o vosso Pai é misericordioso."
     },
     {
       "ref": "Gálatas 5:22-23",
       "texto": "Mas o fruto do Espírito é: amor, gozo, paz, longanimidade, benignidade, bondade, fé, mansidão, temperança."
     },
     {
+      "ref": "Lucas 6:37",
+      "traducao": "Ave-Maria",
+      "texto": "Não julgueis, e não sereis julgados; não condeneis, e não sereis condenados; perdoai, e sereis perdoados."
+    },
+    {
+      "ref": "Lucas 10:27",
+      "traducao": "Ave-Maria",
+      "texto": "Amarás o Senhor, teu Deus, de todo o teu coração, de toda a tua alma, de todas as tuas forças e de todo o teu espírito; e amarás o teu próximo como a ti mesmo."
+    },
+    {
       "ref": "João 14:6",
       "texto": "Disse-lhe Jesus: Eu sou o caminho, e a verdade, e a vida; ninguém vem ao Pai senão por mim."
+    },
+    {
+      "ref": "Tiago 2:17",
+      "traducao": "Ave-Maria",
+      "texto": "Assim também a fé: se ela não tiver obras, é morta em si mesma."
     },
     {
       "ref": "Salmos 27:1",
       "texto": "O SENHOR é a minha luz e a minha salvação; a quem temerei? O SENHOR é a força da minha vida; de quem me recearei?"
     },
     {
+      "ref": "1 João 4:16",
+      "traducao": "Ave-Maria",
+      "texto": "Deus é amor; e quem permanece no amor permanece em Deus e Deus nele."
+    },
+    {
       "ref": "Colossenses 3:23",
       "texto": "E, tudo quanto fizerdes, fazei-o de todo o coração, como ao Senhor e não aos homens."
+    },
+    {
+      "ref": "Gálatas 6:2",
+      "traducao": "Ave-Maria",
+      "texto": "Levai as cargas uns dos outros, e assim cumprireis a lei de Cristo."
     },
     {
       "ref": "Tiago 1:5",
       "texto": "E, se algum de vós tem falta de sabedoria, peça-a a Deus, que a todos dá liberalmente e o não lança em rosto; e ser-lhe-á dada."
     },
     {
+      "ref": "Colossenses 3:14",
+      "traducao": "Ave-Maria",
+      "texto": "Mas, acima de tudo, revesti-vos da caridade, que é o vínculo da perfeição."
+    },
+    {
       "ref": "Isaías 43:2",
       "texto": "Quando passares pelas águas, estarei contigo, e, quando pelos rios, eles não te submergirão; quando passares pelo fogo, não te queimarás, nem a chama arderá em ti."
+    },
+    {
+      "ref": "Mateus 6:9-10",
+      "traducao": "Ave-Maria",
+      "texto": "Pai nosso, que estais nos céus, santificado seja o vosso nome; venha a nós o vosso Reino; seja feita a vossa vontade, assim na terra como no céu."
     },
     {
       "ref": "1 Pedro 5:7",
       "texto": "Lançando sobre ele toda a vossa ansiedade, porque ele tem cuidado de vós."
     },
     {
+      "ref": "Lucas 11:9",
+      "traducao": "Ave-Maria",
+      "texto": "Pedi e se vos dará; buscai e achareis; batei e vos será aberto."
+    },
+    {
       "ref": "Romanos 12:2",
       "texto": "E não vos conformeis com este mundo, mas transformai-vos pela renovação do vosso entendimento, para que experimenteis qual seja a boa, agradável e perfeita vontade de Deus."
+    },
+    {
+      "ref": "Romanos 5:5",
+      "traducao": "Ave-Maria",
+      "texto": "Ora, a esperança não decepciona, porque o amor de Deus foi derramado em nossos corações pelo Espírito Santo que nos foi dado."
     },
     {
       "ref": "Salmos 118:24",
       "texto": "Este é o dia que fez o SENHOR; regozijemo-nos e alegremo-nos nele."
     },
     {
+      "ref": "Isaías 6:8",
+      "traducao": "Ave-Maria",
+      "texto": "Então ouvi a voz do Senhor que dizia: Quem enviarei eu? E quem irá por nós? Eu respondi: Eis-me aqui: enviai-me."
+    },
+    {
       "ref": "Hebreus 11:1",
       "texto": "Ora, a fé é o firme fundamento das coisas que se esperam e a prova das coisas que se não veem."
+    },
+    {
+      "ref": "Salmos 51:12",
+      "traducao": "Ave-Maria",
+      "texto": "Ó meu Deus, criai em mim um coração puro, e renovai-me interiormente com espírito de firmeza."
     },
     {
       "ref": "Mateus 5:16",
       "texto": "Assim resplandeça a vossa luz diante dos homens, para que vejam as vossas boas obras e glorifiquem o vosso Pai, que está nos céus."
     },
     {
+      "ref": "1 Tessalonicenses 5:16-18",
+      "traducao": "Ave-Maria",
+      "texto": "Vivei sempre contentes. Orai sem cessar. Em todas as circunstâncias, dai graças, porque esta é, a vosso respeito, a vontade de Deus em Jesus Cristo."
+    },
+    {
       "ref": "Provérbios 17:22",
       "texto": "O coração alegre serve de bom remédio, mas o espírito abatido virá a secar os ossos."
+    },
+    {
+      "ref": "Mateus 5:13-14",
+      "traducao": "Ave-Maria",
+      "texto": "Vós sois o sal da terra. Vós sois a luz do mundo. Não se pode esconder uma cidade situada sobre uma montanha."
     },
     {
       "ref": "Efésios 4:32",
       "texto": "Antes, sede uns para com os outros benignos, misericordiosos, perdoando-vos uns aos outros, como também Deus vos perdoou em Cristo."
     },
     {
+      "ref": "Mateus 6:34",
+      "traducao": "Ave-Maria",
+      "texto": "Não vos preocupeis, pois, com o dia de amanhã: o dia de amanhã terá as suas preocupações próprias. A cada dia basta o seu cuidado."
+    },
+    {
       "ref": "Salmos 34:18",
       "texto": "Perto está o SENHOR dos que têm o coração quebrantado, e salva os contritos de espírito."
     },
     {
+      "ref": "Salmos 34:9",
+      "traducao": "Ave-Maria",
+      "texto": "Provai e vede como o Senhor é bom; feliz o homem que nele se refugia."
+    },
+    {
       "ref": "1 Coríntios 13:4",
-      "texto": "O amor é sofredor, é benigno; o amor não é invejoso; o amor não trata com leviandade, não se ensoberbece."
+      "traducao": "Ave-Maria",
+      "texto": "O amor é paciente, o amor é prestativo; não é invejoso, não se ostenta, não se incha de orgulho."
+    },
+    {
+      "ref": "Isaías 43:1",
+      "traducao": "Ave-Maria",
+      "texto": "Não temas, pois eu te resgatei, eu te chamei pelo nome; tu és meu."
     },
     {
       "ref": "Romanos 12:12",
       "texto": "Alegrai-vos na esperança, sede pacientes na tribulação, perseverai na oração."
     },
     {
+      "ref": "2 Timóteo 4:7",
+      "traducao": "Ave-Maria",
+      "texto": "Combati o bom combate, terminei a minha carreira, guardei a fé."
+    },
+    {
       "ref": "Mateus 7:12",
       "texto": "Portanto, tudo o que vós quereis que os homens vos façam, fazei-lho também vós, porque esta é a lei e os profetas."
+    },
+    {
+      "ref": "Eclesiástico 6:14-16",
+      "traducao": "Ave-Maria",
+      "texto": "Um amigo fiel é uma poderosa proteção: quem o achou, descobriu um tesouro. Nada é comparável a um amigo fiel; o ouro e a prata não merecem ser postos em paralelo com a sinceridade de sua fé. Um amigo fiel é um remédio de vida e imortalidade."
     },
     {
       "ref": "Eclesiastes 4:9",
       "texto": "Melhores são dois do que um, porque têm melhor paga do seu trabalho."
     },
     {
+      "ref": "Eclesiástico 3:17",
+      "traducao": "Ave-Maria",
+      "texto": "Meu filho, faze as tuas coisas com doçura, e serás amado mais do que os homens generosos."
+    },
+    {
       "ref": "João 8:32",
       "texto": "E conhecereis a verdade, e a verdade vos libertará."
+    },
+    {
+      "ref": "Eclesiástico 28:2",
+      "traducao": "Ave-Maria",
+      "texto": "Perdoa a teu próximo o mal que ele te fez, e os teus pecados serão apagados quando o pedires."
     },
     {
       "ref": "Provérbios 27:17",
       "texto": "Como o ferro com o ferro se aguça, assim o homem afia o rosto do seu amigo."
     },
     {
+      "ref": "Sabedoria 3:1",
+      "traducao": "Ave-Maria",
+      "texto": "As almas dos justos, porém, estão nas mãos de Deus, e o tormento da morte não as atingirá."
+    },
+    {
       "ref": "Salmos 133:1",
       "texto": "Oh! quão bom e quão suave é que os irmãos vivam em união!"
+    },
+    {
+      "ref": "Sabedoria 6:12",
+      "traducao": "Ave-Maria",
+      "texto": "A sabedoria é resplandecente e sua beleza é inalterável; os que a amam descobrem-na facilmente."
     },
     {
       "ref": "Mateus 5:9",
       "texto": "Bem-aventurados os pacificadores, porque eles serão chamados filhos de Deus."
     },
     {
+      "ref": "Tobias 4:15-16",
+      "traducao": "Ave-Maria",
+      "texto": "Guarda-te de jamais fazer a outrem o que não quererias que te fosse feito. Reparte o teu pão com os famintos e os indigentes, e cobre com as tuas vestes os que estão nus."
+    },
+    {
       "ref": "João 13:34",
       "texto": "Um novo mandamento vos dou: Que vos ameis uns aos outros; como eu vos amei a vós, que também vós uns aos outros vos ameis."
+    },
+    {
+      "ref": "Tobias 12:7",
+      "traducao": "Ave-Maria",
+      "texto": "É bom guardar o segredo do rei, mas é honroso revelar e publicar as obras de Deus."
     },
     {
       "ref": "Provérbios 22:6",
