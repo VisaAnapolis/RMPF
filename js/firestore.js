@@ -191,6 +191,19 @@ async function getManuaisPorOcorrencia(ocorrenciaId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
+// Todos os lançamentos de uma inspeção do VISA — de todos os fiscais participantes
+// e de todos os CNAEs em que ela foi expandida. É o "documento": a homologação do
+// administrador vale para o conjunto, não para o indivíduo. Filtro de igualdade
+// única, servido pelo índice de campo único automático.
+async function getManuaisPorVisaControle(visaControle) {
+  const ctrl = String(visaControle || '').trim();
+  if (!ctrl) return [];
+  const snap = await window.db.collection('manuais')
+    .where('visa_controle', '==', ctrl)
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
 // Aceita uma ocorrência: rateia MEDIA_PRODUTIVIDADE_OCORRENCIA (1000) pelos dias
 // úteis do mês e gera 1 manual por dia útil (status 'homologado', origem
 // 'ocorrencia', ocorrencia_id), depois marca a ocorrência como 'aceito'.
@@ -1350,6 +1363,7 @@ window.db_getTodosUsuarios    = getTodosUsuarios;
 window.db_updateUsuario       = updateUsuario;
 window.db_deleteUsuario        = deleteUsuario;
 window.db_getVISAManual        = getVISAManual;
+window.db_getManuaisPorVisaControle = getManuaisPorVisaControle;
 window.db_upsertVISAManual     = upsertVISAManual;
 window.db_acquireVisaImportLock = acquireVisaImportLock;
 window.db_releaseVisaImportLock = releaseVisaImportLock;

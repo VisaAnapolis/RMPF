@@ -144,6 +144,26 @@
               </div>
             </div>
           </div>
+          <!-- Alcance da decisão: a homologação é do documento, não do fiscal.
+               Lista todos os lançamentos da inspeção (todos os participantes e
+               todos os CNAEs) com o que cada um receberá, para o administrador
+               ver o efeito antes de confirmar. -->
+          <div id="hom-grupo" style="display:none;margin-bottom:.75rem">
+            <div class="form-label" id="hom-grupo-escopo" style="margin-bottom:.35rem"></div>
+            <div style="overflow-x:auto">
+              <table class="table" id="hom-grupo-tabela" style="font-size:.88em;margin:0">
+                <thead>
+                  <tr>
+                    <th>Fiscal</th><th>CNAE</th>
+                    <th style="text-align:right">Pts atuais</th>
+                    <th style="text-align:right">Receberá</th>
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody id="hom-grupo-corpo"></tbody>
+              </table>
+            </div>
+          </div>
           <div id="hom-pendencia-aviso" style="display:none;margin-bottom:.5rem" class="alert alert-warn">
             <span class="alert-icon">⚠️</span>
             <div><strong>Pendência de autorização:</strong> <span id="hom-pendencia-texto"></span></div>
@@ -237,6 +257,36 @@
   let _homAceitoValorOriginal = null;
   let _fiscais30hAtivo = false; // flag de Parametrização — regra de produtividade dos fiscais de 30h
 
+  // ── O documento, não o indivíduo ───────────────────────────────────────
+  // Quase toda inspeção do VISA é conjunta, e ela vira um lançamento por fiscal
+  // e por CNAE. Decidir um a um deixava o mesmo TERMO aceito para um fiscal,
+  // recusado para outro e pendente para o terceiro. A decisão do administrador
+  // passa a alcançar o grupo inteiro: todos os lançamentos do mesmo
+  // `visa_controle`. Lançamento sem controle do VISA (manual, SIM) forma grupo
+  // de um só e segue como sempre foi.
+  let _homDocAberto = null;      // lançamento pelo qual o modal foi aberto
+  let _homGrupo = [];            // alvos que serão gravados
+  let _homGrupoFechados = [];    // competência fechada: exibidos, nunca gravados
+
+  // O que cada alvo receberá se o administrador aceitar com o valor digitado.
+  function _homPontosDoAlvo(alvo, valorDigitado) {
+    return window.pontosHomologadosReplicados(
+      _homDocAberto, Number(valorDigitado) || 0, alvo, _fiscais30hAtivo);
+  }
+
+  // O grupo já está inteiro como uma homologação com o valor de abertura o
+  // deixaria? Enquanto não estiver, "Aceitar" é justamente o que o conserta —
+  // por isso ele não pode nascer desabilitado nesse caso.
+  function _homGrupoDivergente() {
+    if (!_homDocAberto || _homAceitoValorOriginal === null) return false;
+    for (const alvo of _homGrupo) {
+      if (alvo.status !== 'aceito' && alvo.status !== 'homologado') return true;
+      const esperado = _homPontosDoAlvo(alvo, _homAceitoValorOriginal);
+      if (Number(alvo.pontos_homologado) !== Number(esperado)) return true;
+    }
+    return false;
+  }
+
   // "Aceitar" um lançamento que já está aceito, com a mesma pontuação, não muda
   // nada — e ver o botão verde ativo ao lado de "Recusar" faz o admin achar que
   // precisa reaceitar para sair do modal. Então ele nasce desabilitado nesse
@@ -245,6 +295,7 @@
   function atualizarBotaoAceitar() {
     const btn  = document.getElementById('btn-aceitar');
     const hint = document.getElementById('hom-aceitar-hint');
+    _homAtualizarColunaRecebe();
     if (_homAceitoValorOriginal === null) {
       btn.disabled = false;
       hint.style.display = 'none';
@@ -252,8 +303,79 @@
     }
     const atual = document.getElementById('hom-pts-hom').value;
     const mudou = atual !== '' && Number(atual) !== Number(_homAceitoValorOriginal);
-    btn.disabled = !mudou;
-    hint.style.display = mudou ? 'none' : '';
+    const habilita = mudou || _homGrupoDivergente();
+    btn.disabled = !habilita;
+    hint.style.display = habilita ? 'none' : '';
+  }
+
+  // Situação atual de cada alvo, em português de tela.
+  function _homSituacaoAlvo(alvo, fechado) {
+    if (fechado) return 'competência fechada — não alterado';
+    if (alvo.status === 'pendente') return 'pendente de autorização — será autorizado';
+    if (alvo.status === 'recusado') return 'recusado hoje';
+    if (alvo.status === 'aceito' || alvo.status === 'homologado') {
+      return 'aceito hoje com ' + formatPontos(alvo.pontos_homologado || 0) + ' pt';
+    }
+    return 'aguardando homologação';
+  }
+
+  // Tabela do alcance da decisão. Só aparece quando há mais de um lançamento no
+  // documento — com um só, o modal é o de sempre.
+  function _homRenderGrupo() {
+    const wrap = document.getElementById('hom-grupo');
+    // Autorizar alcança só os pendentes do documento — listar os demais faria a
+    // tabela prometer o que aquele botão não faz.
+    const linhas = _homPendente
+      ? _homGrupo.filter(d => d.status === 'pendente')
+      : _homGrupo.concat(_homGrupoFechados);
+    if (!_homDocAberto || linhas.length <= 1) {
+      wrap.style.display = 'none';
+      document.getElementById('hom-grupo-corpo').innerHTML = '';
+      return;
+    }
+    wrap.style.display = '';
+    const fiscais = new Set(linhas.map(d => d.fiscal_email));
+    const doc = _homDocAberto.documento ? String(_homDocAberto.documento).trim() : '';
+    const num = (_homDocAberto.numero == null) ? '' : String(_homDocAberto.numero).trim();
+    const refDoc = doc
+      ? escHtml(doc) + (num ? ' nº ' + escHtml(num) : '')
+      : 'CONTROLE ' + escHtml(String(_homDocAberto.visa_controle || ''));
+    document.getElementById('hom-grupo-escopo').innerHTML = _homPendente
+      ? `Esta autorização vale para os <strong>${linhas.length}</strong> lançamento(s) ` +
+        `pendente(s) do documento <strong>${refDoc}</strong> ` +
+        `(inspeção ${escHtml(String(_homDocAberto.visa_controle || ''))}), de ` +
+        `<strong>${fiscais.size}</strong> fiscal(is).`
+      : `Esta decisão vale para o documento <strong>${refDoc}</strong> ` +
+        `(inspeção ${escHtml(String(_homDocAberto.visa_controle || ''))}): ` +
+        `<strong>${linhas.length}</strong> lançamento(s) de <strong>${fiscais.size}</strong> fiscal(is).`;
+    const valor = document.getElementById('hom-pts-hom').value;
+    document.getElementById('hom-grupo-corpo').innerHTML = linhas.map(alvo => {
+      const fechado = _homGrupoFechados.includes(alvo);
+      const ehAberto = alvo.id === _homDocAberto.id;
+      const recebe = (fechado || _homPendente) ? '—' : formatPontos(_homPontosDoAlvo(alvo, valor));
+      return `<tr data-alvo="${escHtml(alvo.id)}"${fechado ? ' style="opacity:.6"' : ''}>` +
+        `<td>${escHtml(nomeCurto(alvo.fiscal_nome || alvo.fiscal_email || '—'))}` +
+          `${ehAberto ? ' <span class="text-muted">(este)</span>' : ''}</td>` +
+        `<td>${escHtml(alvo.visa_cnae || '—')}</td>` +
+        `<td style="text-align:right">${alvo.pontos != null ? formatPontos(alvo.pontos) : '—'}</td>` +
+        `<td style="text-align:right" class="js-hom-recebera">${recebe}</td>` +
+        `<td>${escHtml(_homSituacaoAlvo(alvo, fechado))}</td>` +
+      `</tr>`;
+    }).join('');
+  }
+
+  // Só a coluna "Receberá" muda enquanto o administrador digita — redesenhar a
+  // tabela inteira a cada tecla perderia o foco do campo.
+  function _homAtualizarColunaRecebe() {
+    const corpo = document.getElementById('hom-grupo-corpo');
+    if (!corpo || !corpo.children.length) return;
+    const valor = document.getElementById('hom-pts-hom').value;
+    for (const tr of corpo.children) {
+      const alvo = _homGrupo.find(d => d.id === tr.dataset.alvo);
+      const celula = tr.querySelector('.js-hom-recebera');
+      if (!alvo || !celula) continue;               // fechado: fica em "—"
+      celula.textContent = formatPontos(_homPontosDoAlvo(alvo, valor));
+    }
   }
 
   function buildSidebar(perfil) {
@@ -425,9 +547,40 @@
     }).join('');
   }
 
-  function abrirHom(id) {
+  // Monta o grupo do documento: todos os lançamentos do mesmo `visa_controle`
+  // (todos os fiscais, todos os CNAEs). Falha de leitura não trava a tela — o
+  // modal cai para o comportamento antigo, decidindo só o lançamento aberto.
+  async function _homCarregarGrupo(m) {
+    _homDocAberto = m;
+    _homGrupo = [m];
+    _homGrupoFechados = [];
+    if (m.origem !== 'visa_csv' || !m.visa_controle ||
+        typeof window.db_getManuaisPorVisaControle !== 'function') return;
+    try {
+      const irmaos = await window.db_getManuaisPorVisaControle(m.visa_controle);
+      const alteraveis = [], fechados = [];
+      for (const d of irmaos) {
+        if (d.status === 'rascunho') continue;
+        // O lançamento aberto vem da lista já carregada na tela, para o modal
+        // e a tabela falarem do mesmo objeto.
+        const alvo = (d.id === m.id) ? m : d;
+        (alvo.status === 'fechado' ? fechados : alteraveis).push(alvo);
+      }
+      if (!alteraveis.some(d => d.id === m.id)) return;   // leitura inconsistente: mantém só o aberto
+      const ordena = (a, b) =>
+        String(a.fiscal_nome || a.fiscal_email || '').localeCompare(String(b.fiscal_nome || b.fiscal_email || '')) ||
+        String(a.visa_cnae || '').localeCompare(String(b.visa_cnae || ''));
+      _homGrupo = alteraveis.sort(ordena);
+      _homGrupoFechados = fechados.sort(ordena);
+    } catch (e) {
+      console.warn('[Conferencia] Falha ao carregar o grupo do documento:', e);
+    }
+  }
+
+  async function abrirHom(id) {
     const m = _manuais.find(x => x.id === id);
     if (!m) return;
+    await _homCarregarGrupo(m);
     _homPendente = m.status === 'pendente';
     document.getElementById('hom-id').value        = id;
     document.getElementById('hom-info').value      = `${m.controle||id} — ${m.tipo_nome||m.tipo_codigo}`;
@@ -501,6 +654,7 @@
     _homAceitoValorOriginal = (m.status === 'aceito' || m.status === 'homologado')
       ? String(valorPreenchido)
       : null;
+    _homRenderGrupo();
     atualizarBotaoAceitar();
     document.getElementById('hom-alert').innerHTML = '';
     document.getElementById('modal-hom').style.display = 'flex';
@@ -524,6 +678,20 @@
     }
   }
 
+  // Alvos que a decisão alcança dentro do documento. "Autorizar" (modal aberto
+  // por um lançamento pendente) toca só os pendentes; devolver à fila preserva
+  // as pendências de autorização, que não são decisão de mérito; aceitar e
+  // recusar valem para o documento inteiro.
+  function _homAlvosDaAcao(status) {
+    if (_homPendente && status === 'aceito') return _homGrupo.filter(d => d.status === 'pendente');
+    if (status === 'enviado') return _homGrupo.filter(d => d.status !== 'pendente');
+    return _homGrupo.slice();
+  }
+
+  function _homNomesFiscais(lista) {
+    return Array.from(new Set(lista.map(d => nomeCurto(d.fiscal_nome || d.fiscal_email || '—')))).join(', ');
+  }
+
   async function homologar(status) {
     const id     = document.getElementById('hom-id').value;
     const ponHom = document.getElementById('hom-pts-hom').value;
@@ -539,7 +707,18 @@
 
     // Captura dados do lançamento antes de atualizar (para a notificação)
     const manual = _manuais.find(x => x.id === id);
-    const prevStatus = manual ? manual.status : null;
+
+    // A decisão é do documento: alcança todos os lançamentos da mesma inspeção
+    // (cada fiscal participante, cada CNAE). Com um lançamento só — manual, SIM
+    // ou inspeção individual de CNAE único — o grupo é ele mesmo.
+    const alvos = _homAlvosDaAcao(status);
+    if (!alvos.length) {
+      document.getElementById('hom-alert').innerHTML =
+        alerta('warn','Nenhum lançamento deste documento a alterar.');
+      return;
+    }
+    const fiscaisAfetados = new Set(alvos.map(d => d.fiscal_email));
+    const varios = alvos.length > 1;
 
     // ── Devolver para "Pendente" (fila de homologação) ────────────────────
     // Opção intermediária ao rever um lançamento já decidido: em vez de aceitar
@@ -548,14 +727,33 @@
     // homologada e o motivo da recusa saem junto, senão sobrariam de uma
     // decisão que não vale mais.
     if (status === 'enviado') {
+      const homologados = alvos.filter(d => d.pontos_homologado != null);
       const okDevolver = confirm(
-        'Devolver este lançamento para a fila de homologação?\n\n' +
+        (varios
+          ? `Devolver os ${alvos.length} lançamento(s) deste documento (${_homNomesFiscais(alvos)}) para a fila de homologação?\n\n`
+          : 'Devolver este lançamento para a fila de homologação?\n\n') +
         'A decisão atual é desfeita' +
-        (manual && manual.pontos_homologado != null
-          ? ` e os ${formatPontos(manual.pontos_homologado)} pt(s) homologados são zerados`
-          : '') +
+        (homologados.length ? ' e a pontuação homologada é zerada' : '') +
         '. O lançamento volta a aparecer como pendente de homologação.');
       if (!okDevolver) return;
+    }
+
+    // ── Participantes pendentes de autorização ────────────────────────────
+    // O 3º fiscal em diante fica pendente até a autorização prévia (OS/Ofício).
+    // Homologar o documento sem ele deixaria a mesma inspeção aceita para dois
+    // e parada para o terceiro — a inconsistência que a decisão por documento
+    // existe para evitar. Então a homologação autoriza junto, com o
+    // administrador confirmando o ato.
+    if (statusFinal === 'aceito') {
+      const pendentes = alvos.filter(d => d.status === 'pendente');
+      if (pendentes.length) {
+        const okAut = confirm(
+          `⚠️ Este documento tem ${pendentes.length} lançamento(s) pendente(s) de autorização ` +
+          `prévia (3º fiscal em diante): ${_homNomesFiscais(pendentes)}.\n\n` +
+          `Homologar o documento AUTORIZA esse(s) fiscal(is) e homologa todos juntos.\n\n` +
+          `Continuar?`);
+        if (!okAut) return;
+      }
     }
 
     const motivoOSNorm = (manual?.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
@@ -590,49 +788,38 @@
     // Um Plantão/OPF manual ou um Relatório Técnico (alta) importado pode ter
     // sido lançado DEPOIS que esta vistoria entrou em conferência. A checagem
     // inclui a escala de plantão da gerência (fiscal escalado na data também
-    // zera a vistoria — item 9). O conflito NÃO bloqueia a homologação: o
-    // admin é avisado (Anexo VII, itens 9/13/18) e decide caso a caso qual
-    // pontuação homologar.
-    if (status === 'aceito' && manual && manual.tipo_codigo === 'VIS' && Number(ponHom) > 0
-        && typeof window.motivoNaoCumulatividadeVistoria === 'function') {
-      const motivoConflito = await window.motivoNaoCumulatividadeVistoria(manual.fiscal_email, manual.data, manual.id);
-      if (motivoConflito) {
+    // zera a vistoria — item 9). Como a decisão é do documento, a revalidação é
+    // de cada fiscal que receberá pontos — um participante pode ter plantão no
+    // dia e o outro não. O conflito NÃO bloqueia a homologação: o admin é
+    // avisado (Anexo VII, itens 9/13/18) e decide caso a caso.
+    if (statusFinal === 'aceito' && typeof window.motivoNaoCumulatividadeVistoria === 'function') {
+      const conflitos = [];
+      const jaChecados = new Set();
+      for (const alvo of alvos) {
+        if (alvo.tipo_codigo !== 'VIS') continue;
+        if (_homPontosDoAlvo(alvo, ponHom) <= 0) continue;
+        if (jaChecados.has(alvo.fiscal_email)) continue;
+        jaChecados.add(alvo.fiscal_email);
+        const motivoConflito = await window.motivoNaoCumulatividadeVistoria(
+          alvo.fiscal_email, alvo.data, alvo.id);
+        if (motivoConflito) {
+          conflitos.push(`• ${nomeCurto(alvo.fiscal_nome || alvo.fiscal_email)}: ${motivoConflito}`);
+        }
+      }
+      if (conflitos.length) {
         const okAdm = confirm(
-          `⚠️ Há ${motivoConflito}.\n\n` +
-          `Pela regra de não cumulatividade, esta vistoria seria homologada com pontuação ZERO.\n\n` +
-          `Deseja homologar mesmo assim com ${Number(ponHom)} ponto(s)?`);
+          `⚠️ Conflito de não cumulatividade:\n\n${conflitos.join('\n')}\n\n` +
+          `Pela regra, essa(s) vistoria(s) seria(m) homologada(s) com pontuação ZERO.\n\n` +
+          `Deseja homologar mesmo assim?`);
         if (!okAdm) return;
       }
     }
 
     try {
-      // Decidido o lançamento, a marca de reabertura sai — a não ser a de
-      // órfão: ela precisa persistir para a importação seguinte não apagar um
-      // registro que o administrador já adjudicou (evita o vaivém apagar/reabrir).
-      const _limpezaReab = (manual && manual.reaberto_tipo)
-        ? {
-            reaberto_tipo: (manual.reaberto_tipo === 'orfao' || manual.reaberto_tipo === 'cnae_reclassificado')
-              ? manual.reaberto_tipo : null,
-            reaberto_motivo: null,
-            reaberto_diff: null,
-            reaberto_em: null,
-            reaberto_pontos_homologado_anterior: null,
-          }
-        : {};
-      // Alerta de CNAE migrado: some ao decidir. Não volta sozinho — a linha do
-      // CNAE antigo já foi removida, então a importação não tem o que remarcar.
-      const _limpezaCnaeMigrado = (manual && manual.cnae_migrado_motivo)
-        ? {
-            cnae_migrado_de: null,
-            cnae_migrado_pontos_anterior: null,
-            cnae_migrado_em: null,
-            cnae_migrado_motivo: null,
-          }
-        : {};
-      await db_updateManual(id, Object.assign({
+      const patchComum = {
         status: statusFinal,
-        pontos_homologado: statusFinal === 'aceito' ? Number(ponHom) : null,
         motivo_recusa: statusFinal === 'recusado' ? motivo : null,
+        // Autorização do 3º fiscal: decidir o documento resolve a pendência.
         motivo_pendencia: null,
         // Sai de 'recusado' (aceito, pendente, reaberto) => a marca do aviso cai,
         // para que uma recusa futura deste mesmo lançamento notifique de novo.
@@ -643,72 +830,129 @@
         // divergência: a marca sai, e só volta se a origem mudar outra vez.
         recusa_alterado_diff: null,
         recusa_alterado_em: null,
-      }, _limpezaReab, _limpezaCnaeMigrado));
+      };
+      await Promise.all(alvos.map(alvo => {
+        // Decidido o lançamento, a marca de reabertura sai — a não ser a de
+        // órfão: ela precisa persistir para a importação seguinte não apagar um
+        // registro que o administrador já adjudicou (evita o vaivém apagar/reabrir).
+        const _limpezaReab = alvo.reaberto_tipo
+          ? {
+              reaberto_tipo: (alvo.reaberto_tipo === 'orfao' || alvo.reaberto_tipo === 'cnae_reclassificado')
+                ? alvo.reaberto_tipo : null,
+              reaberto_motivo: null,
+              reaberto_diff: null,
+              reaberto_em: null,
+              reaberto_pontos_homologado_anterior: null,
+            }
+          : {};
+        // Alerta de CNAE migrado: some ao decidir. Não volta sozinho — a linha do
+        // CNAE antigo já foi removida, então a importação não tem o que remarcar.
+        const _limpezaCnaeMigrado = alvo.cnae_migrado_motivo
+          ? {
+              cnae_migrado_de: null,
+              cnae_migrado_pontos_anterior: null,
+              cnae_migrado_em: null,
+              cnae_migrado_motivo: null,
+            }
+          : {};
+        return db_updateManual(alvo.id, Object.assign({}, patchComum, {
+          // Cada participante recebe o valor sobre a própria base: o fator 30h é
+          // do fiscal, e quem está zerado por não cumulatividade continua zerado.
+          pontos_homologado: statusFinal === 'aceito' ? _homPontosDoAlvo(alvo, ponHom) : null,
+        }, _limpezaReab, _limpezaCnaeMigrado));
+      }));
       document.getElementById('modal-hom').style.display = 'none';
-      const msg = _homPendente && status === 'aceito'
-        ? 'Lançamento <strong>autorizado</strong> e enviado para conferência.'
+      const alcance = varios
+        ? ` — <strong>${alvos.length}</strong> lançamento(s) de <strong>${fiscaisAfetados.size}</strong> fiscal(is) do mesmo documento`
+        : '';
+      let msg = _homPendente && status === 'aceito'
+        ? `Lançamento(s) <strong>autorizado(s)</strong> e enviado(s) para conferência${alcance}.`
         : (status === 'enviado'
-            ? 'Lançamento devolvido para <strong>pendente de homologação</strong>.'
-            : `Lançamento <strong>${statusFinal}</strong>.`);
-      document.getElementById('alert-area').innerHTML = alerta('ok', msg);
+            ? `Lançamento(s) devolvido(s) para <strong>pendente de homologação</strong>${alcance}.`
+            : `Documento <strong>${statusFinal}</strong>${alcance}.`);
+      // Competência fechada é intocável: o administrador precisa saber que
+      // aquele participante ficou de fora, senão acharia que homologou todos.
+      if (_homGrupoFechados.length) {
+        msg += ` ${_homGrupoFechados.length} lançamento(s) deste documento não foram alterados ` +
+               `(competência fechada: ${escHtml(_homNomesFiscais(_homGrupoFechados))}).`;
+      }
       const _scrollY = window.scrollY;
       await loadConferencia();
+      // Depois do recarregamento: loadConferencia reescreve a #alert-area (é
+      // dela o aviso de reaberturas), e a mensagem do resultado — que diz
+      // quantos lançamentos do documento foram alterados e quais ficaram de
+      // fora — se perderia se fosse gravada antes.
+      document.getElementById('alert-area').innerHTML += alerta('ok', msg);
       requestAnimationFrame(() => window.scrollTo(0, _scrollY));
 
       // ── Notificações push (fire-and-forget) ──────────────────
-      if (manual && typeof window.dispararNotificacaoFiscal === 'function') {
-        const controle = manual.controle || id;
-        if (statusFinal === 'recusado') {
-          // A recusa é definitiva perante a importação: mexer no WCVS depois
-          // dela não reabre mais o lançamento (mudou na v1.29.0), e o fiscal
-          // precisa saber disso junto com o motivo — daí push E e-mail.
-          const tituloRec = '⚠️ Lançamento Recusado';
-          const corpoRec =
-            `O lançamento ${controle} foi recusado. Motivo: ${motivo}. ` +
-            `Corrigir a inspeção no WCVS não reabre automaticamente — ` +
-            `para reavaliação, procure o gestor.`;
-          // A marca `recusa_notificada_em` só é gravada se algum canal confirmar.
-          // Falhando os dois (sem PAT, aba fechada antes do fetch, rede), o
-          // lançamento fica SEM marca e o job manual notify-recusas.yml o
-          // repesca — é isso que faz a rede de segurança ser real, e não
-          // otimista. Continua fire-and-forget: não trava a tela do gestor.
-          Promise.all([
-            window.dispararNotificacaoFiscal(manual.fiscal_email, tituloRec, corpoRec),
-            typeof window.dispatchEmailFiscal === 'function'
-              ? window.dispatchEmailFiscal(manual.fiscal_email, manual.fiscal_nome, tituloRec, corpoRec)
-              : false,
-          ]).then((res) => {
-            if (res.some(Boolean)) {
-              return db_updateManual(id, { recusa_notificada_em: new Date().toISOString() });
-            }
-            // Os dois canais falharam. Antes isso só rendia um console.warn em
-            // js/notifications.js, e o gestor saía da tela convencido de que o
-            // fiscal havia sido avisado. A recusa está gravada e a repescagem
-            // existe — o que faltava era alguém saber que ela é necessária.
-            document.getElementById('alert-area').innerHTML += alerta('warn',
-              `A recusa de <strong>${escHtml(controle)}</strong> foi gravada, mas o ` +
-              `<strong>aviso ao fiscal não saiu</strong> — token do GitHub sem ` +
-              `<em>Contents → Read and write</em>, ou fiscal sem dispositivo registrado no RMPF. ` +
-              `O lançamento ficou sem marca de aviso: rode <strong>🚨 Notificar Recusas Pendentes</strong> ` +
-              `em <a href="parametrizacao.html">Parametrização</a>, onde <em>🩺 Testar Token</em> ` +
-              `também diz se é a permissão que falta.`);
-          }).catch((e) => console.warn('[notif] Falha ao marcar recusa notificada:', e));
-        } else if (statusFinal === 'enviado'
-                   && (prevStatus === 'aceito' || prevStatus === 'homologado' || prevStatus === 'recusado')) {
-          // Decisão desfeita: o fiscal viu o lançamento como aceito (com pontos)
-          // ou recusado, e agora ele voltou para a fila — precisa saber.
-          window.dispararNotificacaoFiscal(
-            manual.fiscal_email,
-            '🔄 Lançamento Devolvido para Análise',
-            `O lançamento ${controle} voltou para pendente de homologação e será reavaliado.`
-          );
-        } else if (statusFinal === 'aceito' && (prevStatus === 'aceito' || prevStatus === 'recusado')) {
-          // Revisão de lançamento já avaliado — sobrescrita
-          window.dispararNotificacaoFiscal(
-            manual.fiscal_email,
-            '📝 Lançamento Sobrescrito',
-            `O lançamento ${controle} foi revisado e está agora como aceito (${ponHom} pts).`
-          );
+      // Um aviso por fiscal, não por lançamento: o documento é um só, e um push
+      // por CNAE viraria ruído para quem participou da mesma inspeção.
+      if (typeof window.dispararNotificacaoFiscal === 'function') {
+        const controle = (manual && manual.controle) || id;
+        const porFiscal = new Map();
+        for (const alvo of alvos) {
+          if (!porFiscal.has(alvo.fiscal_email)) porFiscal.set(alvo.fiscal_email, []);
+          porFiscal.get(alvo.fiscal_email).push(alvo);
+        }
+        for (const [emailFiscal, docsFiscal] of porFiscal.entries()) {
+          const anteriores = new Set(docsFiscal.map(d => d.status));
+          const eraDecidido = anteriores.has('aceito') || anteriores.has('homologado') || anteriores.has('recusado');
+          const nomeFiscal = docsFiscal[0].fiscal_nome;
+          if (statusFinal === 'recusado') {
+            // A recusa é definitiva perante a importação: mexer no WCVS depois
+            // dela não reabre mais o lançamento (mudou na v1.29.0), e o fiscal
+            // precisa saber disso junto com o motivo — daí push E e-mail.
+            const tituloRec = '⚠️ Lançamento Recusado';
+            const corpoRec =
+              `O lançamento ${controle} foi recusado. Motivo: ${motivo}. ` +
+              `Corrigir a inspeção no WCVS não reabre automaticamente — ` +
+              `para reavaliação, procure o gestor.`;
+            // A marca `recusa_notificada_em` só é gravada se algum canal confirmar.
+            // Falhando os dois (sem PAT, aba fechada antes do fetch, rede), o
+            // lançamento fica SEM marca e o job manual notify-recusas.yml o
+            // repesca — é isso que faz a rede de segurança ser real, e não
+            // otimista. Continua fire-and-forget: não trava a tela do gestor.
+            Promise.all([
+              window.dispararNotificacaoFiscal(emailFiscal, tituloRec, corpoRec),
+              typeof window.dispatchEmailFiscal === 'function'
+                ? window.dispatchEmailFiscal(emailFiscal, nomeFiscal, tituloRec, corpoRec)
+                : false,
+            ]).then((res) => {
+              if (res.some(Boolean)) {
+                return Promise.all(docsFiscal.map(d =>
+                  db_updateManual(d.id, { recusa_notificada_em: new Date().toISOString() })));
+              }
+              // Os dois canais falharam. Antes isso só rendia um console.warn em
+              // js/notifications.js, e o gestor saía da tela convencido de que o
+              // fiscal havia sido avisado. A recusa está gravada e a repescagem
+              // existe — o que faltava era alguém saber que ela é necessária.
+              document.getElementById('alert-area').innerHTML += alerta('warn',
+                `A recusa de <strong>${escHtml(controle)}</strong> foi gravada, mas o ` +
+                `<strong>aviso a ${escHtml(nomeCurto(nomeFiscal || emailFiscal))} não saiu</strong> — ` +
+                `token do GitHub sem <em>Contents → Read and write</em>, ou fiscal sem ` +
+                `dispositivo registrado no RMPF. ` +
+                `O lançamento ficou sem marca de aviso: rode <strong>🚨 Notificar Recusas Pendentes</strong> ` +
+                `em <a href="parametrizacao.html">Parametrização</a>, onde <em>🩺 Testar Token</em> ` +
+                `também diz se é a permissão que falta.`);
+            }).catch((e) => console.warn('[notif] Falha ao marcar recusa notificada:', e));
+          } else if (statusFinal === 'enviado' && eraDecidido) {
+            // Decisão desfeita: o fiscal viu o lançamento como aceito (com pontos)
+            // ou recusado, e agora ele voltou para a fila — precisa saber.
+            window.dispararNotificacaoFiscal(
+              emailFiscal,
+              '🔄 Lançamento Devolvido para Análise',
+              `O lançamento ${controle} voltou para pendente de homologação e será reavaliado.`
+            );
+          } else if (statusFinal === 'aceito' && (anteriores.has('aceito') || anteriores.has('recusado'))) {
+            // Revisão de lançamento já avaliado — sobrescrita
+            const total = docsFiscal.reduce((soma, d) => soma + _homPontosDoAlvo(d, ponHom), 0);
+            window.dispararNotificacaoFiscal(
+              emailFiscal,
+              '📝 Lançamento Sobrescrito',
+              `O lançamento ${controle} foi revisado e está agora como aceito (${round2(total)} pts).`
+            );
+          }
         }
       }
     } catch(e) {

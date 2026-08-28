@@ -44,6 +44,25 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.39.0</span>
+            <span class="badge-date">28/08/2026</span>
+          </div>
+          <div class="changelog-title">A homologa&ccedil;&atilde;o &eacute; do documento, n&atilde;o do indiv&iacute;duo</div>
+          <ul class="changelog-changes">
+            <li><strong>O risco que isso encerra</strong> &mdash; quase toda inspe&ccedil;&atilde;o do VISA &eacute; conjunta, e ela vira um lan&ccedil;amento por fiscal e por CNAE. A Confer&ecirc;ncia decidia um de cada vez: bastava o administrador aceitar para a primeira fiscal, recusar para a segunda e nunca autorizar o 3&ordm; fiscal para o mesmo TERMO ficar com tr&ecirc;s desfechos diferentes. Agora a decis&atilde;o alcan&ccedil;a <strong>todos os lan&ccedil;amentos do mesmo controle</strong> &mdash; todos os participantes, todos os CNAEs.</li>
+            <li><strong>O modal mostra o alcance antes de confirmar</strong> &mdash; uma tabela lista Fiscal &middot; CNAE &middot; Pts atuais &middot; <em>Receber&aacute;</em> &middot; Situa&ccedil;&atilde;o, com a frase de escopo (&ldquo;esta decis&atilde;o vale para o documento TERMO DE NOTIFICA&Ccedil;&Atilde;O n&ordm; 000167: 6 lan&ccedil;amentos de 3 fiscais&rdquo;). A coluna <em>Receber&aacute;</em> acompanha o que o administrador digita.</li>
+            <li><strong>Pontua&ccedil;&atilde;o replicada por propor&ccedil;&atilde;o, n&atilde;o por c&oacute;pia</strong> &mdash; copiar o n&uacute;mero digitado erraria dois casos reais: o <strong>fator 30h</strong> &eacute; do fiscal (48 vira 64 para quem tem carga reduzida) e a <strong>n&atilde;o cumulatividade</strong> pode ter zerado um participante e n&atilde;o o outro. O que o administrador decide &eacute; <em>quanto do valor padr&atilde;o</em> ele homologa, e essa mesma propor&ccedil;&atilde;o vale para cada participante sobre a base dele: mantendo o padr&atilde;o cada um recebe o pr&oacute;prio valor; cortando pela metade, todos caem pela metade; quem est&aacute; zerado continua zerado.</li>
+            <li><strong>3&ordm; fiscal entra junto, com o ato expl&iacute;cito</strong> &mdash; ao aceitar um documento que tem participante pendente de autoriza&ccedil;&atilde;o pr&eacute;via, o administrador confirma uma vez (&ldquo;homologar AUTORIZA esse(s) fiscal(is) e homologa todos juntos&rdquo;) e o documento inteiro se resolve. O bot&atilde;o <strong>&#128276; Autorizar</strong> continua existindo e passa a autorizar <em>todos</em> os pendentes do documento de uma vez.</li>
+            <li><strong>Devolver &agrave; fila preserva a pend&ecirc;ncia</strong> &mdash; &ldquo;&#8617; Pendente&rdquo; desfaz a decis&atilde;o de todos os irm&atilde;os, mas n&atilde;o mexe em quem est&aacute; aguardando autoriza&ccedil;&atilde;o: isso n&atilde;o &eacute; decis&atilde;o de m&eacute;rito. Competência fechada de um participante &eacute; intoc&aacute;vel e o resultado diz quantos ficaram de fora e quais.</li>
+            <li><strong>Consist&ecirc;ncia vis&iacute;vel no bot&atilde;o</strong> &mdash; &ldquo;Aceitar&rdquo; nascia desabilitado num lan&ccedil;amento j&aacute; aceito com a mesma pontua&ccedil;&atilde;o. Agora ele s&oacute; nasce desabilitado quando <em>todo</em> o documento j&aacute; est&aacute; coerente; havendo divergência entre irm&atilde;os, ele fica ativo, porque &eacute; ele que a conserta. E a mensagem do resultado passa a aparecer de fato: ela era escrita antes do recarregamento da tela, que a apagava.</li>
+            <li><strong>Um aviso por fiscal</strong> &mdash; recusa, devolu&ccedil;&atilde;o e sobrescrita notificam cada fiscal uma vez, e n&atilde;o uma vez por CNAE. A rede de seguran&ccedil;a da recusa (marca <code>recusa_notificada_em</code> e a repescagem) continua por lan&ccedil;amento.</li>
+            <li><strong>O que n&atilde;o muda</strong> &mdash; lan&ccedil;amento sem controle do VISA (manual, SIM) forma grupo de um s&oacute; e a tela se comporta exatamente como antes. Em contrapartida, deixa de ser poss&iacute;vel aceitar um CNAE e recusar outro do mesmo documento pela Confer&ecirc;ncia &mdash; o documento &eacute; a unidade.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>js/firestore.js</code> &mdash; <code>db_getManuaisPorVisaControle</code>; <code>js/utils.js</code> &mdash; <code>pontosHomologadosReplicados</code>; <code>conferencia.html</code> &mdash; grupo do documento, tabela de alcance e <code>homologar()</code> sobre o grupo; <code>js/version.js</code> &mdash; 1.39.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.39.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.38.0</span>
             <span class="badge-date">28/08/2026</span>
           </div>
