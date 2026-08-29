@@ -268,6 +268,16 @@
   let _homDocAberto = null;      // lançamento pelo qual o modal foi aberto
   let _homGrupo = [];            // alvos que serão gravados
   let _homGrupoFechados = [];    // competência fechada: exibidos, nunca gravados
+  // Lançamentos que ainda carregam o CONTROLE mas não pertencem mais ao
+  // documento: o fiscal foi removido da inspeção no WCVS, ou a inspeção saiu da
+  // competência. Continuam visíveis, zerados, aguardando decisão do
+  // administrador — mas fora do grupo, nos dois sentidos: não são tocados pela
+  // homologação do documento nem arrastam os demais quando abertos.
+  let _homGrupoForaDoDoc = [];
+  let _homAbertoForaDoDoc = false;
+
+  const _homForaDoDocumento = (d) =>
+    !!d && (d.reaberto_tipo === 'orfao' || d.reaberto_tipo === 'fiscal_removido');
 
   // ── O que a decisão NÃO alcança, e por quê ─────────────────────────────
   // A não cumulatividade e os afastamentos são do FISCAL, não do documento:
@@ -384,11 +394,25 @@
     const wrap = document.getElementById('hom-grupo');
     // Autorizar alcança só os pendentes do documento — listar os demais faria a
     // tabela prometer o que aquele botão não faz.
+    // O lançamento aberto não é mais do documento: em vez da tabela de alcance,
+    // a razão de a decisão valer só para ele.
+    if (_homAbertoForaDoDoc) {
+      wrap.style.display = '';
+      document.getElementById('hom-grupo-escopo').innerHTML =
+        `Este lançamento <strong>não faz mais parte deste documento</strong> ` +
+        `(inspeção ${escHtml(String(_homDocAberto.visa_controle || ''))}): a decisão vale ` +
+        `apenas para ele e não altera os demais participantes.`;
+      document.getElementById('hom-grupo-corpo').innerHTML = '';
+      document.getElementById('hom-grupo-tabela').style.display = 'none';
+      return;
+    }
+    document.getElementById('hom-grupo-tabela').style.display = '';
     const linhas = _homPendente
       ? _homGrupo.filter(d => d.status === 'pendente')
       : _homGrupo.concat(_homGrupoFechados);
+    const foraDoDoc = _homPendente ? [] : _homGrupoForaDoDoc;
     const naoAlcancados = _homPendente ? 0 : _homNaoAlcancados.length;
-    if (!_homDocAberto || (linhas.length + naoAlcancados) <= 1) {
+    if (!_homDocAberto || (linhas.length + foraDoDoc.length + naoAlcancados) <= 1) {
       wrap.style.display = 'none';
       document.getElementById('hom-grupo-corpo').innerHTML = '';
       return;
@@ -424,7 +448,14 @@
         `<td style="text-align:right" class="js-hom-recebera">${recebe}</td>` +
         `<td>${escHtml(_homSituacaoAlvo(alvo, fechado))}</td>` +
       `</tr>`;
-    }).join('') + semLancamento.map(p =>
+    }).join('') + foraDoDoc.map(alvo =>
+      `<tr style="opacity:.6">` +
+        `<td>${escHtml(nomeCurto(alvo.fiscal_nome || alvo.fiscal_email || '—'))}</td>` +
+        `<td>${escHtml(alvo.visa_cnae || '—')}</td>` +
+        `<td style="text-align:right">${alvo.pontos != null ? formatPontos(alvo.pontos) : '—'}</td>` +
+        `<td style="text-align:right">—</td>` +
+        `<td>não faz mais parte deste documento — não será alterado</td>` +
+      `</tr>`).join('') + semLancamento.map(p =>
       `<tr style="opacity:.6">` +
         `<td>${escHtml(nomeCurto(p.nome))}</td>` +
         `<td>—</td><td style="text-align:right">—</td><td style="text-align:right">—</td>` +
@@ -627,18 +658,25 @@
     _homDocAberto = m;
     _homGrupo = [m];
     _homGrupoFechados = [];
+    _homGrupoForaDoDoc = [];
     _homNaoAlcancados = [];
+    _homAbertoForaDoDoc = _homForaDoDocumento(m);
+    // Aberto por um lançamento que não é mais do documento: a decisão vale só
+    // para ele. Puxar os demais seria deixar quem saiu da inspeção comandar a
+    // homologação de quem continua nela.
+    if (_homAbertoForaDoDoc) return;
     if (m.origem !== 'visa_csv' || !m.visa_controle ||
         typeof window.db_getManuaisPorVisaControle !== 'function') return;
     try {
       const irmaos = await window.db_getManuaisPorVisaControle(m.visa_controle);
-      const alteraveis = [], fechados = [];
+      const alteraveis = [], fechados = [], foraDoDoc = [];
       for (const d of irmaos) {
         if (d.status === 'rascunho') continue;
         // O lançamento aberto vem da lista já carregada na tela, para o modal
         // e a tabela falarem do mesmo objeto.
         const alvo = (d.id === m.id) ? m : d;
-        (alvo.status === 'fechado' ? fechados : alteraveis).push(alvo);
+        if (_homForaDoDocumento(alvo)) foraDoDoc.push(alvo);
+        else (alvo.status === 'fechado' ? fechados : alteraveis).push(alvo);
       }
       if (!alteraveis.some(d => d.id === m.id)) return;   // leitura inconsistente: mantém só o aberto
       const ordena = (a, b) =>
@@ -646,6 +684,7 @@
         String(a.visa_cnae || '').localeCompare(String(b.visa_cnae || ''));
       _homGrupo = alteraveis.sort(ordena);
       _homGrupoFechados = fechados.sort(ordena);
+      _homGrupoForaDoDoc = foraDoDoc.sort(ordena);
     } catch (e) {
       console.warn('[Conferencia] Falha ao carregar o grupo do documento:', e);
     }
@@ -961,6 +1000,11 @@
       for (const p of _homNaoAlcancados) {
         ressalvas.push(`<li><strong>${escHtml(nomeCurto(p.nome))}</strong> — sem lançamento deste ` +
                        `documento: ${escHtml(p.motivo)}.</li>`);
+      }
+      for (const alvo of _homGrupoForaDoDoc) {
+        ressalvas.push(`<li><strong>${escHtml(nomeCurto(alvo.fiscal_nome || alvo.fiscal_email))}</strong> ` +
+                       `(CNAE ${escHtml(alvo.visa_cnae || '—')}) — não faz mais parte deste documento ` +
+                       `(fiscal removido da inspeção no WCVS): não alterado, aguarda decisão em separado.</li>`);
       }
       for (const alvo of _homGrupoFechados) {
         ressalvas.push(`<li><strong>${escHtml(nomeCurto(alvo.fiscal_nome || alvo.fiscal_email))}</strong> ` +

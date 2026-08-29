@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.39.3</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">Quem saiu da inspe&ccedil;&atilde;o fica fora da homologa&ccedil;&atilde;o do documento</div>
+          <ul class="changelog-changes">
+            <li><strong>O furo</strong> &mdash; o grupo do documento era montado s&oacute; por <code>visa_controle</code>, separando apenas compet&ecirc;ncia fechada e rascunho. Um lan&ccedil;amento de fiscal <strong>removido da inspe&ccedil;&atilde;o</strong> (ou de inspe&ccedil;&atilde;o fora da compet&ecirc;ncia) entrava como alvo alter&aacute;vel &mdash; e isso valia nos dois sentidos: homologar pela linha de quem continua na inspe&ccedil;&atilde;o marcava o removido como <em>aceito</em> junto, e abrir pela linha dele fazia a decis&atilde;o arrastar todos os demais participantes.</li>
+            <li><strong>Sem risco de pontua&ccedil;&atilde;o, mas com risco de registro</strong> &mdash; a replica&ccedil;&atilde;o proporcional j&aacute; garantia 0 pt para quem est&aacute; zerado, ent&atilde;o nenhum ponto vazava. O que vazava era o <em>status</em>: ficava gravado como se o fiscal tivesse sido homologado num documento do qual n&atilde;o faz mais parte.</li>
+            <li><strong>Agora</strong> &mdash; esses lan&ccedil;amentos ficam <strong>fora do grupo</strong>: aparecem na tabela de alcance do modal como &ldquo;n&atilde;o faz mais parte deste documento &mdash; n&atilde;o ser&aacute; alterado&rdquo;, entram no aviso final entre as ressalvas, e a homologa&ccedil;&atilde;o do documento n&atilde;o os toca. Abrindo por um deles, o modal explica que a decis&atilde;o vale apenas para aquele lan&ccedil;amento e n&atilde;o mexe nos demais participantes.</li>
+            <li><strong>Continuam vis&iacute;veis, de prop&oacute;sito</strong> &mdash; zerados e aguardando decis&atilde;o do administrador. Some-los em sil&ecirc;ncio apagaria uma homologa&ccedil;&atilde;o sem aprecia&ccedil;&atilde;o do gestor, faria a pontua&ccedil;&atilde;o do fiscal cair sem explica&ccedil;&atilde;o e deixaria invis&iacute;vel uma remo&ccedil;&atilde;o feita por engano no WCVS.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code> &mdash; classifica&ccedil;&atilde;o do grupo, tabela de alcance e ressalvas; <code>js/version.js</code> &mdash; 1.39.3; <code>service-worker.js</code> &mdash; <code>rmpf-v1.39.3</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.39.2</span>
             <span class="badge-date">29/08/2026</span>
           </div>
