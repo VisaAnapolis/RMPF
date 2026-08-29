@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.39.4</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">Lan&ccedil;amento que saiu do documento deixa de admitir pontua&ccedil;&atilde;o</div>
+          <ul class="changelog-changes">
+            <li><strong>O que ainda passava</strong> &mdash; tirar o lan&ccedil;amento do grupo (1.39.3) impediu que ele fosse arrastado pela homologa&ccedil;&atilde;o do documento, mas abrindo o modal por ele o campo <em>Pts Homologados</em> continuava aceitando qualquer valor. Dava para homologar com 5 pontos uma inspe&ccedil;&atilde;o em que o fiscal n&atilde;o consta mais entre os participantes.</li>
+            <li><strong>Agora</strong> &mdash; nesses lan&ccedil;amentos o campo nasce em zero e <strong>desabilitado</strong>, como j&aacute; acontecia no Plant&atilde;o Fiscal, e a trava vale tamb&eacute;m na grava&ccedil;&atilde;o (campo desabilitado n&atilde;o &eacute; garantia: o valor pode vir de uma abertura anterior do modal). O modal diz o que fazer: aceitar com zero para encerrar, ou recusar &mdash; e, se a remo&ccedil;&atilde;o no WCVS foi engano, corrigir l&aacute; que a importa&ccedil;&atilde;o traz o lan&ccedil;amento de volta com a pontua&ccedil;&atilde;o.</li>
+            <li><strong>O que continua edit&aacute;vel</strong> &mdash; o zerado por <em>n&atilde;o cumulatividade</em> (plant&atilde;o ou opera&ccedil;&atilde;o fiscal no mesmo dia). Ali a inspe&ccedil;&atilde;o &eacute; do fiscal, s&oacute; n&atilde;o &eacute; cumulativa, e o administrador segue podendo sobrepor caso a caso &mdash; com o aviso do Anexo VII, como sempre foi.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code> &mdash; trava do campo e da grava&ccedil;&atilde;o; <code>js/version.js</code> &mdash; 1.39.4; <code>service-worker.js</code> &mdash; <code>rmpf-v1.39.4</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.39.3</span>
             <span class="badge-date">29/08/2026</span>
           </div>

@@ -401,7 +401,8 @@
       document.getElementById('hom-grupo-escopo').innerHTML =
         `Este lançamento <strong>não faz mais parte deste documento</strong> ` +
         `(inspeção ${escHtml(String(_homDocAberto.visa_controle || ''))}): a decisão vale ` +
-        `apenas para ele e não altera os demais participantes.`;
+        `apenas para ele, não altera os demais participantes e <strong>não admite ` +
+        `pontuação</strong> — aceite com zero para encerrá-lo, ou recuse.`;
       document.getElementById('hom-grupo-corpo').innerHTML = '';
       document.getElementById('hom-grupo-tabela').style.display = 'none';
       return;
@@ -711,7 +712,14 @@
     // regra ativa) apenas na primeira homologação — se já existe um valor
     // homologado salvo, ele é preservado tal como está (o admin pode ter
     // ajustado manualmente ao rever o lançamento).
-    const valorPreenchido = isPlantaoFiscal
+    // Lançamento que não pertence mais ao documento (fiscal removido da
+    // inspeção, ou inspeção fora da competência) não admite pontuação: a
+    // atividade não é mais dele. Diferente do zerado por não cumulatividade,
+    // que o administrador PODE sobrepor caso a caso — ali a inspeção é dele, só
+    // não é cumulativa. Se a remoção no WCVS foi engano, o caminho é corrigir lá
+    // e deixar a importação trazer o lançamento de volta, como diz o aviso.
+    const semPontuacao = isPlantaoFiscal || _homAbertoForaDoDoc;
+    const valorPreenchido = semPontuacao
       ? 0
       : (m.pontos_homologado != null
           ? m.pontos_homologado
@@ -722,7 +730,7 @@
     // certidão 2,67). step="0.01" preserva a fração nesses casos; mantém
     // step="1" (incremento de 1 ponto) no caso comum de valor inteiro.
     ptsHomEl.step = Number.isInteger(Number(valorPreenchido)) ? '1' : '0.01';
-    ptsHomEl.disabled = isPlantaoFiscal;
+    ptsHomEl.disabled = semPontuacao;
     document.getElementById('hom-motivo').value    = m.motivo_recusa || '';
     const aviso = document.getElementById('hom-pendencia-aviso');
     const avisoTexto = document.getElementById('hom-pendencia-texto');
@@ -877,6 +885,15 @@
     const motivoOSNorm = (manual?.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
     if (status === 'aceito' && motivoOSNorm === 'PLANTAO FISCAL' && Number(ponHom) !== 0) {
       document.getElementById('hom-alert').innerHTML = alerta('warn', 'Lançamentos de Plantão Fiscal devem ter pontuação zero.');
+      return;
+    }
+    // Campo desabilitado não é garantia (o valor pode vir de uma edição anterior
+    // do modal): a trava do lançamento fora do documento vale na gravação.
+    if (status === 'aceito' && _homAbertoForaDoDoc && Number(ponHom) !== 0) {
+      document.getElementById('hom-alert').innerHTML = alerta('warn',
+        'Este lançamento não faz mais parte do documento e não admite pontuação. ' +
+        'Aceite com zero para encerrá-lo, ou recuse. Se a remoção no WCVS foi engano, ' +
+        'corrija lá e a importação traz o lançamento de volta com a pontuação.');
       return;
     }
 
