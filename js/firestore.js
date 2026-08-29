@@ -209,6 +209,8 @@ async function getManuaisPorVisaControle(visaControle) {
 // 'ocorrencia', ocorrencia_id), depois marca a ocorrência como 'aceito'.
 // Lógica compartilhada entre o aceite manual (ocorrencias.html) e o auto-aceite
 // da sincronização de férias — mesmo rateio e mesma pré-checagem.
+// A taxa vem de window.taxaDiariaOcorrencia (js/utils.js), fonte única que este
+// aceite divide com o conversor de parametrizacao.html.
 // Pré-checagem: recusa se algum dia coberto já tiver pontos de OUTRO lançamento
 // (não-'ocorrencia', não-'recusado'). Retorna { ok:true } ou
 // { ok:false, motivo:'dia_com_lancamento', dia, pontos }.
@@ -235,12 +237,11 @@ async function aceitarOcorrencia(o, opts) {
   const label  = window.labelOcorrencia ? window.labelOcorrencia(o.tipo) : o.tipo;
   const sufixo = opts.sufixoDescricao || 'aceita pelo administrador';
   const obs    = opts.obsAdmin || null;
-  const regra30h = await db_getFiscais30hConfig();
   for (const { mes, ano, dias } of Object.values(porMes)) {
-    const totalUteis = window.diasUteisNoMes(mes, ano, feriados);
-    const taxaBase = totalUteis > 0
-      ? Math.round((window.MEDIA_PRODUTIVIDADE_OCORRENCIA / totalUteis) * 100) / 100 : 0;
-    const taxa = window.pontosComFator30h(taxaBase, o.fiscal_email, regra30h.ativo);
+    // Regra única em window.taxaDiariaOcorrencia (js/utils.js) — o fator 30h
+    // NÃO incide aqui: o valor rateado já é o teto mensal, não uma pontuação
+    // por atividade (ver o comentário do helper).
+    const { taxa, memoria } = window.taxaDiariaOcorrencia(mes, ano, feriados);
     for (const dia of dias) {
       if (!window.ehDiaUtil(dia, feriados)) continue;
       await createManual({
@@ -254,9 +255,12 @@ async function aceitarOcorrencia(o, opts) {
         tipo_nome:      'Ocorrência',
         item_pontuacao: null,
         complexidade:   '—',
+        // Em OCR, `pontos` (requerido) e `pontos_homologado` são o mesmo
+        // número: o lançamento nasce 'homologado' e nunca entra na fila da
+        // Conferência, onde a distinção requerido/homologado teria função.
         pontos:         taxa,
         pontos_homologado: taxa,
-        descricao:      `Ocorrência: ${label} — ${sufixo}`,
+        descricao:      `Ocorrência: ${label} — ${sufixo} (${memoria})`,
         obs:            obs,
         status:         'homologado',
         origem:         'ocorrencia',

@@ -1,8 +1,16 @@
 """
-Corrige lançamentos de ocorrência (origem=ocorrencia) de uma competência
-específica, trocando os 50 pontos fixos por dia pelo rateio de 1000 pontos
-pelos dias úteis do mês (mesma lógica de js/utils.js e da ferramenta
-"Converter Ocorrências Aceitas em Pontos" de parametrizacao.html).
+Regrava os lançamentos de ocorrência (origem=ocorrencia) de uma competência
+pelo rateio canônico: 1000 pontos divididos pelos dias úteis do mês. Espelha
+`taxaDiariaOcorrencia()` de js/utils.js — a mesma regra usada pelo aceite
+(db_aceitarOcorrencia) e pela ferramenta "Converter Ocorrências Aceitas em
+Pontos" de parametrizacao.html.
+
+O fator 30h (40/30) NÃO se aplica ao rateio: os 1000 pontos já são o teto
+mensal (teto_pv, js/calculo.js), não uma pontuação por atividade.
+
+Serviu originalmente para migrar os lançamentos gerados com a lógica antiga
+(50 pontos fixos por dia, inclusive fins de semana e feriados); continua
+sendo a rota para uniformizar uma competência inteira fora do navegador.
 
 Para cada ocorrência aceita que cobre algum dia da competência MES/ANO:
   - apaga TODOS os lançamentos existentes do fiscal nesses dias
@@ -194,6 +202,23 @@ def dias_da_ocorrencia_no_mes(data_inicio, data_fim, mes, ano):
         cur += dt.timedelta(days=1)
     return dias
 
+MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+         'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
+
+MEDIA_PRODUTIVIDADE_OCORRENCIA = 1000
+
+
+def memoria_calculo(mes, ano, total_uteis, taxa):
+    """Explicação do número, gravada na descrição do lançamento.
+
+    Espelha a `memoria` de taxaDiariaOcorrencia() em js/utils.js — inclusive o
+    ponto decimal e as 2 casas de formatPontos(), para que um lançamento
+    regravado aqui fique idêntico ao gerado pelo aceite no navegador.
+    """
+    return (f'{MEDIA_PRODUTIVIDADE_OCORRENCIA} pts ÷ {total_uteis} dias úteis de '
+            f'{MESES[mes - 1]} / {ano} = {taxa:.2f} pt/dia útil')
+
+
 TIPO_LABELS = {
     'ferias': 'Férias', 'licenca_medica': 'Licença Médica',
     'licenca_gestante': 'Licença Gestante', 'cargo_comissao': 'Cargo em Comissão',
@@ -211,8 +236,9 @@ if FISCAL_EMAILS:
 
 feriados = carregar_feriados_municipais()
 total_uteis = dias_uteis_no_mes(MES, ANO, feriados)
-taxa = round(1000 / total_uteis, 2) if total_uteis > 0 else 0
-print(f'Dias úteis em {MES:02d}/{ANO}: {total_uteis} — taxa: {taxa} pt/dia útil\n')
+taxa = round(MEDIA_PRODUTIVIDADE_OCORRENCIA / total_uteis, 2) if total_uteis > 0 else 0
+MEMORIA = memoria_calculo(MES, ANO, total_uteis, taxa)
+print(f'Rateio: {MEMORIA}\n')
 
 print('Consultando ocorrências aceitas...')
 ocorrencias = query_ocorrencias_aceitas()
@@ -284,7 +310,7 @@ for doc in ocorrencias:
                     'complexidade':      {'stringValue': '—'},
                     'pontos':            {'doubleValue': taxa},
                     'pontos_homologado': {'doubleValue': taxa},
-                    'descricao':         {'stringValue': f'Ocorrência: {tipo_label} — aceita pelo administrador'},
+                    'descricao':         {'stringValue': f'Ocorrência: {tipo_label} — aceita pelo administrador ({MEMORIA})'},
                     'obs':               ({'stringValue': obs_admin} if obs_admin else {'nullValue': None}),
                     'status':            {'stringValue': 'homologado'},
                     'origem':            {'stringValue': 'ocorrencia'},
@@ -308,7 +334,7 @@ for doc in ocorrencias:
 # ── Resumo ────────────────────────────────────────────────
 prefixo = '[DRY] ' if DRY_RUN else ''
 print(f'\n{prefixo}Resumo ({MES:02d}/{ANO}):')
-print(f'  Dias com lançamento gerado (taxa {taxa}):  {total_dias_gerados}')
+print(f'  Dias com lançamento gerado (taxa {taxa:.2f}):  {total_dias_gerados}')
 print(f'  Dias não úteis pulados:                    {total_dias_pulados}')
 print(f'  Lançamentos antigos apagados:               {total_apagados}')
 print(f'  Erros:                                      {erros}')
