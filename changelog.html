@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.39.2</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">O mesmo documento com 2 fiscais para um e 4 para outro: dados congelados e o &ldquo;fiscal removido&rdquo; que saía como &ldquo;data alterada&rdquo;</div>
+          <ul class="changelog-changes">
+            <li><strong>O que estava acontecendo</strong> &mdash; a inspe&ccedil;&atilde;o 131872 aparecia com <strong>2</strong> fiscais participantes para um fiscal e <strong>4</strong> para outro. Nenhuma das duas listas correspondia ao CSV atual: o <code>inspecoes_fiscais.csv</code> do VISA n&atilde;o tem linha para esse controle, e o <code>inspecoes.csv</code> s&oacute; carrega Fiscal1/2/3. Eram <strong>retratos congelados</strong> de momentos diferentes.</li>
+            <li><strong>Por que congelavam</strong> &mdash; <code>fiscais_participantes</code> e <code>numero</code> s&atilde;o campos <em>informativos</em>: ficam fora de <code>VISA_CAMPOS_ORIGEM</code>, ent&atilde;o mudar de 2 para 4 fiscais nunca reabre uma homologa&ccedil;&atilde;o (e em CNAE de alta complexidade nem <code>qtd_fiscais</code> muda, porque a redu&ccedil;&atilde;o de dupla/trio s&oacute; vale para m&eacute;dia e baixa). Acontece que tr&ecirc;s caminhos preservavam o lan&ccedil;amento <strong>sem gravar nada</strong> &mdash; legado homologado, recusado e &oacute;rf&atilde;o j&aacute; sinalizado &mdash; e nesses o dado parava no tempo para sempre.</li>
+            <li><strong>Agora acompanham o documento</strong> &mdash; esses tr&ecirc;s caminhos passam a sincronizar os campos informativos, e s&oacute; eles: <strong>status, pontua&ccedil;&atilde;o, homologa&ccedil;&atilde;o, recusa e as marcas de reabertura ficam intactos</strong>. Para o &oacute;rf&atilde;o, cuja linha n&atilde;o existe mais no CSV, a fonte &eacute; o pr&oacute;prio documento na rodada (n&ordm; impresso e participantes s&atilde;o do documento, n&atilde;o do fiscal). Compet&ecirc;ncia fechada continua intoc&aacute;vel, e a suspens&atilde;o por <code>inspecoes_fiscais.csv</code> indispon&iacute;vel segue valendo &mdash; lista truncada nunca substitui dado bom.</li>
+            <li><strong>&ldquo;Fiscal removido&rdquo; deixa de sair como &ldquo;data alterada&rdquo;</strong> &mdash; quando o CONTROLE continua no CSV da compet&ecirc;ncia mas o fiscal n&atilde;o consta mais entre os participantes, quem saiu foi ele, n&atilde;o a inspe&ccedil;&atilde;o. O lan&ccedil;amento ganha o tipo pr&oacute;prio <code>fiscal_removido</code>, com o t&iacute;tulo &ldquo;Fiscal removido da inspe&ccedil;&atilde;o (WCVS)&rdquo; e um texto acion&aacute;vel: se a participa&ccedil;&atilde;o estava correta, basta reinclu&iacute;-lo na inspe&ccedil;&atilde;o no WCVS que ele volta a pontuar na importa&ccedil;&atilde;o seguinte. Antes, todos esses casos saíam com o texto de data do documento alterada. O zeramento e a devolu&ccedil;&atilde;o &agrave; confer&ecirc;ncia n&atilde;o mudam.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>js/visa-import.js</code> &mdash; <code>_motivoFiscalRemovido</code>, <code>_sincronizarInformativos</code>, mapas do documento na rodada; <code>js/utils.js</code> &mdash; t&iacute;tulo do modal; <code>conferencia.html</code> &mdash; preserva&ccedil;&atilde;o da marca ao decidir; <code>parametrizacao.html</code> &mdash; r&oacute;tulo no relat&oacute;rio da simula&ccedil;&atilde;o; <code>js/version.js</code> &mdash; 1.39.2; <code>service-worker.js</code> &mdash; <code>rmpf-v1.39.2</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.39.1</span>
             <span class="badge-date">29/08/2026</span>
           </div>

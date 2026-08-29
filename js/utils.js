@@ -744,6 +744,7 @@ const _REABERTO_TITULO = {
   orfao: 'Data da inspeção alterada no WCVS',
   cnae_reclassificado: 'Atividade não selecionada na inspeção (WCVS)',
   cnae_migrado: 'Atividade reclassificada no WCVS',
+  fiscal_removido: 'Fiscal removido da inspeção (WCVS)',
   incompatibilidade: 'Lançamento incompatível no mesmo dia',
 };
 
@@ -761,7 +762,8 @@ function abrirReaberto(ds) {
   // tranquiliza quem vê a pontuação cair: o lançamento não foi perdido.
   // Em CNAE reclassificado (não selecionado / migrado) o próprio motivo já é a
   // instrução completa; uma abertura genérica só repetiria a informação.
-  const intro = (ds.tipo === 'cnae_reclassificado' || ds.tipo === 'cnae_migrado')
+  const intro = (ds.tipo === 'cnae_reclassificado' || ds.tipo === 'cnae_migrado' ||
+                 ds.tipo === 'fiscal_removido')
     ? ''
     : `Este lançamento <strong>já tinha sido homologado</strong> e voltou para a conferência. ` +
       `Nada foi perdido: ele continua na sua lista e será homologado de novo assim que o ` +
