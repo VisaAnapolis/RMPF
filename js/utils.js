@@ -726,10 +726,12 @@ function reabertoWarningHtml(m) {
 
 // ── CNAE reclassificado no WCVS: homologação migrada para este lançamento ──
 // A versão antiga (outro CNAE) foi removida pela importação; este aqui já traz a
-// pontuação do CNAE atual e precisa de nova homologação. É aviso de conferência,
-// não de pontuação do fiscal: só o administrador vê.
-function cnaeMigradoWarningHtml(m, isAdmin) {
-  if (!isAdmin || !m || !m.cnae_migrado_motivo) return '';
+// pontuação do CNAE atual e aguarda nova homologação. O fiscal também precisa
+// ver: é a explicação de por que a atividade do lançamento dele mudou — e a
+// instrução de como trazer a atividade anterior de volta, se ela também foi
+// inspecionada, é dirigida a ele.
+function cnaeMigradoWarningHtml(m) {
+  if (!m || !m.cnae_migrado_motivo) return '';
   return ` <span class="reaberto-alerta" role="button" tabindex="0"` +
     ` style="cursor:pointer;color:var(--amar)"` +
     ` title="Atividade reclassificada no WCVS — clique para detalhes"` +

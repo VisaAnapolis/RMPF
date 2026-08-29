@@ -577,9 +577,18 @@
 
       tbody.innerHTML = naoHomologados.map(m => {
         const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
+        // Esta tabela lista justamente os não homologados — é aqui que o
+        // lançamento reaberto aparece para o fiscal. Sem o selo e sem o ícone
+        // com o motivo, ele vê a pontuação cair sem nenhuma explicação: o
+        // mesmo tratamento das outras telas passa a valer no painel.
+        const avisos =
+          `${window.reabertoWarningHtml ? window.reabertoWarningHtml(m) : ''}` +
+          `${window.cnaeMigradoWarningHtml ? window.cnaeMigradoWarningHtml(m) : ''}` +
+          `${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m) : ''}` +
+          `${window.motivoRecusaHtml ? window.motivoRecusaHtml(m) : ''}`;
         const statusCell = m.status === 'pendente' && m.motivo_pendencia
-          ? `${badge('pendente-fiscal')}<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia)}</span>`
-          : `${badge(m.status)}${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m) : ''}${window.motivoRecusaHtml ? window.motivoRecusaHtml(m) : ''}`;
+          ? `${badge('pendente-fiscal')}${avisos}<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia)}</span>`
+          : `${m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status)}${avisos}`;
 
         const motivoOSNorm = (m.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
         const isVigilanciaAtiva = motivoOSNorm === 'VIGILANCIA ATIVA';
@@ -615,9 +624,9 @@
           <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo || '—')}</td>
           <td data-label="Origem da Demanda">${origemHtml}</td>
           <td data-label="OS">${escHtml(m.os_numero || '—')}</td>
-          <td data-label="Documento">${escHtml(m.documento || '—')}</td>
+          <td data-label="Documento">${window.documentoComNumeroHtml ? window.documentoComNumeroHtml(m) : escHtml(m.documento || '—')}</td>
           <td data-label="Descrição">${escHtml(m.descricao || '—')}</td>
-          <td data-label="Pts Req." class="td-num">${m.pontos != null ? formatPontos(m.pontos) : '—'}</td>
+          <td data-label="Pts Req." class="td-num">${m.pontos != null ? formatPontos(m.pontos) : '—'}${window.zeradoWarningHtml ? window.zeradoWarningHtml(m) : ''}</td>
           <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
           <td data-label="Pts Hom." class="td-num">${m.pontos_homologado != null ? formatPontos(m.pontos_homologado) : '—'}</td>
           <td data-label="Status">${statusCell}</td>

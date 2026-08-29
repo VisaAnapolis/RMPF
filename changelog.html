@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.40.0</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">O fiscal passa a ver os mesmos avisos que o administrador</div>
+          <ul class="changelog-changes">
+            <li><strong>O desequil&iacute;brio</strong> &mdash; os avisos que explicam o que aconteceu com um lan&ccedil;amento (reabertura, CNAE reclassificado, pontua&ccedil;&atilde;o zerada, autoriza&ccedil;&atilde;o de fiscais) foram nascendo na Confer&ecirc;ncia. Quem mais precisa deles, por&eacute;m, &eacute; o fiscal: &eacute; a pontua&ccedil;&atilde;o <em>dele</em> que cai, e as instru&ccedil;&otilde;es de corre&ccedil;&atilde;o no WCVS s&atilde;o dirigidas a ele.</li>
+            <li><strong>Meus Lan&ccedil;amentos</strong> &mdash; ganha o &#128257; do CNAE reclassificado na coluna Status e o &#9888;&#65039; da autoriza&ccedil;&atilde;o de fiscais na coluna Fiscais, que s&oacute; existiam na Confer&ecirc;ncia. As duas tabelas passam a exibir exatamente o mesmo conjunto de avisos.</li>
+            <li><strong>Painel (dashboard)</strong> &mdash; era o mais defasado, e &eacute; a primeira tela que o fiscal abre. A tabela de atividades pendentes mostrava um lan&ccedil;amento reaberto com o selo gen&eacute;rico <em>Enviado</em> e sem nenhuma explica&ccedil;&atilde;o &mdash; o fiscal via a pontua&ccedil;&atilde;o cair sem saber por qu&ecirc;. Agora traz o selo <strong>Reaberto</strong>, o &#128260; com o motivo completo, o &#128257; do CNAE reclassificado, o &#9888;&#65039; da pontua&ccedil;&atilde;o zerada ao lado dos Pts Req. e o n&uacute;mero impresso do documento.</li>
+            <li><strong>Texto do CNAE reclassificado sem dono</strong> &mdash; dizia &ldquo;confira e homologue o novo valor&rdquo;, instru&ccedil;&atilde;o que s&oacute; faz sentido para o administrador. Passa a dizer que o lan&ccedil;amento <em>aguarda nova homologa&ccedil;&atilde;o</em>, mantendo intacta a parte acion&aacute;vel, que sempre foi do fiscal: marcar a atividade no WCVS para ela voltar a pontuar. O aviso do modal de homologa&ccedil;&atilde;o continua dizendo ao administrador o que fazer.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>meus-lancamentos.html</code> e <code>dashboard.html</code> &mdash; avisos nas tabelas; <code>js/utils.js</code> &mdash; <code>cnaeMigradoWarningHtml</code> deixa de exigir perfil de administrador; <code>js/visa-import.js</code> &mdash; texto do motivo; <code>conferencia.html</code> &mdash; chamada ajustada; <code>js/version.js</code> &mdash; 1.40.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.40.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.39.4</span>
             <span class="badge-date">29/08/2026</span>
           </div>

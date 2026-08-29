@@ -393,7 +393,7 @@ function _motivoCnaeMigrado(controle, cnaeAntigo, cnaeNovo, pontosNovos, documen
   return 'A atividade (CNAE) ' + (cnaeAntigo || '—') + ', sob a qual esta inspeção estava homologada, ' +
     'não está mais selecionada como atividade inspecionada' +
     (cnaeNovo ? ' — no WCVS a inspeção está como ' + cnaeNovo : '') + '. ' +
-    'Este lançamento já traz a pontuação do CNAE atual' + pts + ': confira e homologue o novo valor. ' +
+    'Este lançamento já traz a pontuação do CNAE atual' + pts + ' e aguarda nova homologação. ' +
     'A linha do CNAE anterior foi removida para não duplicar a mesma inspeção. ' +
     'Se a atividade ' + (cnaeAntigo || '—') + ' TAMBÉM foi inspecionada nesta ocasião, abra no WCVS ' +
     refDoc + ' e, em "Marque as demais atividades inspecionadas nesta visita", selecione essa ' +
