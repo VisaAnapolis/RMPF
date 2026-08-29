@@ -393,7 +393,7 @@ function _motivoCnaeMigrado(controle, cnaeAntigo, cnaeNovo, pontosNovos, documen
   return 'A atividade (CNAE) ' + (cnaeAntigo || '—') + ', sob a qual esta inspeção estava homologada, ' +
     'não está mais selecionada como atividade inspecionada' +
     (cnaeNovo ? ' — no WCVS a inspeção está como ' + cnaeNovo : '') + '. ' +
-    'Este lançamento já traz a pontuação do CNAE atual' + pts + ': confira e homologue o novo valor. ' +
+    'Este lançamento já traz a pontuação do CNAE atual' + pts + ' e aguarda nova homologação. ' +
     'A linha do CNAE anterior foi removida para não duplicar a mesma inspeção. ' +
     'Se a atividade ' + (cnaeAntigo || '—') + ' TAMBÉM foi inspecionada nesta ocasião, abra no WCVS ' +
     refDoc + ' e, em "Marque as demais atividades inspecionadas nesta visita", selecione essa ' +
@@ -423,6 +423,26 @@ async function _destinoCnaeMigrado(controle, fiscalEmail, cnaesAtuais, cnaeAntig
     }
   }
   return melhor;
+}
+
+// Fiscal retirado da inspeção no WCVS ≠ inspeção fora da competência. O
+// CONTROLE continua no CSV desta rodada, só sem este fiscal entre os
+// participantes — dizer a ele que "a data do documento foi alterada" seria
+// mentira, e ainda esconderia a correção que resolve o caso.
+function _motivoFiscalRemovido(controle, documento, numero) {
+  const doc = String(documento || '').trim();
+  const num = (numero == null) ? '' : String(numero).trim();
+  // "o documento X" em vez de "o X": os tipos variam em gênero (o termo, a
+  // certidão, a manifestação) e concordar com cada um exigiria uma tabela.
+  const refDoc = doc
+    ? ('o documento ' + doc + (num ? ' nº ' + num : '') + ' (inspeção ' + controle + ')')
+    : ('a inspeção CONTROLE ' + controle);
+  return 'A inspeção CONTROLE ' + controle + ' continua nesta competência, mas este fiscal não ' +
+    'consta mais entre os participantes dela no WCVS. Por isso a pontuação foi zerada e o ' +
+    'lançamento devolvido à conferência. ' +
+    'Se a participação estava correta, abra no WCVS ' + refDoc + ' e inclua o fiscal entre os ' +
+    'que realizaram a inspeção: na próxima importação ele volta a pontuar automaticamente. ' +
+    'Se ele realmente não participou, não é preciso fazer nada.';
 }
 
 function _motivoReaberturaConflito(descricaoConflito) {
@@ -1281,12 +1301,46 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     // Serve à migração de CNAE reclassificado: o destino costuma ter sido criado
     // agora mesmo, e na simulação ele nem chega ao banco para ser lido de volta.
     const lancamentosDaRodada = new Map();
+    // CONTROLE → campos informativos do DOCUMENTO nesta rodada (nº impresso e
+    // lista de participantes). São do documento, não do fiscal: servem para
+    // atualizar até um lançamento cujo fiscal saiu da inspeção, que de outro
+    // modo ficaria exibindo para sempre o retrato do dia em que congelou.
+    const dadosDocumentoDaRodada = new Map();
+    // CONTROLEs presentes no CSV desta competência, com ou sem fiscal casado.
+    // Distingue "o fiscal saiu da inspeção" de "a inspeção saiu da competência".
+    const controlesDaRodada = new Set();
     const marcarProcessadoControleFiscal = (email, controle, cnae) => {
       const k = email + '::' + controle;
       if (!processedControleFiscal.has(k)) processedControleFiscal.set(k, new Set());
       processedControleFiscal.get(k).add(cnae || '');
     };
     const pontosEstadoCache = new Map();
+
+    // Campos informativos (nº impresso do documento e lista de participantes)
+    // são do DOCUMENTO, não da decisão: mudam no WCVS sem que a pontuação mude.
+    // Vários caminhos preservam o lançamento sem gravar nada — legado
+    // homologado, recusado, órfão já sinalizado — e ele fica exibindo o retrato
+    // do dia em que parou de ser atualizado. É isso que faz o mesmo documento
+    // aparecer com 2 fiscais para um e 4 para outro. Sincronizar não desfaz
+    // decisão, não reabre nada e não encosta em pontos.
+    const _sincronizarInformativos = async (m, fonte) => {
+      if (!m || !fonte) return false;
+      // Sem o inspecoes_fiscais.csv a lista vem truncada: não substitui dado bom.
+      const campos = fiscaisIncompletos
+        ? VISA_CAMPOS_INFORMATIVOS.filter(c => c !== 'fiscais_participantes')
+        : VISA_CAMPOS_INFORMATIVOS;
+      const diffInf = visaDiffInformativo(m, fonte, campos);
+      if (!diffInf.length) return false;
+      await escrever.update(m.id, visaPatchInformativo(fonte, diffInf));
+      sincronizados++;
+      anota('sincronizar', {
+        controle: m.visa_controle || m.controle, fiscal: m.fiscal_email,
+        cnae: m.visa_cnae, data: m.data, status_atual: m.status,
+        motivo: 'Campos informativos desatualizados: ' + diffInf.join(', ') +
+                ' (decisão e pontuação preservadas)',
+      });
+      return true;
+    };
 
     // Heartbeat do lock: uma importação de todos os fiscais pode passar dos 3 min
     // do timeout de "stale". Renovamos o lock a cada ~60s para evitar que outra
@@ -1388,6 +1442,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       // na UI). Só relevante com 2+ fiscais; single-fiscal grava null (fallback
       // legado por qtd_fiscais nas telas).
       const nomesParticipantes = fiscaisCsv.map(f => f.nome);
+
+      controlesDaRodada.add(controleVisa);
+      dadosDocumentoDaRodada.set(controleVisa, {
+        numero,
+        fiscais_participantes: fiscaisCsv.length >= 2 ? nomesParticipantes : null,
+      });
 
       // ── CNAEs-alvo da inspeção ───────────────────────────
       // Vistoria (VIS): expande em 1 lançamento por CNAE de competência —
@@ -1513,7 +1573,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           if (legacy && (legacy.status === 'aceito' || legacy.status === 'fechado')) {
             processedKeys.add(emailFiscal + '::' + controleVisa + '::' + (legacy.visa_cnae || ''));
             marcarProcessadoControleFiscal(emailFiscal, controleVisa, legacy.visa_cnae);
-            ignorados++;
+            // Competência fechada é intocável até nos informativos; o legado
+            // apenas homologado acompanha o documento sem perder a homologação.
+            const _sincLegado = legacy.status === 'aceito'
+              ? await _sincronizarInformativos(legacy, dadosDocumentoDaRodada.get(controleVisa))
+              : false;
+            if (!_sincLegado) ignorados++;
             onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: já homologado (legado), preservado.`, 'warn');
             continue;
           }
@@ -1720,6 +1785,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                       `recusa — alerta de alteração removido.`, 'info');
                   }
                 }
+                // A recusa é definitiva, mas o nº do documento e a lista de
+                // participantes seguem a origem: são informação, não reavaliação.
+                await _sincronizarInformativos(existing, updateData);
                 anota('ignorar_recusado', {
                   controle: controleVisa, fiscal: emailFiscal, cnae: alvo.cnae,
                   data: dataISO, status_atual: existing.status, alterado: _recusaAlterada,
@@ -1912,9 +1980,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       for (const m of candidatos) {
         if (m.origem !== 'visa_csv') continue;
         if (m.status === 'fechado') continue;              // mês fechado: intocável
-        // Órfão já sinalizado numa rodada anterior: preservar SEM regravar. Sem
-        // este desvio ele voltaria a 'enviado' e a rodada seguinte o apagaria.
-        if (m.reaberto_tipo === 'orfao') continue;
+        // Órfão já sinalizado numa rodada anterior: preservar SEM regravar a
+        // decisão. Sem este desvio ele voltaria a 'enviado' e a rodada seguinte
+        // o apagaria. Os informativos, porém, continuam acompanhando o
+        // documento: congelá-los é o que faz a mesma inspeção aparecer com
+        // listas de participantes diferentes entre os fiscais.
+        if (m.reaberto_tipo === 'orfao' || m.reaberto_tipo === 'fiscal_removido') {
+          await _sincronizarInformativos(m, dadosDocumentoDaRodada.get(m.visa_controle || ''));
+          continue;
+        }
         const key = (m.fiscal_email || '') + '::' + (m.visa_controle || '') + '::' + (m.visa_cnae || '');
         if (processedKeys.has(key)) continue;
 
@@ -1930,7 +2004,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         // administrador já despachou a linha antiga: a marca fica só como
         // anti-vaivém e nada mais é feito com ela.
         const jaSinalizadoReclass = m.reaberto_tipo === 'cnae_reclassificado';
-        if (jaSinalizadoReclass && !m.reaberto_motivo) continue;
+        if (jaSinalizadoReclass && !m.reaberto_motivo) {
+          await _sincronizarInformativos(m, dadosDocumentoDaRodada.get(m.visa_controle || ''));
+          continue;
+        }
 
         // ── CNAE reclassificado: migra a homologação para o CNAE atual ──
         // A inspeção é uma só: deixar a versão antiga zerada na fila obriga o
@@ -1990,9 +2067,17 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           // para onde migrar — segue a preservação zerada de sempre.
         }
         // Reclassificado já sinalizado e sem destino: preservar SEM regravar.
-        if (jaSinalizadoReclass) continue;
+        if (jaSinalizadoReclass) {
+          await _sincronizarInformativos(m, dadosDocumentoDaRodada.get(m.visa_controle || ''));
+          continue;
+        }
 
         if (homologado) {
+          // O CONTROLE continua no CSV desta competência, mas sem este fiscal
+          // entre os participantes: quem saiu foi ele, não a inspeção. Dizer que
+          // "a data do documento foi alterada" seria mentira — e esconderia a
+          // correção que resolve o caso, que é reincluir o fiscal no WCVS.
+          const fiscalRemovido = !reclassificado && controlesDaRodada.has(m.visa_controle || '');
           // Homologado que saiu da competência na origem NÃO é apagado em silêncio:
           // fica visível, zerado, aguardando decisão do administrador.
           if (fontesIncompletas) {
@@ -2005,11 +2090,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             pontos: 0,
             status: 'enviado',
             pontos_homologado: null,
-            reaberto_tipo: reclassificado ? 'cnae_reclassificado' : 'orfao',
+            reaberto_tipo: reclassificado
+              ? 'cnae_reclassificado'
+              : (fiscalRemovido ? 'fiscal_removido' : 'orfao'),
             reaberto_motivo: reclassificado
               ? _motivoCnaeReclassificado(m.visa_controle, m.visa_cnae, Array.from(cnaesAtuais),
                                           m.documento, m.numero)
-              : _motivoReaberturaOrfao(m.visa_controle),
+              : (fiscalRemovido
+                  ? _motivoFiscalRemovido(m.visa_controle, m.documento, m.numero)
+                  : _motivoReaberturaOrfao(m.visa_controle)),
             reaberto_diff: null,
             reaberto_em: new Date().toISOString(),
             reaberto_pontos_homologado_anterior:
@@ -2017,7 +2106,9 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           });
           reabertos_orfaos++;
           marcarReabertura(m.fiscal_email);
-          anota(reclassificado ? 'reabrir_cnae_reclassificado' : 'reabrir_orfao', {
+          anota(reclassificado
+            ? 'reabrir_cnae_reclassificado'
+            : (fiscalRemovido ? 'reabrir_fiscal_removido' : 'reabrir_orfao'), {
             controle: m.visa_controle, fiscal: m.fiscal_email, cnae: m.visa_cnae,
             data: m.data, status_atual: m.status,
           });
@@ -2025,8 +2116,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
             reclassificado
               ? `🔄 CONTROLE ${m.visa_controle} — CNAE ${m.visa_cnae} reclassificado no WCVS: versão ` +
                 `antiga zerada (o lançamento atual da inspeção segue valendo).`
-              : `🔄 CONTROLE ${m.visa_controle} — homologado, mas alterado no WCVS depois disso (data do ` +
-                `documento fora desta competência): pontuação zerada e devolvido à conferência.`, 'warn');
+              : (fiscalRemovido
+                  ? `🔄 CONTROLE ${m.visa_controle} — ${nomeCurto(m.fiscal_nome || m.fiscal_email || '')} ` +
+                    `não consta mais entre os participantes da inspeção no WCVS: pontuação zerada e ` +
+                    `devolvido à conferência.`
+                  : `🔄 CONTROLE ${m.visa_controle} — homologado, mas alterado no WCVS depois disso (data do ` +
+                    `documento fora desta competência): pontuação zerada e devolvido à conferência.`), 'warn');
         } else {
           await escrever.remover(m.id);
           excluidos++;

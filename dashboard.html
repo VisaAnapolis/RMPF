@@ -235,6 +235,10 @@
                 <th>Origem da Demanda</th>
                 <th>OS</th>
                 <th>Documento</th>
+                <th class="td-center">Origem CNAE</th>
+                <th class="td-center">Complexidade</th>
+                <th class="td-center">Área</th>
+                <th class="td-center">Fiscais</th>
                 <th>Descrição</th>
                 <th class="td-num">Pts Req.</th>
                 <th class="td-center">Prazo</th>
@@ -245,7 +249,7 @@
               </tr>
             </thead>
             <tbody id="tbody-fiscal">
-              <tr class="empty-row"><td colspan="13">Selecione uma competência e clique em Carregar</td></tr>
+              <tr class="empty-row"><td colspan="17">Selecione uma competência e clique em Carregar</td></tr>
             </tbody>
           </table>
         </div>
@@ -348,12 +352,39 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <script src="js/firebase-config.js"></script>
 <script src="js/version.js"></script>
+<!-- Modal: Dados do Regulado (abre ao clicar na Descrição) -->
+<div id="modal-regulado" class="modal-backdrop" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <span>Dados do Regulado</span>
+      <button class="modal-close" id="reg-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Código</label>
+        <input class="form-control" id="reg-codigo" disabled>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Razão Social</label>
+        <input class="form-control" id="reg-razao" disabled>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-default" id="reg-close2">Fechar</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/utils.js"></script>
 <script src="js/calculo.js"></script>
 <script src="js/firestore.js"></script>
 <script src="js/versiculo.js"></script>
 <script src="js/guard.js"></script>
 <script>
+  // Lançamentos da competência carregada — o modal "Dados do Regulado", aberto
+  // pela Descrição, lê deste array (mesmo padrão de meus-lancamentos.html).
+  let _manuais = [];
+
   // ── Sidebar helper ────────────────────────────────────────
   function buildSidebar(perfil) {
     let links;
@@ -543,10 +574,11 @@
     const mes = Number(document.getElementById('sel-mes').value);
     const ano = Number(document.getElementById('sel-ano').value);
     const tbody = document.getElementById('tbody-fiscal');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="13"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="17"><div class="spinner"></div></td></tr>';
 
     try {
       const manuais = await db_getManuais(user.email, mes, ano);
+      _manuais = manuais;   // o modal do regulado lê daqui
       const result  = calcular([], manuais, 0);
 
       document.getElementById('m-pp').textContent   = formatPontos(result.pp);
@@ -571,15 +603,24 @@
       const naoHomologados = manuais.filter(m => m.status !== 'aceito' && m.status !== 'homologado');
 
       if (!naoHomologados.length) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="13">Nenhuma atividade pendente nesta competência</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="17">Nenhuma atividade pendente nesta competência</td></tr>';
         return;
       }
 
       tbody.innerHTML = naoHomologados.map(m => {
         const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
+        // Esta tabela lista justamente os não homologados — é aqui que o
+        // lançamento reaberto aparece para o fiscal. Sem o selo e sem o ícone
+        // com o motivo, ele vê a pontuação cair sem nenhuma explicação: o
+        // mesmo tratamento das outras telas passa a valer no painel.
+        const avisos =
+          `${window.reabertoWarningHtml ? window.reabertoWarningHtml(m) : ''}` +
+          `${window.cnaeMigradoWarningHtml ? window.cnaeMigradoWarningHtml(m) : ''}` +
+          `${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m) : ''}` +
+          `${window.motivoRecusaHtml ? window.motivoRecusaHtml(m) : ''}`;
         const statusCell = m.status === 'pendente' && m.motivo_pendencia
-          ? `${badge('pendente-fiscal')}<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia)}</span>`
-          : `${badge(m.status)}${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m) : ''}${window.motivoRecusaHtml ? window.motivoRecusaHtml(m) : ''}`;
+          ? `${badge('pendente-fiscal')}${avisos}<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia)}</span>`
+          : `${m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status)}${avisos}`;
 
         const motivoOSNorm = (m.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
         const isVigilanciaAtiva = motivoOSNorm === 'VIGILANCIA ATIVA';
@@ -615,9 +656,13 @@
           <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo || '—')}</td>
           <td data-label="Origem da Demanda">${origemHtml}</td>
           <td data-label="OS">${escHtml(m.os_numero || '—')}</td>
-          <td data-label="Documento">${escHtml(m.documento || '—')}</td>
-          <td data-label="Descrição">${escHtml(m.descricao || '—')}</td>
-          <td data-label="Pts Req." class="td-num">${m.pontos != null ? formatPontos(m.pontos) : '—'}</td>
+          <td data-label="Documento">${window.documentoComNumeroHtml ? window.documentoComNumeroHtml(m) : escHtml(m.documento || '—')}</td>
+          <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
+          <td data-label="Complexidade" class="td-center">${window.complexidadeHtml ? window.complexidadeHtml(m) : escHtml(m.complexidade || '—')}${window.cnaeAltaIndicadaHtml ? window.cnaeAltaIndicadaHtml(m) : ''}</td>
+          <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>
+          <td data-label="Fiscais" class="td-center td-nowrap">${window.fiscaisCountHtml ? window.fiscaisCountHtml(m) : '—'}${window.fiscaisAlertaHtml ? window.fiscaisAlertaHtml(m) : ''}</td>
+          <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao || '—')}</a>` : escHtml(m.descricao || '—')}</td>
+          <td data-label="Pts Req." class="td-num">${m.pontos != null ? formatPontos(m.pontos) : '—'}${window.zeradoWarningHtml ? window.zeradoWarningHtml(m) : ''}</td>
           <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
           <td data-label="Pts Hom." class="td-num">${m.pontos_homologado != null ? formatPontos(m.pontos_homologado) : '—'}</td>
           <td data-label="Status">${statusCell}</td>
@@ -626,7 +671,7 @@
         </tr>`;
       }).join('');
     } catch (e) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="13">${alerta('danger','Erro ao carregar dados: ' + e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="17">${alerta('danger','Erro ao carregar dados: ' + e.message)}</td></tr>`;
     }
   }
 
@@ -706,12 +751,33 @@
   }
 
   // ── Init ──────────────────────────────────────────────────
+  function abrirRegulado(id) {
+    const m = _manuais.find(x => x.id === id);
+    if (!m) return;
+    document.getElementById('reg-codigo').value = m.codigo || '—';
+    document.getElementById('reg-razao').value  = m.razao  || '—';
+    document.getElementById('modal-regulado').style.display = 'flex';
+  }
+  window.abrirRegulado = abrirRegulado;
+  ['reg-close','reg-close2'].forEach(id => {
+    document.getElementById(id).addEventListener('click', () => {
+      document.getElementById('modal-regulado').style.display = 'none';
+    });
+  });
+
   requireAuth(async user => {
     document.getElementById('loading-overlay').style.display = 'none';
     document.getElementById('app').style.display = '';
     document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
     document.getElementById('sidebar-links').innerHTML = buildSidebar(user.perfil);
     document.getElementById('dash-sub').textContent = '— ' + (user.nome || user.email);
+
+    // Sem a flag da Parametrização, cnaeAltaIndicadaHtml não desenha nada.
+    try {
+      window.setCnaeAltaAlertaAtivo((await window.db_getCnaeAltaAlertaConfig()).ativo);
+    } catch (e) {
+      console.warn('[Dashboard] Falha ao carregar config do alerta CNAE 9999-9/99:', e);
+    }
 
     document.getElementById('btn-logout').addEventListener('click', () => {
       window.sharedLogout();

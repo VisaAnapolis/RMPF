@@ -256,6 +256,7 @@
   // null = lançamento ainda não aceito (o botão "Aceitar" fica sempre ativo).
   let _homAceitoValorOriginal = null;
   let _fiscais30hAtivo = false; // flag de Parametrização — regra de produtividade dos fiscais de 30h
+  const _fiscaisPorNome = new Map(); // nome normalizado → e-mail cadastrado
 
   // ── O documento, não o indivíduo ───────────────────────────────────────
   // Quase toda inspeção do VISA é conjunta, e ela vira um lançamento por fiscal
@@ -267,6 +268,70 @@
   let _homDocAberto = null;      // lançamento pelo qual o modal foi aberto
   let _homGrupo = [];            // alvos que serão gravados
   let _homGrupoFechados = [];    // competência fechada: exibidos, nunca gravados
+  // Lançamentos que ainda carregam o CONTROLE mas não pertencem mais ao
+  // documento: o fiscal foi removido da inspeção no WCVS, ou a inspeção saiu da
+  // competência. Continuam visíveis, zerados, aguardando decisão do
+  // administrador — mas fora do grupo, nos dois sentidos: não são tocados pela
+  // homologação do documento nem arrastam os demais quando abertos.
+  let _homGrupoForaDoDoc = [];
+  let _homAbertoForaDoDoc = false;
+
+  const _homForaDoDocumento = (d) =>
+    !!d && (d.reaberto_tipo === 'orfao' || d.reaberto_tipo === 'fiscal_removido');
+
+  // ── O que a decisão NÃO alcança, e por quê ─────────────────────────────
+  // A não cumulatividade e os afastamentos são do FISCAL, não do documento:
+  // quem tem plantão manual no dia fica com o lançamento zerado, e quem tem
+  // ocorrência aceita cobrindo a data não tem lançamento nenhum. O sistema não
+  // pode replicar por cima disso — mas calar seria pior: o administrador
+  // homologaria achando que alcançou todos os signatários.
+  let _homNaoAlcancados = [];   // participantes sem lançamento no documento
+
+  const _OCORR_LABELS = (window.TIPOS_OCORRENCIA || [])
+    .reduce((m, t) => { m[t.tipo] = t.label; return m; }, {});
+
+  // Ordem das causas: primeiro a que impede gravar (fiscal fora do RMPF,
+  // competência fechada), depois a que impede o lançamento existir (dia coberto
+  // por afastamento aceito, que a importação pula).
+  async function _homMotivoSemLancamento(email, m) {
+    if (!email) return 'não cadastrado no RMPF — a importação não gera lançamento para ele';
+    try {
+      if (await db_getFechamento(email, m.mes, m.ano)) {
+        return 'competência fechada — o lançamento não pode ser criado nem alterado';
+      }
+    } catch (_) { /* leitura falhou: cai no motivo genérico */ }
+    try {
+      const ocorrs = (await db_getOcorrencias(email, m.mes, m.ano) || [])
+        .filter(o => o.status === 'aceito');
+      const cobre = ocorrs.find(o => m.data >= o.data_inicio && m.data <= (o.data_fim || o.data_inicio));
+      if (cobre) {
+        const rotulo = _OCORR_LABELS[cobre.tipo] || cobre.tipo || 'afastamento';
+        return `dia coberto por ocorrência aceita (${rotulo}) — dia de afastamento não admite lançamento`;
+      }
+    } catch (_) { /* idem */ }
+    return 'sem lançamento deste documento nesta competência — confira a importação do VISA';
+  }
+
+  async function _homCarregarNaoAlcancados(m) {
+    _homNaoAlcancados = [];
+    const nomes = Array.isArray(m.fiscais_participantes) ? m.fiscais_participantes : [];
+    if (nomes.length < 2) return;
+    const comLancamento = new Set(
+      _homGrupo.concat(_homGrupoFechados).map(d => normalizarNome(d.fiscal_nome || '')));
+    for (const nome of nomes) {
+      const norm = normalizarNome(nome);
+      if (!norm || comLancamento.has(norm)) continue;
+      const email = _fiscaisPorNome.get(norm) || null;
+      _homNaoAlcancados.push({ nome, email, motivo: await _homMotivoSemLancamento(email, m) });
+    }
+  }
+
+  // Alvos que serão gravados, mas com pontuação própria — não é falta de
+  // replicação, é a regra do decreto agindo sobre aquele fiscal.
+  function _homZeradosPorRegra(valorDigitado) {
+    if (Number(valorDigitado) <= 0) return [];   // documento zerado para todos
+    return _homGrupo.filter(d => _homPontosDoAlvo(d, valorDigitado) === 0);
+  }
 
   // O que cada alvo receberá se o administrador aceitar com o valor digitado.
   function _homPontosDoAlvo(alvo, valorDigitado) {
@@ -311,6 +376,10 @@
   // Situação atual de cada alvo, em português de tela.
   function _homSituacaoAlvo(alvo, fechado) {
     if (fechado) return 'competência fechada — não alterado';
+    // Zerado pela regra do fiscal (plantão/OPF/relatório de alta no mesmo dia,
+    // ou escala da gerência): o motivo é o que explica por que ele não recebe a
+    // pontuação do documento.
+    if (Number(alvo.pontos) === 0 && alvo.zerado_motivo) return 'sem pontuação — ' + alvo.zerado_motivo;
     if (alvo.status === 'pendente') return 'pendente de autorização — será autorizado';
     if (alvo.status === 'recusado') return 'recusado hoje';
     if (alvo.status === 'aceito' || alvo.status === 'homologado') {
@@ -325,16 +394,35 @@
     const wrap = document.getElementById('hom-grupo');
     // Autorizar alcança só os pendentes do documento — listar os demais faria a
     // tabela prometer o que aquele botão não faz.
+    // O lançamento aberto não é mais do documento: em vez da tabela de alcance,
+    // a razão de a decisão valer só para ele.
+    if (_homAbertoForaDoDoc) {
+      wrap.style.display = '';
+      document.getElementById('hom-grupo-escopo').innerHTML =
+        `Este lançamento <strong>não faz mais parte deste documento</strong> ` +
+        `(inspeção ${escHtml(String(_homDocAberto.visa_controle || ''))}): a decisão vale ` +
+        `apenas para ele, não altera os demais participantes e <strong>não admite ` +
+        `pontuação</strong> — aceite com zero para encerrá-lo, ou recuse.`;
+      document.getElementById('hom-grupo-corpo').innerHTML = '';
+      document.getElementById('hom-grupo-tabela').style.display = 'none';
+      return;
+    }
+    document.getElementById('hom-grupo-tabela').style.display = '';
     const linhas = _homPendente
       ? _homGrupo.filter(d => d.status === 'pendente')
       : _homGrupo.concat(_homGrupoFechados);
-    if (!_homDocAberto || linhas.length <= 1) {
+    const foraDoDoc = _homPendente ? [] : _homGrupoForaDoDoc;
+    const naoAlcancados = _homPendente ? 0 : _homNaoAlcancados.length;
+    if (!_homDocAberto || (linhas.length + foraDoDoc.length + naoAlcancados) <= 1) {
       wrap.style.display = 'none';
       document.getElementById('hom-grupo-corpo').innerHTML = '';
       return;
     }
     wrap.style.display = '';
-    const fiscais = new Set(linhas.map(d => d.fiscal_email));
+    // Participantes sem lançamento entram na conta do documento: são
+    // signatários que a decisão não alcança, e é isso que precisa ficar visível.
+    const semLancamento = _homPendente ? [] : _homNaoAlcancados;
+    const fiscais = new Set(linhas.map(d => d.fiscal_email).concat(semLancamento.map(p => p.email || p.nome)));
     const doc = _homDocAberto.documento ? String(_homDocAberto.documento).trim() : '';
     const num = (_homDocAberto.numero == null) ? '' : String(_homDocAberto.numero).trim();
     const refDoc = doc
@@ -361,7 +449,19 @@
         `<td style="text-align:right" class="js-hom-recebera">${recebe}</td>` +
         `<td>${escHtml(_homSituacaoAlvo(alvo, fechado))}</td>` +
       `</tr>`;
-    }).join('');
+    }).join('') + foraDoDoc.map(alvo =>
+      `<tr style="opacity:.6">` +
+        `<td>${escHtml(nomeCurto(alvo.fiscal_nome || alvo.fiscal_email || '—'))}</td>` +
+        `<td>${escHtml(alvo.visa_cnae || '—')}</td>` +
+        `<td style="text-align:right">${alvo.pontos != null ? formatPontos(alvo.pontos) : '—'}</td>` +
+        `<td style="text-align:right">—</td>` +
+        `<td>não faz mais parte deste documento — não será alterado</td>` +
+      `</tr>`).join('') + semLancamento.map(p =>
+      `<tr style="opacity:.6">` +
+        `<td>${escHtml(nomeCurto(p.nome))}</td>` +
+        `<td>—</td><td style="text-align:right">—</td><td style="text-align:right">—</td>` +
+        `<td>sem lançamento — ${escHtml(p.motivo)}</td>` +
+      `</tr>`).join('');
   }
 
   // Só a coluna "Receberá" muda enquanto o administrador digita — redesenhar a
@@ -431,6 +531,11 @@
       o.value = f.email || f.id;
       o.textContent = f.nome || f.id;
       sel.appendChild(o);
+      // O CSV do VISA identifica os participantes por nome; para dizer o que
+      // aconteceu com quem não tem lançamento no documento é preciso chegar ao
+      // e-mail dele. Casamento tolerante (sem acento, sem caixa), o mesmo da
+      // importação.
+      if (f.nome) _fiscaisPorNome.set(normalizarNome(f.nome), f.email || f.id);
     });
   }
 
@@ -540,7 +645,7 @@
         <td data-label="Pontos Requeridos" class="td-num">${m.pontos!=null?formatPontos(m.pontos):'—'}${window.zeradoWarningHtml(m)}</td>
         <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
         <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado!=null?formatPontos(m.pontos_homologado):'—'}</td>
-        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : (m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status))}${window.reabertoWarningHtml(m)}${window.cnaeMigradoWarningHtml ? window.cnaeMigradoWarningHtml(m, isAdmin) : ''}${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m, isAdmin) : ''}${window.motivoRecusaHtml ? window.motivoRecusaHtml(m, isAdmin) : ''}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
+        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : (m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status))}${window.reabertoWarningHtml(m)}${window.cnaeMigradoWarningHtml ? window.cnaeMigradoWarningHtml(m) : ''}${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m, isAdmin) : ''}${window.motivoRecusaHtml ? window.motivoRecusaHtml(m, isAdmin) : ''}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
         <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
         <td data-label="Ações" class="nao-imprimir" style="white-space:nowrap">${acoes}</td>
       </tr>`;
@@ -554,17 +659,25 @@
     _homDocAberto = m;
     _homGrupo = [m];
     _homGrupoFechados = [];
+    _homGrupoForaDoDoc = [];
+    _homNaoAlcancados = [];
+    _homAbertoForaDoDoc = _homForaDoDocumento(m);
+    // Aberto por um lançamento que não é mais do documento: a decisão vale só
+    // para ele. Puxar os demais seria deixar quem saiu da inspeção comandar a
+    // homologação de quem continua nela.
+    if (_homAbertoForaDoDoc) return;
     if (m.origem !== 'visa_csv' || !m.visa_controle ||
         typeof window.db_getManuaisPorVisaControle !== 'function') return;
     try {
       const irmaos = await window.db_getManuaisPorVisaControle(m.visa_controle);
-      const alteraveis = [], fechados = [];
+      const alteraveis = [], fechados = [], foraDoDoc = [];
       for (const d of irmaos) {
         if (d.status === 'rascunho') continue;
         // O lançamento aberto vem da lista já carregada na tela, para o modal
         // e a tabela falarem do mesmo objeto.
         const alvo = (d.id === m.id) ? m : d;
-        (alvo.status === 'fechado' ? fechados : alteraveis).push(alvo);
+        if (_homForaDoDocumento(alvo)) foraDoDoc.push(alvo);
+        else (alvo.status === 'fechado' ? fechados : alteraveis).push(alvo);
       }
       if (!alteraveis.some(d => d.id === m.id)) return;   // leitura inconsistente: mantém só o aberto
       const ordena = (a, b) =>
@@ -572,8 +685,14 @@
         String(a.visa_cnae || '').localeCompare(String(b.visa_cnae || ''));
       _homGrupo = alteraveis.sort(ordena);
       _homGrupoFechados = fechados.sort(ordena);
+      _homGrupoForaDoDoc = foraDoDoc.sort(ordena);
     } catch (e) {
       console.warn('[Conferencia] Falha ao carregar o grupo do documento:', e);
+    }
+    try {
+      await _homCarregarNaoAlcancados(m);
+    } catch (e) {
+      console.warn('[Conferencia] Falha ao apurar os participantes sem lançamento:', e);
     }
   }
 
@@ -593,7 +712,14 @@
     // regra ativa) apenas na primeira homologação — se já existe um valor
     // homologado salvo, ele é preservado tal como está (o admin pode ter
     // ajustado manualmente ao rever o lançamento).
-    const valorPreenchido = isPlantaoFiscal
+    // Lançamento que não pertence mais ao documento (fiscal removido da
+    // inspeção, ou inspeção fora da competência) não admite pontuação: a
+    // atividade não é mais dele. Diferente do zerado por não cumulatividade,
+    // que o administrador PODE sobrepor caso a caso — ali a inspeção é dele, só
+    // não é cumulativa. Se a remoção no WCVS foi engano, o caminho é corrigir lá
+    // e deixar a importação trazer o lançamento de volta, como diz o aviso.
+    const semPontuacao = isPlantaoFiscal || _homAbertoForaDoDoc;
+    const valorPreenchido = semPontuacao
       ? 0
       : (m.pontos_homologado != null
           ? m.pontos_homologado
@@ -604,7 +730,7 @@
     // certidão 2,67). step="0.01" preserva a fração nesses casos; mantém
     // step="1" (incremento de 1 ponto) no caso comum de valor inteiro.
     ptsHomEl.step = Number.isInteger(Number(valorPreenchido)) ? '1' : '0.01';
-    ptsHomEl.disabled = isPlantaoFiscal;
+    ptsHomEl.disabled = semPontuacao;
     document.getElementById('hom-motivo').value    = m.motivo_recusa || '';
     const aviso = document.getElementById('hom-pendencia-aviso');
     const avisoTexto = document.getElementById('hom-pendencia-texto');
@@ -761,6 +887,15 @@
       document.getElementById('hom-alert').innerHTML = alerta('warn', 'Lançamentos de Plantão Fiscal devem ter pontuação zero.');
       return;
     }
+    // Campo desabilitado não é garantia (o valor pode vir de uma edição anterior
+    // do modal): a trava do lançamento fora do documento vale na gravação.
+    if (status === 'aceito' && _homAbertoForaDoDoc && Number(ponHom) !== 0) {
+      document.getElementById('hom-alert').innerHTML = alerta('warn',
+        'Este lançamento não faz mais parte do documento e não admite pontuação. ' +
+        'Aceite com zero para encerrá-lo, ou recuse. Se a remoção no WCVS foi engano, ' +
+        'corrija lá e a importação traz o lançamento de volta com a pontuação.');
+      return;
+    }
 
     // ── Plantão manual fora da escala: avisa e o admin decide ──────────────
     // Escala da gerência (coleção `plantao` do VISA). Mês sem escala publicada
@@ -837,7 +972,9 @@
         // registro que o administrador já adjudicou (evita o vaivém apagar/reabrir).
         const _limpezaReab = alvo.reaberto_tipo
           ? {
-              reaberto_tipo: (alvo.reaberto_tipo === 'orfao' || alvo.reaberto_tipo === 'cnae_reclassificado')
+              reaberto_tipo: (alvo.reaberto_tipo === 'orfao' ||
+                             alvo.reaberto_tipo === 'fiscal_removido' ||
+                             alvo.reaberto_tipo === 'cnae_reclassificado')
                 ? alvo.reaberto_tipo : null,
               reaberto_motivo: null,
               reaberto_diff: null,
@@ -870,11 +1007,32 @@
         : (status === 'enviado'
             ? `Lançamento(s) devolvido(s) para <strong>pendente de homologação</strong>${alcance}.`
             : `Documento <strong>${statusFinal}</strong>${alcance}.`);
-      // Competência fechada é intocável: o administrador precisa saber que
-      // aquele participante ficou de fora, senão acharia que homologou todos.
-      if (_homGrupoFechados.length) {
-        msg += ` ${_homGrupoFechados.length} lançamento(s) deste documento não foram alterados ` +
-               `(competência fechada: ${escHtml(_homNomesFiscais(_homGrupoFechados))}).`;
+      // ── O que a decisão NÃO alcançou, e por quê ──────────────────────
+      // Plantão/OPF manual no mesmo dia, ocorrência aceita, competência
+      // fechada: são regras do FISCAL, não do documento, e o sistema não pode
+      // replicar por cima delas. Calar seria pior do que não replicar — o
+      // administrador sairia da tela certo de que homologou o documento
+      // inteiro, para todos os signatários.
+      const ressalvas = [];
+      for (const p of _homNaoAlcancados) {
+        ressalvas.push(`<li><strong>${escHtml(nomeCurto(p.nome))}</strong> — sem lançamento deste ` +
+                       `documento: ${escHtml(p.motivo)}.</li>`);
+      }
+      for (const alvo of _homGrupoForaDoDoc) {
+        ressalvas.push(`<li><strong>${escHtml(nomeCurto(alvo.fiscal_nome || alvo.fiscal_email))}</strong> ` +
+                       `(CNAE ${escHtml(alvo.visa_cnae || '—')}) — não faz mais parte deste documento ` +
+                       `(fiscal removido da inspeção no WCVS): não alterado, aguarda decisão em separado.</li>`);
+      }
+      for (const alvo of _homGrupoFechados) {
+        ressalvas.push(`<li><strong>${escHtml(nomeCurto(alvo.fiscal_nome || alvo.fiscal_email))}</strong> ` +
+                       `(CNAE ${escHtml(alvo.visa_cnae || '—')}) — competência fechada: não alterado.</li>`);
+      }
+      if (statusFinal === 'aceito') {
+        for (const alvo of _homZeradosPorRegra(ponHom)) {
+          ressalvas.push(`<li><strong>${escHtml(nomeCurto(alvo.fiscal_nome || alvo.fiscal_email))}</strong> ` +
+                         `(CNAE ${escHtml(alvo.visa_cnae || '—')}) — homologado com <strong>0 pt</strong>: ` +
+                         `${escHtml(alvo.zerado_motivo || 'lançamento sem pontuação nesta competência')}.</li>`);
+        }
       }
       const _scrollY = window.scrollY;
       await loadConferencia();
@@ -883,6 +1041,12 @@
       // quantos lançamentos do documento foram alterados e quais ficaram de
       // fora — se perderia se fosse gravada antes.
       document.getElementById('alert-area').innerHTML += alerta('ok', msg);
+      if (ressalvas.length) {
+        document.getElementById('alert-area').innerHTML += alerta('warn',
+          `<strong>A decisão não valeu igual para todos os signatários deste documento.</strong> ` +
+          `O que ficou de fora, e por quê:<ul style="margin:.4rem 0 0;padding-left:1.2rem">` +
+          ressalvas.join('') + `</ul>`);
+      }
       requestAnimationFrame(() => window.scrollTo(0, _scrollY));
 
       // ── Notificações push (fire-and-forget) ──────────────────

@@ -44,6 +44,94 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.40.1</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">Painel do fiscal com a mesma informa&ccedil;&atilde;o de Meus Lan&ccedil;amentos</div>
+          <ul class="changelog-changes">
+            <li><strong>Compara&ccedil;&atilde;o campo a campo</strong> &mdash; conferidos todos os &iacute;cones, mensagens e colunas de <em>Meus Lan&ccedil;amentos</em> contra o painel. Faltavam quatro colunas e cinco elementos informativos.</li>
+            <li><strong>Colunas novas</strong> &mdash; <strong>Origem CNAE</strong> (INS/CAE), <strong>Complexidade</strong>, <strong>&Aacute;rea</strong> (m&sup2;) e <strong>Fiscais</strong>. A contagem de fiscais &eacute; clic&aacute;vel e abre a lista de participantes, com o &#9888;&#65039; da autoriza&ccedil;&atilde;o pendente ao lado quando a inspe&ccedil;&atilde;o tem mais de dois.</li>
+            <li><strong>Avisos que faltavam</strong> &mdash; o &#9878;&#65039; da complexidade reclassificada pelo Decreto 49.723/2023 (item C), o indicador de enquadramento indicado pelo fiscal (CNAE 9999-9/99, com a flag da Parametriza&ccedil;&atilde;o carregada como nas demais telas) e a <strong>Descri&ccedil;&atilde;o clic&aacute;vel</strong>, que abre o modal &ldquo;Dados do Regulado&rdquo; com c&oacute;digo e raz&atilde;o social.</li>
+            <li><strong>N&atilde;o replicado, por n&atilde;o se aplicar</strong> &mdash; o &#9878;&#65039; do dispositivo legal s&oacute; aparece em lan&ccedil;amento aceito ou homologado, e a tabela do painel lista exatamente os <em>n&atilde;o</em> homologados.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>dashboard.html</code> &mdash; colunas, avisos, modal do regulado e a flag do alerta de CNAE; <code>js/version.js</code> &mdash; 1.40.1; <code>service-worker.js</code> &mdash; <code>rmpf-v1.40.1</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.40.0</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">O fiscal passa a ver os mesmos avisos que o administrador</div>
+          <ul class="changelog-changes">
+            <li><strong>O desequil&iacute;brio</strong> &mdash; os avisos que explicam o que aconteceu com um lan&ccedil;amento (reabertura, CNAE reclassificado, pontua&ccedil;&atilde;o zerada, autoriza&ccedil;&atilde;o de fiscais) foram nascendo na Confer&ecirc;ncia. Quem mais precisa deles, por&eacute;m, &eacute; o fiscal: &eacute; a pontua&ccedil;&atilde;o <em>dele</em> que cai, e as instru&ccedil;&otilde;es de corre&ccedil;&atilde;o no WCVS s&atilde;o dirigidas a ele.</li>
+            <li><strong>Meus Lan&ccedil;amentos</strong> &mdash; ganha o &#128257; do CNAE reclassificado na coluna Status e o &#9888;&#65039; da autoriza&ccedil;&atilde;o de fiscais na coluna Fiscais, que s&oacute; existiam na Confer&ecirc;ncia. As duas tabelas passam a exibir exatamente o mesmo conjunto de avisos.</li>
+            <li><strong>Painel (dashboard)</strong> &mdash; era o mais defasado, e &eacute; a primeira tela que o fiscal abre. A tabela de atividades pendentes mostrava um lan&ccedil;amento reaberto com o selo gen&eacute;rico <em>Enviado</em> e sem nenhuma explica&ccedil;&atilde;o &mdash; o fiscal via a pontua&ccedil;&atilde;o cair sem saber por qu&ecirc;. Agora traz o selo <strong>Reaberto</strong>, o &#128260; com o motivo completo, o &#128257; do CNAE reclassificado, o &#9888;&#65039; da pontua&ccedil;&atilde;o zerada ao lado dos Pts Req. e o n&uacute;mero impresso do documento.</li>
+            <li><strong>Texto do CNAE reclassificado sem dono</strong> &mdash; dizia &ldquo;confira e homologue o novo valor&rdquo;, instru&ccedil;&atilde;o que s&oacute; faz sentido para o administrador. Passa a dizer que o lan&ccedil;amento <em>aguarda nova homologa&ccedil;&atilde;o</em>, mantendo intacta a parte acion&aacute;vel, que sempre foi do fiscal: marcar a atividade no WCVS para ela voltar a pontuar. O aviso do modal de homologa&ccedil;&atilde;o continua dizendo ao administrador o que fazer.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>meus-lancamentos.html</code> e <code>dashboard.html</code> &mdash; avisos nas tabelas; <code>js/utils.js</code> &mdash; <code>cnaeMigradoWarningHtml</code> deixa de exigir perfil de administrador; <code>js/visa-import.js</code> &mdash; texto do motivo; <code>conferencia.html</code> &mdash; chamada ajustada; <code>js/version.js</code> &mdash; 1.40.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.40.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.39.4</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">Lan&ccedil;amento que saiu do documento deixa de admitir pontua&ccedil;&atilde;o</div>
+          <ul class="changelog-changes">
+            <li><strong>O que ainda passava</strong> &mdash; tirar o lan&ccedil;amento do grupo (1.39.3) impediu que ele fosse arrastado pela homologa&ccedil;&atilde;o do documento, mas abrindo o modal por ele o campo <em>Pts Homologados</em> continuava aceitando qualquer valor. Dava para homologar com 5 pontos uma inspe&ccedil;&atilde;o em que o fiscal n&atilde;o consta mais entre os participantes.</li>
+            <li><strong>Agora</strong> &mdash; nesses lan&ccedil;amentos o campo nasce em zero e <strong>desabilitado</strong>, como j&aacute; acontecia no Plant&atilde;o Fiscal, e a trava vale tamb&eacute;m na grava&ccedil;&atilde;o (campo desabilitado n&atilde;o &eacute; garantia: o valor pode vir de uma abertura anterior do modal). O modal diz o que fazer: aceitar com zero para encerrar, ou recusar &mdash; e, se a remo&ccedil;&atilde;o no WCVS foi engano, corrigir l&aacute; que a importa&ccedil;&atilde;o traz o lan&ccedil;amento de volta com a pontua&ccedil;&atilde;o.</li>
+            <li><strong>O que continua edit&aacute;vel</strong> &mdash; o zerado por <em>n&atilde;o cumulatividade</em> (plant&atilde;o ou opera&ccedil;&atilde;o fiscal no mesmo dia). Ali a inspe&ccedil;&atilde;o &eacute; do fiscal, s&oacute; n&atilde;o &eacute; cumulativa, e o administrador segue podendo sobrepor caso a caso &mdash; com o aviso do Anexo VII, como sempre foi.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code> &mdash; trava do campo e da grava&ccedil;&atilde;o; <code>js/version.js</code> &mdash; 1.39.4; <code>service-worker.js</code> &mdash; <code>rmpf-v1.39.4</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.39.3</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">Quem saiu da inspe&ccedil;&atilde;o fica fora da homologa&ccedil;&atilde;o do documento</div>
+          <ul class="changelog-changes">
+            <li><strong>O furo</strong> &mdash; o grupo do documento era montado s&oacute; por <code>visa_controle</code>, separando apenas compet&ecirc;ncia fechada e rascunho. Um lan&ccedil;amento de fiscal <strong>removido da inspe&ccedil;&atilde;o</strong> (ou de inspe&ccedil;&atilde;o fora da compet&ecirc;ncia) entrava como alvo alter&aacute;vel &mdash; e isso valia nos dois sentidos: homologar pela linha de quem continua na inspe&ccedil;&atilde;o marcava o removido como <em>aceito</em> junto, e abrir pela linha dele fazia a decis&atilde;o arrastar todos os demais participantes.</li>
+            <li><strong>Sem risco de pontua&ccedil;&atilde;o, mas com risco de registro</strong> &mdash; a replica&ccedil;&atilde;o proporcional j&aacute; garantia 0 pt para quem est&aacute; zerado, ent&atilde;o nenhum ponto vazava. O que vazava era o <em>status</em>: ficava gravado como se o fiscal tivesse sido homologado num documento do qual n&atilde;o faz mais parte.</li>
+            <li><strong>Agora</strong> &mdash; esses lan&ccedil;amentos ficam <strong>fora do grupo</strong>: aparecem na tabela de alcance do modal como &ldquo;n&atilde;o faz mais parte deste documento &mdash; n&atilde;o ser&aacute; alterado&rdquo;, entram no aviso final entre as ressalvas, e a homologa&ccedil;&atilde;o do documento n&atilde;o os toca. Abrindo por um deles, o modal explica que a decis&atilde;o vale apenas para aquele lan&ccedil;amento e n&atilde;o mexe nos demais participantes.</li>
+            <li><strong>Continuam vis&iacute;veis, de prop&oacute;sito</strong> &mdash; zerados e aguardando decis&atilde;o do administrador. Some-los em sil&ecirc;ncio apagaria uma homologa&ccedil;&atilde;o sem aprecia&ccedil;&atilde;o do gestor, faria a pontua&ccedil;&atilde;o do fiscal cair sem explica&ccedil;&atilde;o e deixaria invis&iacute;vel uma remo&ccedil;&atilde;o feita por engano no WCVS.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code> &mdash; classifica&ccedil;&atilde;o do grupo, tabela de alcance e ressalvas; <code>js/version.js</code> &mdash; 1.39.3; <code>service-worker.js</code> &mdash; <code>rmpf-v1.39.3</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.39.2</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">O mesmo documento com 2 fiscais para um e 4 para outro: dados congelados e o &ldquo;fiscal removido&rdquo; que saía como &ldquo;data alterada&rdquo;</div>
+          <ul class="changelog-changes">
+            <li><strong>O que estava acontecendo</strong> &mdash; a inspe&ccedil;&atilde;o 131872 aparecia com <strong>2</strong> fiscais participantes para um fiscal e <strong>4</strong> para outro. Nenhuma das duas listas correspondia ao CSV atual: o <code>inspecoes_fiscais.csv</code> do VISA n&atilde;o tem linha para esse controle, e o <code>inspecoes.csv</code> s&oacute; carrega Fiscal1/2/3. Eram <strong>retratos congelados</strong> de momentos diferentes.</li>
+            <li><strong>Por que congelavam</strong> &mdash; <code>fiscais_participantes</code> e <code>numero</code> s&atilde;o campos <em>informativos</em>: ficam fora de <code>VISA_CAMPOS_ORIGEM</code>, ent&atilde;o mudar de 2 para 4 fiscais nunca reabre uma homologa&ccedil;&atilde;o (e em CNAE de alta complexidade nem <code>qtd_fiscais</code> muda, porque a redu&ccedil;&atilde;o de dupla/trio s&oacute; vale para m&eacute;dia e baixa). Acontece que tr&ecirc;s caminhos preservavam o lan&ccedil;amento <strong>sem gravar nada</strong> &mdash; legado homologado, recusado e &oacute;rf&atilde;o j&aacute; sinalizado &mdash; e nesses o dado parava no tempo para sempre.</li>
+            <li><strong>Agora acompanham o documento</strong> &mdash; esses tr&ecirc;s caminhos passam a sincronizar os campos informativos, e s&oacute; eles: <strong>status, pontua&ccedil;&atilde;o, homologa&ccedil;&atilde;o, recusa e as marcas de reabertura ficam intactos</strong>. Para o &oacute;rf&atilde;o, cuja linha n&atilde;o existe mais no CSV, a fonte &eacute; o pr&oacute;prio documento na rodada (n&ordm; impresso e participantes s&atilde;o do documento, n&atilde;o do fiscal). Compet&ecirc;ncia fechada continua intoc&aacute;vel, e a suspens&atilde;o por <code>inspecoes_fiscais.csv</code> indispon&iacute;vel segue valendo &mdash; lista truncada nunca substitui dado bom.</li>
+            <li><strong>&ldquo;Fiscal removido&rdquo; deixa de sair como &ldquo;data alterada&rdquo;</strong> &mdash; quando o CONTROLE continua no CSV da compet&ecirc;ncia mas o fiscal n&atilde;o consta mais entre os participantes, quem saiu foi ele, n&atilde;o a inspe&ccedil;&atilde;o. O lan&ccedil;amento ganha o tipo pr&oacute;prio <code>fiscal_removido</code>, com o t&iacute;tulo &ldquo;Fiscal removido da inspe&ccedil;&atilde;o (WCVS)&rdquo; e um texto acion&aacute;vel: se a participa&ccedil;&atilde;o estava correta, basta reinclu&iacute;-lo na inspe&ccedil;&atilde;o no WCVS que ele volta a pontuar na importa&ccedil;&atilde;o seguinte. Antes, todos esses casos saíam com o texto de data do documento alterada. O zeramento e a devolu&ccedil;&atilde;o &agrave; confer&ecirc;ncia n&atilde;o mudam.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>js/visa-import.js</code> &mdash; <code>_motivoFiscalRemovido</code>, <code>_sincronizarInformativos</code>, mapas do documento na rodada; <code>js/utils.js</code> &mdash; t&iacute;tulo do modal; <code>conferencia.html</code> &mdash; preserva&ccedil;&atilde;o da marca ao decidir; <code>parametrizacao.html</code> &mdash; r&oacute;tulo no relat&oacute;rio da simula&ccedil;&atilde;o; <code>js/version.js</code> &mdash; 1.39.2; <code>service-worker.js</code> &mdash; <code>rmpf-v1.39.2</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
+            <span class="badge-version">v1.39.1</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">O que a homologa&ccedil;&atilde;o do documento <em>n&atilde;o</em> alcan&ccedil;a, e por qu&ecirc;</div>
+          <ul class="changelog-changes">
+            <li><strong>Nem tudo pode ser replicado</strong> &mdash; a decis&atilde;o passou a valer para o documento inteiro na v1.39.0, mas h&aacute; regras que s&atilde;o do <em>fiscal</em>, n&atilde;o do documento: plant&atilde;o ou opera&ccedil;&atilde;o fiscal manual no mesmo dia zeram a vistoria daquele signat&aacute;rio (n&atilde;o cumulatividade), e um dia coberto por ocorr&ecirc;ncia aceita nem lan&ccedil;amento gera. O sistema n&atilde;o pode passar por cima disso &mdash; mas calar era pior: o administrador saía da tela convencido de que havia homologado para todos.</li>
+            <li><strong>Antes de decidir</strong> &mdash; a tabela de alcance do modal passa a listar tamb&eacute;m os <strong>signat&aacute;rios sem lan&ccedil;amento</strong>, com o motivo apurado na hora (ocorr&ecirc;ncia aceita e o tipo do afastamento, compet&ecirc;ncia fechada, fiscal n&atilde;o cadastrado no RMPF), e a coluna Situa&ccedil;&atilde;o explica quem est&aacute; <strong>sem pontua&ccedil;&atilde;o</strong> e por qual item do Anexo VII.</li>
+            <li><strong>Depois de decidir</strong> &mdash; um aviso pr&oacute;prio abaixo do resultado: &ldquo;a decis&atilde;o n&atilde;o valeu igual para todos os signat&aacute;rios deste documento&rdquo;, com a lista de quem ficou de fora, quem foi homologado com <strong>0 pt</strong> e a causa de cada caso. Documento sem ressalvas n&atilde;o exibe aviso nenhum.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code> &mdash; apura&ccedil;&atilde;o dos signat&aacute;rios sem lan&ccedil;amento, motivo do zerado na tabela e aviso das ressalvas; <code>js/version.js</code> &mdash; 1.39.1; <code>service-worker.js</code> &mdash; <code>rmpf-v1.39.1</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.39.0</span>
             <span class="badge-date">28/08/2026</span>
           </div>
