@@ -326,7 +326,10 @@
       <p style="font-size:.88rem;color:var(--cinzaT);margin-bottom:14px">
         Processa todas as ocorrências <strong>já aceitas</strong> do mês/ano selecionado e rateia
         <strong>1000 pontos pelos dias úteis do mês</strong> para cada fiscal. Use este recurso sempre que uma
-        ocorrência aceita precisar gerar (ou regenerar) seus pontos na competência.
+        ocorrência aceita precisar gerar (ou regenerar) seus pontos na competência — é a rota para
+        <strong>uniformizar uma competência antiga</strong> cujos lançamentos tenham sido gravados com
+        uma taxa diferente da atual. O rateio é o mesmo do aceite, e o fator 40/30 dos fiscais de 30h
+        <strong>não incide</strong> aqui (veja o card “Produtividade — Fiscais de 30 Horas”).
       </p>
 
       <div style="background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:16px">
@@ -433,6 +436,22 @@
         homologação (<code>conferencia.html</code>) já é pré-preenchido com o valor calculado para
         os fiscais da lista fixa do sistema — o administrador ainda pode revisar e editar antes de aceitar.
       </p>
+
+      <div style="background:#fff3cd;border:1px solid #f59e0b;border-radius:8px;padding:12px 14px;margin-bottom:16px">
+        <strong style="color:#7c5800">⚠️ Alcance da regra</strong>
+        <ul style="margin:6px 0 0;font-size:.85rem;color:#7c5800;padding-left:18px">
+          <li>O fator vale para a <strong>pontuação por atividade</strong> na homologação. Ele
+              <strong>não incide</strong> sobre o rateio das ocorrências (férias, licenças, afastamentos):
+              ali os 1000 pontos distribuídos já são o <strong>teto mensal</strong>, não uma pontuação por
+              atividade — multiplicá-los faria um mês inteiro de afastamento estourar o teto e ser cortado
+              de volta na apuração.</li>
+          <li>A mudança <strong>não é retroativa</strong>. Lançamentos já criados mantêm a pontuação
+              gravada no momento em que foram gerados. Para regravar uma competência passada, use
+              <strong>📌 Converter Ocorrências Aceitas em Pontos</strong> (acima) ou o workflow
+              <em>Backfill — Pontos de Ocorrência</em>.</li>
+        </ul>
+      </div>
+
       <div class="form-row cols-2" style="max-width:280px;margin-bottom:14px;align-items:flex-end">
         <div class="form-group">
           <label class="form-label">
@@ -1225,26 +1244,12 @@
 
           log('info', `📋 ${aceitas.length} ocorrência(s) aceita(s) encontrada(s).`);
 
-          function diasDaOcorrPorMesSeed(dataInicio, dataFim) {
-            const fim = dataFim || dataInicio;
-            const result = {};
-            const cur = new Date(dataInicio + 'T12:00:00');
-            const end = new Date(fim + 'T12:00:00');
-            while (cur <= end) {
-              const iso = cur.toISOString().split('T')[0];
-              const m   = cur.getMonth() + 1;
-              const a   = cur.getFullYear();
-              const key = `${m}-${a}`;
-              if (!result[key]) result[key] = { mes: m, ano: a, dias: [] };
-              result[key].dias.push(iso);
-              cur.setDate(cur.getDate() + 1);
-            }
-            return result;
-          }
-
           const feriados = await window.carregarFeriadosMunicipais();
-          const totalUteis = window.diasUteisNoMes(mes, ano, feriados);
-          const taxa = totalUteis > 0 ? Math.round((window.MEDIA_PRODUTIVIDADE_OCORRENCIA / totalUteis) * 100) / 100 : 0;
+          // Mesma fonte do aceite (db_aceitarOcorrencia): a taxa e a memória de
+          // cálculo saem de window.taxaDiariaOcorrencia (js/utils.js). Antes a
+          // fórmula estava copiada aqui e divergia do aceite.
+          const { taxa, memoria } = window.taxaDiariaOcorrencia(mes, ano, feriados);
+          log('info', `🧮 Rateio: ${memoria}.`);
 
           let totalDias = 0, totalApagados = 0, totalErrosConversao = 0, totalPulados = 0;
           const fiscaisProcessados = new Map();
@@ -1259,7 +1264,7 @@
           };
 
           for (const o of aceitas) {
-            const porMes = diasDaOcorrPorMesSeed(o.data_inicio, o.data_fim);
+            const porMes = window.diasDaOcorrenciaPorMes(o.data_inicio, o.data_fim);
             const key = `${mes}-${ano}`;
             if (!porMes[key]) {
               log('warn', `⚠️ Ocorrência de ${escHtml(o.fiscal_nome || o.fiscal_email)} (${o.data_inicio}→${o.data_fim || o.data_inicio}) não cobre dias de ${nomeMes}/${ano}.`);
@@ -1294,11 +1299,16 @@
                   complexidade:   '—',
                   pontos:         taxa,
                   pontos_homologado: taxa,
-                  descricao:      `Ocorrência: ${TIPO_LABELS_SEED[o.tipo] || o.tipo} — aceita pelo administrador`,
+                  descricao:      `Ocorrência: ${TIPO_LABELS_SEED[o.tipo] || o.tipo} — aceita pelo administrador (${memoria})`,
                   obs:            o.obs_admin || null,
                   status:         'homologado',
                   origem:         'ocorrencia',
                   ocorrencia_id:  o.id,
+                  // Sem isto o lançamento recriado perde o ⚖️ do dispositivo
+                  // legal que a Conferência exibe nos aceitos/homologados.
+                  dispositivo_legal: window.dispositivoLegalOcorrencia
+                    ? window.dispositivoLegalOcorrencia(o.tipo)
+                    : 'Art. 11 da Lei Complementar nº 548/2023',
                 });
                 totalDias++;
                 fiscalCtx.diasGerados++;
@@ -1313,7 +1323,7 @@
           const totalErros = totalErrosConversao;
           logEl.innerHTML = msgs.slice(-20).join('') +
             alerta(totalErros ? 'warn' : 'ok',
-              `✅ Concluído: <strong>${totalDias}</strong> dia(s) gerado(s) (taxa de ${taxa} pt/dia útil), ` +
+              `✅ Concluído: <strong>${totalDias}</strong> dia(s) gerado(s) — ${memoria}, ` +
               `<strong>${totalPulados}</strong> dia(s) não úteis ignorado(s), ` +
               `<strong>${totalApagados}</strong> lançamento(s) substituído(s), ` +
               `<strong>${totalErros}</strong> erro(s).`

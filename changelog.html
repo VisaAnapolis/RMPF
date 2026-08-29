@@ -44,6 +44,25 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.40.2</span>
+            <span class="badge-date">29/08/2026</span>
+          </div>
+          <div class="changelog-title">O rateio da ocorr&ecirc;ncia deixa de aplicar o fator 30h</div>
+          <ul class="changelog-changes">
+            <li><strong>O sintoma</strong> &mdash; a mesma f&eacute;rias rendia <code>45,45</code> pt/dia em julho e <code>63,49</code> pt/dia em agosto para um fiscal de 30h. Parte da diferen&ccedil;a &eacute; leg&iacute;tima (julho tem 22 dias &uacute;teis, agosto 21, e o rateio &eacute; <code>1000 &divide; dias &uacute;teis</code>); o resto era o fator 40/30, aplicado num m&ecirc;s e no outro n&atilde;o.</li>
+            <li><strong>Tr&ecirc;s c&oacute;pias da mesma f&oacute;rmula</strong> &mdash; o aceite (<code>aceitarOcorrencia</code>, <code>js/firestore.js</code>) aplicava o fator; a ferramenta &ldquo;Converter Ocorr&ecirc;ncias Aceitas em Pontos&rdquo; (<code>parametrizacao.html</code>) e o script de backfill n&atilde;o. Qual valor um lan&ccedil;amento recebia dependia de por onde ele tinha nascido.</li>
+            <li><strong>A regra correta: sem o fator</strong> &mdash; os 1000 pontos rateados <em>j&aacute; s&atilde;o o teto mensal</em> (<code>teto_pv</code>, <code>js/calculo.js</code>), n&atilde;o uma pontua&ccedil;&atilde;o por atividade. Multiplic&aacute;-los por 40/30 faria um m&ecirc;s cheio de afastamento render 1.333 pts, que a apura&ccedil;&atilde;o corta em 1.000 de volta &mdash; o fiscal de 30h ganharia no afastamento parcial e nada no m&ecirc;s inteiro. O fator 40/30 continua valendo onde sempre valeu: na pontua&ccedil;&atilde;o por atividade da homologa&ccedil;&atilde;o.</li>
+            <li><strong>Fonte &uacute;nica</strong> &mdash; nova <code>taxaDiariaOcorrencia(mes, ano, feriados)</code> em <code>js/utils.js</code>, usada pelo aceite e pelo conversor e espelhada no script Python. A sincroniza&ccedil;&atilde;o autom&aacute;tica de f&eacute;rias herda por delegar ao aceite. O conversor tamb&eacute;m deixa de reimplementar <code>diasDaOcorrenciaPorMes</code> por conta pr&oacute;pria.</li>
+            <li><strong>Mem&oacute;ria de c&aacute;lculo vis&iacute;vel</strong> &mdash; a descri&ccedil;&atilde;o do lan&ccedil;amento passa a trazer de onde o n&uacute;mero saiu: <em>&ldquo;Ocorr&ecirc;ncia: F&eacute;rias &mdash; aceita pelo administrador (1000 pts &divide; 21 dias &uacute;teis de Agosto / 2026 = 47.62 pt/dia &uacute;til)&rdquo;</em>. Fiscal e administrador conseguem auditar o valor sem recorrer ao c&oacute;digo.</li>
+            <li><strong>Corre&ccedil;&atilde;o de tabela</strong> &mdash; o conversor n&atilde;o gravava <code>dispositivo_legal</code>, ent&atilde;o os lan&ccedil;amentos que ele recriava perdiam o &#9878;&#65039; do dispositivo legal na Confer&ecirc;ncia. Passa a gravar, como o aceite j&aacute; fazia.</li>
+            <li><strong>Avisos na Parametriza&ccedil;&atilde;o</strong> &mdash; o card &ldquo;Produtividade &mdash; Fiscais de 30 Horas&rdquo; agora diz que o fator n&atilde;o alcan&ccedil;a o rateio das ocorr&ecirc;ncias e que a mudan&ccedil;a <strong>n&atilde;o &eacute; retroativa</strong>: lan&ccedil;amento j&aacute; criado mant&eacute;m o valor gravado no aceite.</li>
+            <li><strong>Sem migra&ccedil;&atilde;o de dados</strong> &mdash; as compet&ecirc;ncias j&aacute; gravadas ficam como est&atilde;o. Para uniformizar uma delas, o caminho &eacute; a ferramenta &ldquo;Converter Ocorr&ecirc;ncias Aceitas em Pontos&rdquo; ou o workflow <em>Backfill &mdash; Pontos de Ocorr&ecirc;ncia</em> (com <code>dry_run</code> primeiro).</li>
+            <li><strong>Arquivos</strong> &mdash; <code>js/utils.js</code> &mdash; <code>taxaDiariaOcorrencia()</code>; <code>js/firestore.js</code> &mdash; <code>aceitarOcorrencia</code> sem o fator e com a mem&oacute;ria de c&aacute;lculo; <code>parametrizacao.html</code> &mdash; conversor pela fonte &uacute;nica, <code>dispositivo_legal</code> e textos dos cards; <code>.github/scripts/backfill_ocorrencia_pontos.py</code> e <code>.github/workflows/backfill-ocorrencia-pontos.yml</code> &mdash; mem&oacute;ria de c&aacute;lculo e documenta&ccedil;&atilde;o da regra; <code>js/version.js</code> &mdash; 1.40.2; <code>service-worker.js</code> &mdash; <code>rmpf-v1.40.2</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.40.1</span>
             <span class="badge-date">29/08/2026</span>
           </div>

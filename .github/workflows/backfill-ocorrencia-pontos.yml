@@ -1,10 +1,14 @@
 name: Backfill — Pontos de Ocorrência (rateio por dia útil)
 
-# Corrige lançamentos de ocorrência (origem=ocorrencia) de uma competência
-# já gerados com a lógica antiga (50 pontos fixos por dia, inclusive fins de
-# semana e feriados), substituindo pelo rateio de 1000 pontos pelos dias
-# úteis do mês. Mesma lógica de js/utils.js e da ferramenta "Converter
-# Ocorrências Aceitas em Pontos" de parametrizacao.html.
+# Regrava os lançamentos de ocorrência (origem=ocorrencia) de uma competência
+# pelo rateio canônico: 1000 pontos divididos pelos dias úteis do mês. Espelha
+# taxaDiariaOcorrencia() de js/utils.js — a mesma regra do aceite
+# (db_aceitarOcorrencia) e da ferramenta "Converter Ocorrências Aceitas em
+# Pontos" de parametrizacao.html. O fator 30h (40/30) não incide sobre o
+# rateio: os 1000 pontos já são o teto mensal.
+#
+# Serviu originalmente para migrar os lançamentos da lógica antiga (50 pontos
+# fixos por dia, inclusive fins de semana e feriados).
 #
 # Execute primeiro com dry_run=true para revisar o log antes de gravar.
 

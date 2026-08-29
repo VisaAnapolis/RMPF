@@ -481,6 +481,34 @@ function pontosComFator30h(pontos, email, regraAtiva) {
   return round2(base);
 }
 
+// ── Taxa diária do lançamento de ocorrência ────────────────────────────
+// Fonte ÚNICA da regra, compartilhada pelo aceite (aceitarOcorrencia,
+// js/firestore.js), pela ferramenta "Converter Ocorrências Aceitas em Pontos"
+// (parametrizacao.html) e espelhada no backfill em Python
+// (.github/scripts/backfill_ocorrencia_pontos.py). Antes a fórmula estava
+// copiada nos três lugares e só um deles aplicava o fator 30h — foi assim que
+// uma mesma ocorrência rendeu 45,45/dia em julho e 63,49/dia em agosto.
+//
+// O fator 30h (FATOR_30H / pontosComFator30h) NÃO se aplica aqui: os
+// MEDIA_PRODUTIVIDADE_OCORRENCIA pontos rateados já são o TETO MENSAL
+// (teto_pv, js/calculo.js), não uma pontuação por atividade. Multiplicar um
+// teto por 40/30 faria o mês cheio de afastamento render 1.333 pts, que a
+// apuração corta em 1.000 de volta — o fiscal de 30h ganharia no afastamento
+// parcial e nada no mês inteiro.
+//
+// `memoria` é a explicação do número, gravada na descrição do lançamento para
+// que fiscal e administrador consigam auditar "por que 45,45?" sem recorrer
+// ao código.
+function taxaDiariaOcorrencia(mes, ano, feriadosSet) {
+  const totalUteis = diasUteisNoMes(mes, ano, feriadosSet);
+  const taxa = totalUteis > 0
+    ? round2(MEDIA_PRODUTIVIDADE_OCORRENCIA / totalUteis)
+    : 0;
+  const memoria = `${MEDIA_PRODUTIVIDADE_OCORRENCIA} pts ÷ ${totalUteis} dias úteis de `
+    + `${mesAnoLabel(mes, ano)} = ${formatPontos(taxa)} pt/dia útil`;
+  return { taxa, totalUteis, memoria };
+}
+
 // ── Homologação conjunta: pontuação replicada aos demais participantes ──
 // A inspeção é uma só, mas o valor correto varia por lançamento: o fator 30h é
 // do fiscal e a não cumulatividade (plantão/OPF/relatório de alta no mesmo dia)
@@ -1437,6 +1465,7 @@ window.prazoEfetivo             = prazoEfetivo;
 window.cumpridoForaDoPrazo      = cumpridoForaDoPrazo;
 window.diasUteisNoMes           = diasUteisNoMes;
 window.MEDIA_PRODUTIVIDADE_OCORRENCIA = MEDIA_PRODUTIVIDADE_OCORRENCIA;
+window.taxaDiariaOcorrencia     = taxaDiariaOcorrencia;
 window.diasDaOcorrenciaPorMes   = diasDaOcorrenciaPorMes;
 window.periodosSeSobrepoem      = periodosSeSobrepoem;
 window.normalizarNome           = normalizarNome;
