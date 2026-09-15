@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simulação de Férias — RMPF</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="css/rmpf.css">
+  <link rel="icon" type="image/x-icon"     href="icons/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+  <link rel="icon" type="image/svg+xml"    href="icons/favicon.svg">
+  <link rel="apple-touch-icon"             href="icons/apple-touch-icon.png">
+  <link rel="manifest"                     href="manifest.webmanifest">
+  <meta name="theme-color" content="#1565c0">
+  <style>
+    .sim-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:10px 0 4px; }
+    .sim-kpi  { border:1px solid var(--linha,#e0e0e0); border-radius:8px; padding:10px 12px; background:#fff; }
+    .sim-kpi .n { font-size:1.6em; font-weight:800; line-height:1.1; }
+    .sim-kpi .l { font-size:.8em; color:#666; }
+    .sim-kpi.warn .n { color:#b26a00; }
+    .sim-kpi.ok   .n { color:#1b7f3b; }
+    .sim-kpi.del  .n { color:#b3261e; }
+    .sim-muted { color:#666; font-size:.85em; }
+    .sim-tag { display:inline-block; padding:1px 7px; border-radius:10px; font-size:.78em; font-weight:600; background:#eef2f7; color:#1a3a6b; }
+    .sim-tag.novo   { background:#e6f4ea; color:#1b7f3b; }
+    .sim-tag.remove { background:#fde8e6; color:#b3261e; }
+    .sim-tag.igual  { background:#f0f0f0; color:#555; }
+    .sim-tag.ignora { background:#fff3e0; color:#b26a00; }
+    td.num, th.num { text-align:right; white-space:nowrap; }
+    details.sim-dias summary { cursor:pointer; font-size:.85em; color:#1a3a6b; }
+    details.sim-dias ul { margin:4px 0 0 16px; padding:0; font-size:.82em; columns:3; }
+  </style>
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<!-- O sincronizador de férias exibe um toast próprio (#ferias-sync-toast). Aqui
+     ele é criado dentro de um contêiner oculto: as mensagens são capturadas e
+     mostradas no relatório, sem aparecer como se algo tivesse sido gravado. -->
+<div hidden><div id="ferias-sync-toast"><div id="ferias-sync-msgs"></div></div></div>
+
+<div class="app-layout" id="app" style="display:none">
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger">☰</button>
+    <div><div class="logo-text">🏛️ RMPF</div><div class="logo-sub">Produtividade Fiscal</div></div>
+    <div class="header-right">
+      <span class="user-name" id="header-nome">—</span>
+      <button class="btn-logout" id="btn-logout">Sair</button>
+    </div>
+  </header>
+  <nav class="app-sidebar nao-imprimir" id="sidebar"></nav>
+
+  <main class="app-main">
+    <div class="page-title">🧪 Simulação de Férias — sem gravação</div>
+    <div id="alert-area"></div>
+
+    <div class="card">
+      <div class="card-title">O que esta página faz</div>
+      <p class="sim-muted" style="margin:0 0 8px">
+        Lê a escala de férias real do VISA (<code>ferias/escala</code>), o cadastro de fiscais,
+        as ocorrências e os lançamentos da competência escolhida, copia tudo para um banco
+        <strong>em memória</strong> e executa o <strong>mesmo código</strong> da sincronização
+        automática (<code>js/ferias-auto-sync.js</code>) sobre essa cópia. O relatório mostra o
+        que <em>seria</em> criado, aceito, removido ou bloqueado, com os pontos por dia útil.
+        <strong>Nada é gravado no Firestore.</strong> Os avisos de nome sem correspondência e de
+        dia já lançado aparecem aqui antes de a sincronização real acontecer.
+      </p>
+      <form id="form-sim" class="form-row cols-3" onsubmit="return false" style="align-items:end">
+        <div class="form-group">
+          <label class="form-label" for="s-mes">Competência a simular</label>
+          <select class="form-control" id="s-mes"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="s-ano">&nbsp;</label>
+          <select class="form-control" id="s-ano"></select>
+        </div>
+        <div class="form-group">
+          <button class="btn btn-primary" id="btn-simular" type="button">▶ Simular</button>
+        </div>
+      </form>
+      <div class="sim-muted" id="s-competencia-real"></div>
+    </div>
+
+    <div id="resultado" style="display:none">
+      <div class="card">
+        <div class="card-title">Resumo da simulação — <span id="r-comp"></span></div>
+        <div class="sim-grid" id="r-kpis"></div>
+        <div id="r-avisos"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Escala do VISA (todos os períodos) e como cada um seria tratado</div>
+        <div class="table-wrap">
+          <table class="rmpf-table">
+            <thead><tr>
+              <th>Fiscal (na escala)</th><th>Tipo (obs)</th><th>Início</th><th>Fim</th>
+              <th>Tratamento</th><th>Fatia na competência</th><th>Fiscal no RMPF</th>
+            </tr></thead>
+            <tbody id="r-escala"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Ocorrências sincronizadas que existiriam após a sincronização</div>
+        <div class="table-wrap">
+          <table class="rmpf-table">
+            <thead><tr>
+              <th>Efeito</th><th>Fiscal</th><th>Tipo</th><th>Período</th><th>Status</th>
+              <th class="num">Dias úteis</th><th class="num">Pontos/dia</th><th class="num">Total</th><th>Dispositivo legal</th>
+            </tr></thead>
+            <tbody id="r-ocorrencias"></tbody>
+          </table>
+        </div>
+        <div class="sim-muted" style="margin-top:6px">
+          Efeito: <span class="sim-tag novo">criar</span> não existe hoje e seria criada;
+          <span class="sim-tag igual">mantida</span> já existe igual;
+          <span class="sim-tag remove">remover</span> existe hoje mas saiu da escala (os pontos dela também seriam apagados).
+          Pontos/dia = 1000 ÷ dias úteis do mês, sem fator 30h.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Totais por fiscal (pontos de ocorrência que existiriam na competência)</div>
+        <div class="table-wrap">
+          <table class="rmpf-table">
+            <thead><tr><th>Fiscal</th><th class="num">Dias com OCR</th><th class="num">Pontos OCR</th><th>Dias</th></tr></thead>
+            <tbody id="r-fiscais"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Leituras feitas no Firestore real (custo desta simulação)</div>
+        <div class="sim-muted" id="r-leituras"></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/version.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/guard.js"></script>
+<script src="js/ferias-auto-sync.js"></script>
+<script src="js/fake-firestore.js"></script>
+<script>
+  // ── Sidebar (mesma dos demais; esta página não aparece nos links) ──
+  function buildSidebar(perfil) {
+    const links = [
+      { href: 'dashboard.html',   icon: '📊', label: 'Dashboard'  },
+      { href: 'conferencia.html', icon: '🔍', label: 'Conferência'},
+      { href: 'ocorrencias.html', icon: '📌', label: 'Ocorrências'},
+      { href: 'fechamento.html',  icon: '🔒', label: 'Fechamento' },
+    ];
+    if (perfil === 'Administrador') {
+      links.push({ href: 'admin.html',          icon: '⚙️', label: 'Admin'          });
+      links.push({ href: 'parametrizacao.html', icon: '🔧', label: 'Parametrização'  });
+    }
+    links.push({ href: 'changelog.html', icon: '📜', label: 'Changelog' });
+    return links.map(l =>
+      `<a href="${l.href}" class="sidebar-link"><span class="icon">${l.icon}</span>${l.label}</a>`
+    ).join('') + visaAppSidebarLink() + `<div class="sidebar-version">v${window.APP_VERSION || ''}</div>`;
+  }
+
+  const dbReal = window.db;   // SDK real — só LEITURA nesta página
+  let _user = null;
+  let _feriados = null;
+
+  function preencherCompetencias(mesPadrao, anoPadrao) {
+    const sm = document.getElementById('s-mes'), sa = document.getElementById('s-ano');
+    MESES.forEach((m, i) => sm.appendChild(new Option(m, i + 1)));
+    const anoAtual = new Date().getFullYear();
+    for (let a = anoAtual - 1; a <= anoAtual + 1; a++) sa.appendChild(new Option(a, a));
+    sm.value = mesPadrao; sa.value = anoPadrao;
+  }
+
+  // ── 1. Leitura dos dados reais (uma vez por simulação) ──
+  async function lerDadosReais(mes, ano) {
+    const leituras = {};
+    const t0 = performance.now();
+    const [escala, fiscais, ocorrs, ferVisa, manuais] = await Promise.all([
+      window.db_getFeriasEscala(),
+      window.db_getTodosFiscais(),
+      window.db_getOcorrenciasTodas(mes, ano),      // inclui ocorrências que vêm de meses anteriores
+      window.db_getOcorrenciasPorOrigem('ferias_visa'),
+      window.db_getManuaisTodos(mes, ano),
+    ]);
+    leituras['ferias/escala'] = 1;
+    leituras['usuarios (perfil Fiscal)'] = fiscais.length;
+    leituras['ocorrencias (competência + 6 meses anteriores)'] = ocorrs.length;
+    leituras['ocorrencias (origem ferias_visa, todas)'] = ferVisa.length;
+    leituras['manuais (competência)'] = manuais.length;
+    leituras._ms = Math.round(performance.now() - t0);
+    return { escala, fiscais, ocorrs, ferVisa, manuais, leituras };
+  }
+
+  // ── 2. Copiar para o banco falso ──
+  function montarBancoFalso(d, mes, ano) {
+    const fake = new window.FakeFirestoreLib.FakeFirestore();
+    d.fiscais.forEach(f => { const { id, ...resto } = f; fake.semear('usuarios', id, resto); });
+    if (d.escala) fake.semear('ferias', 'escala', d.escala);
+    fake.semear('app_config', 'competencia_aberta', { mes, ano });
+    // Sem app_config/import_state: força a reconciliação completa (watermarkMudou=true).
+    const ocMap = new Map();
+    [...d.ocorrs, ...d.ferVisa].forEach(o => ocMap.set(o.id, o));
+    ocMap.forEach((o, id) => { const { id: _i, ...resto } = o; fake.semear('ocorrencias', id, resto); });
+    d.manuais.forEach(m => { const { id, ...resto } = m; fake.semear('manuais', id, resto); });
+    return { fake, ocorrenciasReais: ocMap };
+  }
+
+  // ── 3. Executar o código real sobre a cópia ──
+  async function executarSimulacao(fake) {
+    const msgsEl = document.getElementById('ferias-sync-msgs');
+    msgsEl.innerHTML = '';
+    window.db = fake;
+    try {
+      const r = await window.verificarESincronizarFerias(_user);
+      return { resumo: r, avisosHtml: msgsEl.innerHTML };
+    } finally {
+      window.db = dbReal;
+    }
+  }
+
+  // ── 4. Relatório ──
+  function tratamentoDoPeriodo(p, mapaNome, mes, ano) {
+    if (!p || !p.nome || !p.inicio || !p.fim) return { tag: 'ignora', txt: 'período incompleto' };
+    const tipo = (typeof OBS_PARA_TIPO !== 'undefined') ? OBS_PARA_TIPO[normalizarNome(p.obs)] : null;
+    if (!tipo) return { tag: 'ignora', txt: `ignorado (obs "${p.obs || ''}" não sincroniza)` };
+    if (p.fim < p.inicio) return { tag: 'ignora', txt: 'fim anterior ao início' };
+    const alvo = mapaNome.get(normalizarNome(p.nome));
+    const porMes = diasDaOcorrenciaPorMes(p.inicio, p.fim);
+    const parte = Object.values(porMes).find(x => Number(x.mes) === mes && Number(x.ano) === ano);
+    const fatia = parte ? `${fmtData(parte.dias[0])} a ${fmtData(parte.dias[parte.dias.length - 1])} (${parte.dias.length} dias)` : '— fora da competência';
+    if (!alvo) return { tag: 'ignora', txt: `nome não encontrado no cadastro de fiscais`, fatia, tipo };
+    if (!parte) return { tag: 'igual', txt: `${labelOcorrencia(tipo)} — não toca esta competência`, fatia, tipo, alvo };
+    return { tag: 'novo', txt: `${labelOcorrencia(tipo)} — sincroniza`, fatia, tipo, alvo };
+  }
+
+  function renderizar(d, sim, fake, ocorrenciasReais, mes, ano) {
+    const compLabel = mesAnoLabel(mes, ano);
+    document.getElementById('r-comp').textContent = compLabel;
+    const r = sim.resumo || { criadas: 0, aceitas: 0, removidas: 0, bloqueadas: 0, conflitos: 0, ignorados: 0, naoResolvidos: 0 };
+
+    // KPIs
+    const kpis = [
+      ['criadas', 'seriam criadas', 'ok'], ['aceitas', 'seriam aceitas', 'ok'], ['removidas', 'seriam removidas', 'del'],
+      ['bloqueadas', 'bloqueadas (dia já lançado)', 'warn'], ['conflitos', 'conflitos com outra ocorrência', 'warn'],
+      ['ignorados', 'períodos ignorados (obs)', ''], ['naoResolvidos', 'nomes sem fiscal', 'warn'],
+    ];
+    document.getElementById('r-kpis').innerHTML = kpis.map(([k, l, c]) =>
+      `<div class="sim-kpi ${Number(r[k]) ? c : ''}"><div class="n">${r[k] ?? 0}</div><div class="l">${l}</div></div>`).join('');
+
+    // Avisos (o mesmo toast que a sincronização real mostraria)
+    const av = document.getElementById('r-avisos');
+    if (!sim.resumo) {
+      av.innerHTML = alerta('warn', 'A sincronização saiu sem executar (sem retorno). Causas possíveis: outro Administrador estaria com o lock ativo — impossível na cópia — ou a escala não pôde ser lida. Veja o console.');
+    } else {
+      av.innerHTML = sim.avisosHtml || alerta('ok', 'Sem avisos: nenhum nome pendente, nenhum dia bloqueado, nenhum conflito.');
+    }
+
+    // Tabela da escala
+    const mapaNome = new Map();
+    d.fiscais.forEach(f => { const n = normalizarNome(f.nome); if (n) mapaNome.set(n, f); });
+    const periodos = (d.escala && Array.isArray(d.escala.periodos)) ? d.escala.periodos : [];
+    document.getElementById('r-escala').innerHTML = periodos.length ? periodos
+      .slice().sort((a, b) => (a.inicio || '').localeCompare(b.inicio || '') || (a.nome || '').localeCompare(b.nome || ''))
+      .map(p => {
+        const t = tratamentoDoPeriodo(p, mapaNome, mes, ano);
+        return `<tr><td>${escHtml(p.nome || '')}</td><td>${escHtml(p.obs || '')}</td>
+          <td>${fmtData(p.inicio)}</td><td>${fmtData(p.fim)}</td>
+          <td><span class="sim-tag ${t.tag}">${escHtml(t.txt)}</span></td>
+          <td>${escHtml(t.fatia || '—')}</td>
+          <td>${t.alvo ? escHtml(t.alvo.nome || t.alvo.email) + ' <span class="sim-muted">(' + escHtml(t.alvo.email || t.alvo.id) + ')</span>' : '—'}</td></tr>`;
+      }).join('') : '<tr><td colspan="7" class="sim-muted">Escala vazia ou não publicada no VISA.</td></tr>';
+
+    // Ocorrências sincronizadas depois da simulação (na cópia) × antes (real)
+    const depois = fake.todos('ocorrencias').filter(o => o.origem === 'ferias_visa' && Number(o.mes) === mes && Number(o.ano) === ano);
+    const antes  = [...ocorrenciasReais.values()].filter(o => o.origem === 'ferias_visa' && Number(o.mes) === mes && Number(o.ano) === ano);
+    const idsDepois = new Set(depois.map(o => o.id));
+    const manuaisDepois = fake.todos('manuais').filter(m => m.origem === 'ocorrencia');
+    const linhas = [];
+    depois.forEach(o => {
+      const ms = manuaisDepois.filter(m => m.ocorrencia_id === o.id).sort((a, b) => a.data.localeCompare(b.data));
+      const total = ms.reduce((s, m) => s + (Number(m.pontos) || 0), 0);
+      const efeito = ocorrenciasReais.has(o.id) ? 'igual' : 'novo';
+      linhas.push({ efeito, o, ms, total });
+    });
+    antes.forEach(o => { if (!idsDepois.has(o.id)) linhas.push({ efeito: 'remove', o, ms: [], total: 0 }); });
+    const ordem = { novo: 0, igual: 1, remove: 2 };
+    linhas.sort((a, b) => ordem[a.efeito] - ordem[b.efeito] || (a.o.fiscal_nome || '').localeCompare(b.o.fiscal_nome || ''));
+    const tagTxt = { novo: 'criar', igual: 'mantida', remove: 'remover' };
+    document.getElementById('r-ocorrencias').innerHTML = linhas.length ? linhas.map(({ efeito, o, ms, total }) => {
+      const per = o.data_fim ? `${fmtData(o.data_inicio)} a ${fmtData(o.data_fim)}` : fmtData(o.data_inicio);
+      const dias = ms.length ? `<details class="sim-dias"><summary>${ms.length} dia(s)</summary><ul>${ms.map(m => `<li>${fmtData(m.data)} — ${formatPontos(m.pontos)}</li>`).join('')}</ul></details>` : '0';
+      return `<tr><td><span class="sim-tag ${efeito}">${tagTxt[efeito]}</span></td>
+        <td>${escHtml(o.fiscal_nome || o.fiscal_email)}</td><td>${escHtml(labelOcorrencia(o.tipo))}</td><td>${per}</td>
+        <td><span class="badge badge-${o.status}">${escHtml(o.status)}</span></td>
+        <td class="num">${dias}</td><td class="num">${ms.length ? formatPontos(ms[0].pontos) : '—'}</td>
+        <td class="num"><strong>${formatPontos(total)}</strong></td>
+        <td class="sim-muted">${escHtml(o.dispositivo_legal || '')}</td></tr>`;
+    }).join('') : '<tr><td colspan="9" class="sim-muted">Nenhuma ocorrência sincronizada nesta competência.</td></tr>';
+
+    // Totais por fiscal
+    const porFiscal = new Map();
+    manuaisDepois.filter(m => Number(m.mes) === mes && Number(m.ano) === ano).forEach(m => {
+      const k = m.fiscal_email;
+      if (!porFiscal.has(k)) porFiscal.set(k, { nome: m.fiscal_nome || k, dias: [], total: 0 });
+      const f = porFiscal.get(k); f.dias.push(m.data); f.total += Number(m.pontos) || 0;
+    });
+    document.getElementById('r-fiscais').innerHTML = porFiscal.size ? [...porFiscal.values()]
+      .sort((a, b) => a.nome.localeCompare(b.nome))
+      .map(f => `<tr><td>${escHtml(f.nome)}</td><td class="num">${f.dias.length}</td><td class="num"><strong>${formatPontos(f.total)}</strong></td>
+        <td class="sim-muted">${f.dias.sort().map(fmtData).join(', ')}</td></tr>`).join('')
+      : '<tr><td colspan="4" class="sim-muted">Nenhum ponto de ocorrência nesta competência.</td></tr>';
+
+    // Leituras
+    const L = d.leituras;
+    const totalLeituras = Object.entries(L).filter(([k]) => k !== '_ms').reduce((s, [, v]) => s + v, 0);
+    document.getElementById('r-leituras').innerHTML =
+      Object.entries(L).filter(([k]) => k !== '_ms').map(([k, v]) => `${escHtml(k)}: <strong>${v}</strong>`).join(' · ') +
+      ` — total ≈ <strong>${totalLeituras}</strong> leituras em ${L._ms} ms. Gravações: <strong>0</strong>.`;
+
+    document.getElementById('resultado').style.display = '';
+  }
+
+  async function simular() {
+    const btn = document.getElementById('btn-simular');
+    const mes = Number(document.getElementById('s-mes').value), ano = Number(document.getElementById('s-ano').value);
+    btn.disabled = true; btn.textContent = '⏳ Lendo dados reais…';
+    document.getElementById('alert-area').innerHTML = '';
+    try {
+      const d = await lerDadosReais(mes, ano);
+      btn.textContent = '⏳ Simulando…';
+      const { fake, ocorrenciasReais } = montarBancoFalso(d, mes, ano);
+      const sim = await executarSimulacao(fake);
+      renderizar(d, sim, fake, ocorrenciasReais, mes, ano);
+    } catch (e) {
+      console.error('[Simulação férias]', e);
+      document.getElementById('alert-area').innerHTML = alerta('danger', 'Falha na simulação: ' + escHtml(e.message || String(e)));
+    } finally {
+      window.db = dbReal;
+      btn.disabled = false; btn.textContent = '▶ Simular';
+    }
+  }
+
+  requireAuth(async user => {
+    if (user.perfil !== 'Administrador') {
+      window.location.href = 'dashboard.html';
+      return;
+    }
+    _user = user;
+    document.getElementById('loading-overlay').style.display = 'none';
+    document.getElementById('app').style.display = '';
+    document.getElementById('header-nome').textContent = nomeCurto(user.nome || user.email);
+    document.getElementById('sidebar').innerHTML = buildSidebar(user.perfil);
+
+    let comp;
+    try { comp = await window.db_getProximaCompetencia(); }
+    catch (_) { const n = new Date(); comp = { mes: n.getMonth() + 1, ano: n.getFullYear() }; }
+    preencherCompetencias(Number(comp.mes), Number(comp.ano));
+    document.getElementById('s-competencia-real').textContent =
+      `Competência aberta hoje no RMPF: ${mesAnoLabel(Number(comp.mes), Number(comp.ano))}. ` +
+      `Escolha outra para prever, por exemplo, a fatia do mês seguinte de férias que cruzam meses.`;
+
+    document.getElementById('btn-simular').addEventListener('click', simular);
+    document.getElementById('btn-logout').addEventListener('click', () => window.sharedLogout());
+    document.getElementById('hamburger').addEventListener('click', () => document.getElementById('sidebar').classList.toggle('open'));
+  });
+</script>
+</body>
+</html>

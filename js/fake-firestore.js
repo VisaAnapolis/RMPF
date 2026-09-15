@@ -1,10 +1,19 @@
-// tests/fake-firestore.js
+// js/fake-firestore.js
 // Firestore "compat" FALSO, em memória, com a superfície mínima que js/firestore.js
 // usa: collection().doc().get/set/update/delete, collection().add,
 // where()/orderBy()/limit()/get(), db.batch() e db.runTransaction().
-// Serve para exercitar o código real do RMPF em Node, sem tocar no projeto
-// Firebase de produção. Só o operador '==' é implementado no where().
+// Só o operador '==' é implementado no where().
+//
+// Dois usos, nenhum deles toca o projeto Firebase real:
+//   - tests/*.test.js (Node): `require('../js/fake-firestore.js')`.
+//   - simula-ferias.html (navegador): carregado como <script>; expõe
+//     `window.FakeFirestoreLib` e a página troca `window.db` pelo banco falso
+//     enquanto executa a sincronização de férias em modo "sem gravação".
 
+(function (raiz, fabrica) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = fabrica();
+  else raiz.FakeFirestoreLib = fabrica();
+})(typeof window !== 'undefined' ? window : globalThis, function () {
 'use strict';
 
 let _seq = 0;
@@ -133,7 +142,8 @@ class FakeFirestore {
   semear(col, id, data) { this._col(col).set(id, resolverSentinelas(data)); }
 }
 
-// Global `firebase` como o SDK compat expõe, no que o código usa.
+// Objeto `firebase` mínimo para o Node (o teste o instala como global). No
+// navegador o SDK real já está carregado e este objeto não é usado.
 const firebase = {
   firestore: Object.assign(function () { throw new Error('use window.db'); }, {
     FieldValue: { serverTimestamp: () => ServerTimestamp },
@@ -145,8 +155,9 @@ const firebase = {
   }),
 };
 
-module.exports = {
+return {
   FakeFirestore, FakeTimestamp, firebase,
   congelarRelogio(ms) { _relogio = ms; },
   descongelarRelogio() { _relogio = null; },
 };
+});

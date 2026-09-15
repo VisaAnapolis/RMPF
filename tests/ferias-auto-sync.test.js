@@ -1,7 +1,7 @@
 // tests/ferias-auto-sync.test.js
 // Testa a sincronização da escala de férias do VISA (js/ferias-auto-sync.js)
 // carregando o CÓDIGO REAL do RMPF (utils.js, firestore.js, ferias-auto-sync.js)
-// sobre o Firestore falso em memória de tests/fake-firestore.js.
+// sobre o Firestore falso em memória de js/fake-firestore.js.
 //
 // Rodar: `node --test tests/` (Node ≥ 20, sem dependências).
 //
@@ -20,7 +20,7 @@ const fs   = require('node:fs');
 const path = require('node:path');
 const vm   = require('node:vm');
 
-const fake = require('./fake-firestore.js');
+const fake = require('../js/fake-firestore.js');
 const RAIZ = path.resolve(__dirname, '..');
 
 // ── Ambiente de navegador mínimo ──
