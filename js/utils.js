@@ -233,10 +233,17 @@ function dispositivoLegal(itemPontuacao, pontos, duplaReducao, itemDecretoOverri
 // ordem dos incisos), o label de exibição e o dispositivo_legal (inciso exato).
 //   - Inciso I (Férias) é sincronizado automaticamente do VISA → fora do dropdown
 //     manual, mas mantido aqui para renderizar/embasar as ocorrências criadas.
+//   - `licenca_premio_pre_lc548` (obs "Licença-prêmio anterior LC 548" na escala
+//     do VISA) também é sincronizada e se comporta como férias: mesmo rateio de
+//     produtividade. Não é hipótese do Art. 11 — o período concessivo é anterior
+//     à LC 548/2023 (que retirou a produtividade da licença-prêmio), por isso o
+//     `dispositivo` é próprio em vez do inciso.
 //   - `afastamento_legal`/`outros` (caput) são LEGADOS: mantidos só para exibir/
 //     embasar ocorrências antigas; NÃO aparecem no dropdown (sem a opção "outros").
 const TIPOS_OCORRENCIA = [
   { tipo: 'ferias',            inciso: 'inciso I',    label: 'Férias',                                       manual: false },
+  { tipo: 'licenca_premio_pre_lc548', inciso: null,   label: 'Licença-prêmio anterior à LC 548',             manual: false,
+    dispositivo: 'Licença-prêmio com período concessivo anterior à Lei Complementar nº 548/2023 — direito adquirido ao pagamento da produtividade' },
   { tipo: 'casamento',         inciso: 'inciso II',   label: 'Casamento',                                    manual: true  },
   { tipo: 'luto',              inciso: 'inciso III',  label: 'Luto por falecimento de familiar',             manual: true  },
   { tipo: 'juri',              inciso: 'inciso IV',   label: 'Convocação para o Tribunal do Júri',           manual: true  },
@@ -255,7 +262,8 @@ const _TIPO_OCR_LABELS = {};
 const _TIPO_OCR_TO_DISPOSITIVO = {};
 TIPOS_OCORRENCIA.forEach(t => {
   _TIPO_OCR_LABELS[t.tipo] = t.label;
-  _TIPO_OCR_TO_DISPOSITIVO[t.tipo] = `Art. 11, ${t.inciso}, da Lei Complementar nº 548/2023`;
+  _TIPO_OCR_TO_DISPOSITIVO[t.tipo] = t.dispositivo
+    || `Art. 11, ${t.inciso}, da Lei Complementar nº 548/2023`;
 });
 
 function labelOcorrencia(tipo) {
