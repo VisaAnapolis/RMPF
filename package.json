@@ -1,0 +1,8 @@
+{
+  "name": "rmpf",
+  "private": true,
+  "description": "RMPF — Relatório Mensal de Produtividade Fiscal (site estático). Testes em Node, sem dependências.",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}
