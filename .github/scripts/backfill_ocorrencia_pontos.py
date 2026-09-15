@@ -220,7 +220,8 @@ def memoria_calculo(mes, ano, total_uteis, taxa):
 
 
 TIPO_LABELS = {
-    'ferias': 'Férias', 'licenca_medica': 'Licença Médica',
+    'ferias': 'Férias', 'licenca_premio_pre_lc548': 'Licença-prêmio anterior à LC 548',
+    'licenca_medica': 'Licença Médica',
     'licenca_gestante': 'Licença Gestante', 'cargo_comissao': 'Cargo em Comissão',
     'afastamento_legal': 'Outros afastamentos funcionais imperativos',
     'outros': 'Outros afastamentos funcionais imperativos',

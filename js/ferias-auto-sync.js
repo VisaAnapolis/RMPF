@@ -2,6 +2,11 @@
 // Sincronização automática das FÉRIAS (mantidas pela gestão no app VISA, doc
 // `ferias/escala`) para a coleção `ocorrencias` do RMPF.
 //
+// Tipos sincronizados (campo `obs` da escala → `tipo` da ocorrência), ver
+// OBS_PARA_TIPO: "Férias" → 'ferias' e "Licença-prêmio anterior LC 548" →
+// 'licenca_premio_pre_lc548' (mesmo rateio de produtividade das férias). A
+// "Licença-prêmio" comum (pós-LC 548) NÃO gera ocorrência — é ignorada.
+//
 // Substitui o lançamento manual do tipo "Férias" pelo fiscal: roda em sessão de
 // Administrador, ao carregar a página. Como a fonte é o Firestore (doc único
 // `ferias/escala`, mesmo projeto visam-3a30b) e há um `updatedAt` de servidor a
@@ -65,9 +70,18 @@ function _feriasSyncToastHide(delayMs) {
   }, delayMs || 7000);
 }
 
-// Chave de deduplicação/reconciliação de uma (sub)ocorrência de férias.
-function _feriasKey(email, dataInicio, dataFim) {
-  return `${email}|${dataInicio}|${dataFim || dataInicio}`;
+// `obs` da escala do VISA (já normalizado por normalizarNome) → `tipo` da
+// ocorrência. Qualquer outro valor de `obs` é ignorado pela sincronização.
+const OBS_PARA_TIPO = {
+  'ferias': 'ferias',
+  'licenca-premio anterior lc 548': 'licenca_premio_pre_lc548',
+};
+
+// Chave de deduplicação/reconciliação de uma (sub)ocorrência sincronizada. O
+// tipo entra na chave: trocar o tipo do período no VISA remove e recria a
+// ocorrência (e os pontos) com o tipo/dispositivo legal corretos.
+function _feriasKey(email, dataInicio, dataFim, tipo) {
+  return `${email}|${dataInicio}|${dataFim || dataInicio}|${tipo || 'ferias'}`;
 }
 
 // Lê a escala do VISA e reconcilia as ocorrências de férias da competência
@@ -116,7 +130,7 @@ async function verificarESincronizarFerias(user) {
     const existentes = new Map();
     todasAuto.forEach(o => {
       if (Number(o.mes) !== mes || Number(o.ano) !== ano) return;
-      existentes.set(_feriasKey(o.fiscal_email, o.data_inicio, o.data_fim), o);
+      existentes.set(_feriasKey(o.fiscal_email, o.data_inicio, o.data_fim, o.tipo), o);
     });
     const pendentesExistentes = [...existentes.values()].filter(o => o.status === 'pendente');
 
@@ -149,12 +163,13 @@ async function verificarESincronizarFerias(user) {
           if (n) mapaNome.set(n, { email: f.email || f.id, nome: f.nome || (f.email || f.id) });
         });
 
-        // 7. Conjunto DESEJADO — só obs="Férias" (a coleção tem dois tipos) e só a
+        // 7. Conjunto DESEJADO — só os `obs` mapeados em OBS_PARA_TIPO e só a
         //    competência aberta. Períodos que cruzam meses são cortados no mês aberto.
         const desejadas = new Map();
         for (const p of periodos) {
           if (!p || !p.nome || !p.inicio || !p.fim) continue;
-          if (window.normalizarNome(p.obs) !== 'ferias') { ignorados++; continue; }
+          const tipo = OBS_PARA_TIPO[window.normalizarNome(p.obs)];
+          if (!tipo) { ignorados++; continue; }
           if (p.fim < p.inicio) continue;
           const alvo = mapaNome.get(window.normalizarNome(p.nome));
           if (!alvo) { naoResolvidos.add(String(p.nome).trim()); continue; }
@@ -164,10 +179,10 @@ async function verificarESincronizarFerias(user) {
             const ini = parte.dias[0];
             const fimReal = parte.dias[parte.dias.length - 1];
             const data_fim = (fimReal === ini) ? null : fimReal;
-            desejadas.set(_feriasKey(alvo.email, ini, data_fim), {
+            desejadas.set(_feriasKey(alvo.email, ini, data_fim, tipo), {
               email: alvo.email, nome: alvo.nome,
               mes: parte.mes, ano: parte.ano,
-              data_inicio: ini, data_fim,
+              data_inicio: ini, data_fim, tipo,
             });
           }
         }
@@ -202,23 +217,24 @@ async function verificarESincronizarFerias(user) {
               conflitos.push(`${window.nomeCurto ? window.nomeCurto(d.nome) : d.nome} (${window.fmtData(d.data_inicio)})`);
               continue;
             }
+            const label = window.labelOcorrencia ? window.labelOcorrencia(d.tipo) : d.tipo;
             const novoId = await window.db_createOcorrencia({
               fiscal_email: d.email,
               fiscal_nome:  d.nome,
               mes: d.mes, ano: d.ano,
-              tipo: 'ferias',
+              tipo: d.tipo,
               data_inicio: d.data_inicio,
               data_fim: d.data_fim,
-              descricao: 'Férias — sincronizado automaticamente do VISA',
+              descricao: `${label} — sincronizado automaticamente do VISA`,
               status: 'pendente',
               origem: 'ferias_visa',
               dispositivo_legal: window.dispositivoLegalOcorrencia
-                ? window.dispositivoLegalOcorrencia('ferias')
-                : 'Art. 11, inciso I, da Lei Complementar nº 548/2023',
+                ? window.dispositivoLegalOcorrencia(d.tipo)
+                : 'Art. 11 da Lei Complementar nº 548/2023',
             });
             aAceitar.push({
               id: novoId, fiscal_email: d.email, fiscal_nome: d.nome,
-              mes: d.mes, ano: d.ano, tipo: 'ferias',
+              mes: d.mes, ano: d.ano, tipo: d.tipo,
               data_inicio: d.data_inicio, data_fim: d.data_fim,
             });
             criadas++;
@@ -257,7 +273,7 @@ async function verificarESincronizarFerias(user) {
       console.info(
         `[Férias sync] ${compLabel}: watermarkMudou=${watermarkMudou}, existentes=${existentes.size}, ` +
         `criadas=${criadas}, aceitas=${aceitas}, removidas=${removidas}, bloqueadas=${bloqueadas.length}, ` +
-        `conflitos=${conflitos.length}, ignorados(não-férias)=${ignorados}, nomesNaoResolvidos=${naoResolvidos.size}`);
+        `conflitos=${conflitos.length}, ignorados(obs não sincronizável)=${ignorados}, nomesNaoResolvidos=${naoResolvidos.size}`);
       // Toast isolado: um erro ao renderizar nunca invalida a reconciliação
       // (já persistida) nem o valor de retorno.
       if (criadas || removidas || aceitas || bloqueadas.length || naoResolvidos.size || conflitos.length) {
