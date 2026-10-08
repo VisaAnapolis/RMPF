@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.40.3</span>
+            <span class="badge-date">08/10/2026</span>
+          </div>
+          <div class="changelog-title">O bot&atilde;o &ldquo;Reativar notifica&ccedil;&otilde;es&rdquo; volta a responder ao clique</div>
+          <ul class="changelog-changes">
+            <li><strong>O sintoma</strong> &mdash; com as notifica&ccedil;&otilde;es bloqueadas no navegador, o bot&atilde;o &ldquo;Reativar notifica&ccedil;&otilde;es&rdquo; do cabe&ccedil;alho n&atilde;o fazia nada ao ser clicado.</li>
+            <li><strong>A causa</strong> &mdash; o clique chamava o mesmo aviso autom&aacute;tico de instru&ccedil;&otilde;es, que s&oacute; reaparece a cada 15 dias (trava gravada no <code>localStorage</code>) e uma vez por sess&atilde;o. Como esse aviso j&aacute; era exibido (e a trava gravada) ao abrir a p&aacute;gina, o clique manual caía na trava e retornava sem mostrar nada.</li>
+            <li><strong>A corre&ccedil;&atilde;o</strong> &mdash; <code>maybeShowFCMReminderBanner(force)</code> passa a aceitar <code>force</code>: o clique no bot&atilde;o ignora a trava de frequ&ecirc;ncia, que continua valendo apenas para a exibi&ccedil;&atilde;o autom&aacute;tica.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>js/firebase-config.js</code> &mdash; <code>maybeShowFCMReminderBanner</code> e <code>fcmOptInClick</code>; <code>js/version.js</code> &mdash; 1.40.3; <code>service-worker.js</code> &mdash; <code>rmpf-v1.40.3</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.40.2</span>
             <span class="badge-date">29/08/2026</span>
           </div>
