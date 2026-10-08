@@ -345,13 +345,23 @@ function _fcmReminder_markShown() {
   try { localStorage.setItem(_FCM_REMINDER_KEY, String(Date.now())); } catch (e) { /* noop */ }
 }
 
-async function maybeShowFCMReminderBanner() {
-  const dias = await _resolveReminderDays();
-  if (!_fcmReminder_shouldShow(dias)) return;
+/**
+ * @param {boolean} [force]  true quando o usuário clicou no botão do cabeçalho:
+ *   ignora a trava de frequência (localStorage + flag de sessão), que só deve
+ *   limitar a exibição AUTOMÁTICA. Sem isso, o clique em "Reativar notificações"
+ *   não fazia nada depois que o banner automático havia sido exibido/fechado.
+ */
+async function maybeShowFCMReminderBanner(force) {
+  if (!force) {
+    const dias = await _resolveReminderDays();
+    if (!_fcmReminder_shouldShow(dias)) return;
+  }
   if (document.getElementById('fcm-reminder-banner')) return; // já visível
 
-  _fcmReminderShownThisSession = true;
-  _fcmReminder_markShown();
+  if (!force) {
+    _fcmReminderShownThisSession = true;
+    _fcmReminder_markShown();
+  }
 
   // Instruções de reativação dependem da plataforma: no iOS não há "cadeado na
   // barra de endereço" — a permissão é gerenciada nos Ajustes do sistema.
@@ -793,7 +803,7 @@ window.fcmOptInClick = async function fcmOptInClick(email) {
   }
   const btn = document.getElementById('fcm-optin-btn');
   if (Notification.permission === 'denied') {
-    await maybeShowFCMReminderBanner();
+    await maybeShowFCMReminderBanner(true);
     return;
   }
   if (typeof window.initFCM === 'function' && email) {
