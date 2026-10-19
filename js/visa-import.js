@@ -554,9 +554,11 @@ function resolverTipoVisa(tipoRaw, complexidade) {
   const c = String(complexidade || '').trim().toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  if (norm === 'MANIFESTACAO DO FISCAL ATUANTE') {
-    return { tipo_id: 5, tipo_codigo: 'MAN', tipo_nome: 'Manifestação do servidor atuante',
-             item_pontuacao: 8, pontos: 12, descLabel: 'Manifestação do fiscal atuante' };
+  // O WCVS grafava "ATUANTE" (erro); a tabela está sendo corrigida para
+  // "AUTUANTE". Aceita as duas grafias para não cair no default (Vistoria).
+  if (norm === 'MANIFESTACAO DO FISCAL AUTUANTE' || norm === 'MANIFESTACAO DO FISCAL ATUANTE') {
+    return { tipo_id: 5, tipo_codigo: 'MAN', tipo_nome: 'Manifestação do servidor autuante',
+             item_pontuacao: 8, pontos: 12, descLabel: 'Manifestação do fiscal autuante' };
   }
   if (norm === 'TERMO DE COLETA DE AMOSTRA') {
     return { tipo_id: 4, tipo_codigo: 'COL', tipo_nome: 'Coleta de amostra para laboratório',
