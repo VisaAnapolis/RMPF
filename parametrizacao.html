@@ -2122,6 +2122,27 @@
       const progressPct   = document.getElementById('param-import-progress-pct');
       const progressFill  = document.getElementById('param-import-progress-fill');
 
+      // Medição de uma execução (leituras do Firestore contadas pelo próprio app
+      // + duração), a mesma usada pela importação automática no painel Custo &
+      // Leituras do VISA. Estimativa por baixo: o total oficial é o do console.
+      function medicaoInicio(contexto) {
+        if (typeof window.rmSetReadContext === 'function') window.rmSetReadContext(contexto);
+        return {
+          t0: Date.now(),
+          r0: (typeof window.rmReadsSession === 'function') ? window.rmReadsSession() : null,
+        };
+      }
+      function medicaoFim(m) {
+        if (typeof window.rmSetReadContext === 'function') window.rmSetReadContext(null);
+        const leituras = (m.r0 != null && typeof window.rmReadsSession === 'function')
+          ? window.rmReadsSession() - m.r0 : null;
+        return { dur_s: Math.round((Date.now() - m.t0) / 1000), leituras };
+      }
+      function medicaoHtml(med) {
+        const lt = med.leituras != null ? med.leituras.toLocaleString('pt-BR') : '—';
+        return alerta('info', `📖 Leituras desta execução: <strong>${lt}</strong> — ${med.dur_s} s.`);
+      }
+
       function mostrarProgresso(atual, total) {
         if (!total) return;
         progressWrap.style.display = '';
@@ -2167,9 +2188,12 @@
           msgs.push(alerta(type, msg));
           logEl.innerHTML = msgs.slice(-6).join('');
         };
+        const _med = medicaoInicio('import_visa');
         try {
           const allFiscais = await db_getTodosFiscais();
           const r = await importarInspecoesVISA({ fiscalEmail: null, mes, ano, allFiscais, onProgress, onProgressBar: mostrarProgresso });
+          const _medFim = medicaoFim(_med);
+          logEl.innerHTML += medicaoHtml(_medFim);
           // Registra o estado da importação, senão o auto-import redispara logo
           // em seguida achando que os CSVs ainda não foram processados. Os SHAs
           // só são carimbados quando o mês importado é a competência aberta —
@@ -2184,10 +2208,13 @@
               }
             } catch (_) { blobShas = null; }
             try {
-              await window.registrarImportStateVisa(r, mes, ano, blobShas, { tipo: 'visa_manual' });
+              await window.registrarImportStateVisa(r, mes, ano, blobShas, {
+                tipo: 'visa_manual', dur_s: _medFim.dur_s, leituras: _medFim.leituras,
+              });
             } catch (_) { /* histórico não pode derrubar a importação concluída */ }
           }
         } catch(e) {
+          medicaoFim(_med);
           logEl.innerHTML += alerta('danger', '🚨 Erro inesperado: ' + escHtml(e.message));
         } finally {
           btnVisaTodos.disabled = typeof visaMesAberto === 'function' && !visaMesAberto(mes, ano);
@@ -2220,6 +2247,7 @@
         const alvo = document.getElementById('param-auditoria-visa');
         btnAuditar.disabled = true;
         alvo.innerHTML = alerta('info', `🔍 Simulando a importação de ${escHtml(String(mesNome))}/${ano}… nada será gravado.`);
+        const _med = medicaoInicio('import_visa_simulacao');
         try {
           const allFiscais = await db_getTodosFiscais();
           const r = await importarInspecoesVISA({
@@ -2241,6 +2269,7 @@
           const relevantes = linhas.filter(it => it.acao !== 'criar');
           let html = alerta('ok',
             `Simulação de ${escHtml(String(mesNome))}/${ano} concluída — <strong>nenhum dado foi gravado</strong>.<br>${resumo}`);
+          html += medicaoHtml(medicaoFim(_med));
 
           if (relevantes.length) {
             html += `<div style="overflow-x:auto;margin-top:10px"><table style="width:100%;border-collapse:collapse;font-size:.88rem">` +
@@ -2270,6 +2299,7 @@
           }
           alvo.innerHTML = html;
         } catch (e) {
+          medicaoFim(_med);
           alvo.innerHTML = alerta('danger', '🚨 Erro na simulação: ' + escHtml(e.message));
         } finally {
           btnAuditar.disabled = false;

@@ -1,6 +1,6 @@
 # Plano — Melhoria 1: importação do VISA lê os lançamentos do mês uma vez só
 
-**Situação:** aguardando decisão após o fechamento de outubro/2026. **Nenhum código foi alterado.**
+**Situação:** implementado na v1.41.0 (04/11/2026), após o fechamento de outubro/2026, numa versão **mais conservadora** que a descrita abaixo — ver a seção 7.
 **Data da análise:** 02/11/2026.
 
 ## 1. Contexto e números medidos
@@ -58,3 +58,17 @@
 - Lançamentos `fechado` são intocáveis nas duas versões (`visa-import.js:1984`, `:1904`).
 - Rollback: reverter o commit.
 - Fora do escopo (pode vir depois): mesmo padrão em `js/sim-import.js` (`:89`, `:408`) e no dashboard do administrador (`dashboard.html:700`).
+
+## 7. Implementação (v1.41.0 — 04/11/2026)
+
+Desenho final, mais conservador que a seção 2 — **a memória só pode concluir "não há nada a fazer"**:
+
+- **Snapshot** do mês lido uma vez no início (`db_getManuaisTodos`); falha → caminho antigo.
+- **Linhas do CSV:** só lançamento `aceito`/`homologado`/`fechado` vem da memória. Homologado sem nenhuma diferença (origem e informativos) → `ignorados++`, sem leitura — exatamente o que o código já fazia, sem gravar. Qualquer diferença → o lançamento é **relido do banco** e decidido pelo código de sempre (reabre se alterado na origem). Enviado, pendente, recusado ou ausente → lido do banco como antes.
+- **Estado de pontos por fiscal:** filtrado do snapshot em vez de `db_getManuais` por fiscal.
+- **Legado:** a leitura do id sem CNAE é pulada só quando o fiscal já tem lançamento por CNAE daquela inspeção no mês e o id legado não está entre eles.
+- **Purge:** continua lendo o mês do banco (dado fresco). A **revalidação cruzada** recebe essa leitura com as gravações do purge espelhadas, em vez de reler o mês. Na simulação, recebe a lista sem espelhamento (= o que a releitura traria).
+- **Gravações** invalidam a entrada no snapshot (`escrever`).
+- Diferença aceita: plantão/OPF manual lançado **durante** a rodada é tratado pela revalidação do fim da própria rodada (motivo "conflito"), não no laço das linhas.
+
+Teste `tests/visa-import-snapshot.test.js`: versão anterior (commit `7da00da`) × nova sobre o mesmo banco e CSVs → banco final, relatório e contadores **idênticos**, inclusive em simulação; concorrência (homologar/recusar no meio da rodada) e falha do snapshot. Uma mutação proposital ("decidir tudo pela memória") faz o teste de concorrência falhar, confirmando que ele detecta o risco.
