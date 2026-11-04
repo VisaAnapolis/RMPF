@@ -39,10 +39,15 @@ function _aplicarManualNoMapaPontosVisa(mapa, manual, delta) {
   mapa.set(dia, (mapa.get(dia) || 0) + (delta * pontos));
 }
 
-async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano, nomeFiscal) {
+// `docsPreCarregados` (opcional): lançamentos do fiscal no mês já lidos pelo
+// snapshot do início da rodada. Evita reler do banco o que a rodada já tem em
+// memória; ausente (snapshot indisponível), lê como sempre.
+async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano, nomeFiscal, docsPreCarregados) {
   const key = `${emailFiscal}::${mes}::${ano}`;
   if (!cache.has(key)) {
-    const docs = await window.db_getManuais(emailFiscal, mes, ano);
+    const docs = Array.isArray(docsPreCarregados)
+      ? docsPreCarregados
+      : await window.db_getManuais(emailFiscal, mes, ano);
     const byDia = new Map();
     for (const d of docs) _aplicarManualNoMapaPontosVisa(byDia, d, 1);
     cache.set(key, {
@@ -731,12 +736,17 @@ function _jaSinalizado(m) {
   return !!(m && m.reaberto_tipo && m.status === 'enviado');
 }
 
-async function revalidarCruzadoMes({ mes, ano, fiscalEmail, escrever, anota, onProgress, marcarReabertura }) {
+async function revalidarCruzadoMes({ mes, ano, fiscalEmail, escrever, anota, onProgress, marcarReabertura, docsPreCarregados }) {
   let reabertos_incompat = 0, zerados_incompat = 0;
 
-  const docs = fiscalEmail
-    ? await window.db_getManuais(fiscalEmail, mes, ano)
-    : await window.db_getManuaisTodos(mes, ano);
+  // `docsPreCarregados`: a lista lida do banco logo antes do purge de órfãos,
+  // com as gravações do próprio purge já aplicadas — o mesmo estado que uma
+  // nova leitura traria, sem reler o mês inteiro. Ausente, lê como sempre.
+  const docs = Array.isArray(docsPreCarregados)
+    ? docsPreCarregados
+    : (fiscalEmail
+        ? await window.db_getManuais(fiscalEmail, mes, ano)
+        : await window.db_getManuaisTodos(mes, ano));
 
   const porFiscal = new Map();
   for (const d of docs) {
@@ -895,7 +905,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
   const relatorio = [];
   const anota = (acao, dados) => relatorio.push({ acao, ...dados });
-  const escrever = simulacao
+  const _escreverBase = simulacao
     ? {
         upsert: async () => {},
         update: async () => {},
@@ -906,6 +916,45 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         update: (...a) => window.db_updateManual(...a),
         remover: (...a) => window.db_deleteManual(...a),
       };
+
+  // ── Snapshot do mês (economia de leituras) ───────────────
+  // Os lançamentos da competência são lidos UMA vez no início da rodada. A
+  // memória serve só para PULAR trabalho que hoje termina sem gravação
+  // (homologado sem nenhuma diferença, competência fechada) e para montar o
+  // estado de pontos de cada fiscal. Qualquer caso que possa gravar relê o
+  // documento do banco na hora e segue a lógica de sempre — a decisão de
+  // gravar nunca é tomada sobre dado da memória. Sem snapshot (falha na
+  // leitura), tudo segue o caminho antigo.
+  let snapMes = null;                 // id → lançamento (competência inteira)
+  let snapPorFiscal = null;           // e-mail → [lançamentos] (imutável na rodada)
+  let snapControleFiscal = null;      // Set "email::controle" presentes no mês
+  let snapAtalhos = 0, snapReleituras = 0;
+  // Lista lida antes do purge, espelhando as gravações dele; vira a entrada da
+  // revalidação cruzada no lugar de uma segunda leitura do mês inteiro.
+  let espelhoPurge = null;
+
+  const _esquecerDoSnapshot = (id) => { if (snapMes && id) snapMes.delete(id); };
+  const _idUpsert = (controle, email, existingId, cnae) => existingId ||
+    (typeof window.db_visaDocId === 'function' ? window.db_visaDocId(controle, email, cnae) : null);
+
+  const escrever = {
+    upsert: async (controle, email, data, existingId, isNew, cnae) => {
+      _esquecerDoSnapshot(_idUpsert(controle, email, existingId, cnae));
+      return _escreverBase.upsert(controle, email, data, existingId, isNew, cnae);
+    },
+    update: async (id, patch) => {
+      _esquecerDoSnapshot(id);
+      const r = await _escreverBase.update(id, patch);
+      if (espelhoPurge && espelhoPurge.has(id)) Object.assign(espelhoPurge.get(id), patch);
+      return r;
+    },
+    remover: async (id) => {
+      _esquecerDoSnapshot(id);
+      const r = await _escreverBase.remover(id);
+      if (espelhoPurge) espelhoPurge.delete(id);
+      return r;
+    },
+  };
 
   // Simulação é 100% leitura: não disputa o lock com uma importação real.
   if (!simulacao) {
@@ -1318,6 +1367,26 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     };
     const pontosEstadoCache = new Map();
 
+    // Snapshot da competência (ver comentário junto de `escrever`).
+    try {
+      const docsMes = fiscalEmail
+        ? await window.db_getManuais(fiscalEmail, mes, ano)
+        : await window.db_getManuaisTodos(mes, ano);
+      snapMes = new Map();
+      snapPorFiscal = new Map();
+      snapControleFiscal = new Set();
+      for (const d of docsMes) {
+        snapMes.set(d.id, d);
+        const em = d.fiscal_email || '';
+        if (!snapPorFiscal.has(em)) snapPorFiscal.set(em, []);
+        snapPorFiscal.get(em).push(d);
+        if (d.visa_controle) snapControleFiscal.add(em + '::' + d.visa_controle);
+      }
+    } catch (err) {
+      snapMes = null; snapPorFiscal = null; snapControleFiscal = null;
+      console.warn('[VISA import] Snapshot do mês indisponível — seguindo sem ele:', err && err.message);
+    }
+
     // Campos informativos (nº impresso do documento e lista de participantes)
     // são do DOCUMENTO, não da decisão: mudam no WCVS sem que a pontuação mude.
     // Vários caminhos preservam o lançamento sem gravar nada — legado
@@ -1571,7 +1640,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         // sem CNAE no ID). Mantém o registro intacto e não expande, evitando
         // dupla contagem do mesmo CNAE.
         try {
-          const legacy = await window.db_getVISAManual(controleVisa, emailFiscal);
+          // Snapshot: se este fiscal já tem lançamento desta inspeção no mês
+          // (esquema por CNAE) e o id legado não está entre eles, não existe
+          // legado a preservar — a leitura voltaria vazia. Nos demais casos
+          // (sem snapshot, legado no mês, inspeção nova) lê do banco como sempre.
+          const _idLegado = typeof window.db_visaDocId === 'function'
+            ? window.db_visaDocId(controleVisa, emailFiscal) : null;
+          const _pulaLegado = !!(snapMes && _idLegado && !snapMes.has(_idLegado) &&
+            snapControleFiscal.has(emailFiscal + '::' + controleVisa));
+          const legacy = _pulaLegado ? null : await window.db_getVISAManual(controleVisa, emailFiscal);
           if (legacy && (legacy.status === 'aceito' || legacy.status === 'fechado')) {
             processedKeys.add(emailFiscal + '::' + controleVisa + '::' + (legacy.visa_cnae || ''));
             marcarProcessadoControleFiscal(emailFiscal, controleVisa, legacy.visa_cnae);
@@ -1602,10 +1679,23 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
           marcarProcessadoControleFiscal(emailFiscal, controleVisa, alvo.cnae);
 
           try {
-            const existing = await window.db_getVISAManual(controleVisa, emailFiscal, alvo.cnae);
+            // Snapshot: só homologado/fechado vem da memória — são os únicos
+            // casos que podem terminar sem gravação. Os demais são relidos do
+            // banco agora, como sempre. O homologado da memória ainda passa
+            // pelo atalho abaixo; se houver qualquer diferença, é relido antes
+            // de decidir.
+            const _idAlvo = (snapMes && typeof window.db_visaDocId === 'function')
+              ? window.db_visaDocId(controleVisa, emailFiscal, alvo.cnae) : null;
+            const _snapDoc = _idAlvo ? snapMes.get(_idAlvo) : null;
+            const _viaSnapshot = !!_snapDoc &&
+              (_snapDoc.status === 'aceito' || _snapDoc.status === 'homologado' || _snapDoc.status === 'fechado');
+            let existing = _viaSnapshot
+              ? _snapDoc
+              : await window.db_getVISAManual(controleVisa, emailFiscal, alvo.cnae);
             const estadoPontos = await _getEstadoPontosVisa(
               pontosEstadoCache, emailFiscal, mes, ano,
-              emailNomeMap.get(emailFiscal) || nomeFiscalCsv);
+              emailNomeMap.get(emailFiscal) || nomeFiscalCsv,
+              snapPorFiscal ? (snapPorFiscal.get(emailFiscal) || []) : undefined);
             let pontosFiscal = pontosFinalA;
             let zeradoMotivo = null;
             // Item do Anexo VII que REJEITA a pontuação (citado em dispositivo_legal
@@ -1696,15 +1786,12 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               }
             }
 
-            if (existing) {
-              // Mês fechado é intocável: nem comparado, nem sinalizado.
-              if (existing.status === 'fechado') {
-                ignorados++;
-                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
-                continue;
-              }
+            // Dados da origem para um lançamento existente. Montado numa função para
+            // o atalho do snapshot comparar exatamente o mesmo objeto que o caminho
+            // normal grava.
+            const _montarUpdateData = () => {
               const _duplaReducaoVis = alvo.qtd_fiscais != null;
-              const updateData = {
+              return {
                 fiscal_nome: nomeFiscalCsv,
                 mes, ano, data: dataISO,
                 tipo_id: tipoInfoA.tipo_id, tipo_codigo: tipoInfoA.tipo_codigo,
@@ -1735,6 +1822,38 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
                   ? window.dispositivoLegal(tipoInfoA.item_pontuacao, pontosFiscal, _duplaReducaoVis, itemDecretoZerado || itemDecretoAlimentacao || undefined)
                   : null,
               };
+            };
+
+            // ── Atalho do snapshot ──────────────────────────────────
+            // Homologado vindo da memória sem NENHUMA diferença (origem e
+            // informativos): hoje esse caso termina em `ignorados++` sem
+            // gravar nada — a memória só evita a leitura. Qualquer diferença
+            // (inclusive a que reabre o homologado) relê o lançamento do banco
+            // e decide com o dado real: uma homologação, reabertura ou recusa
+            // feita na Conferência durante a rodada é respeitada como sempre.
+            if (_viaSnapshot && existing.status !== 'fechado') {
+              const _udAtalho = _montarUpdateData();
+              const _camposInfAtalho = fiscaisIncompletos
+                ? VISA_CAMPOS_INFORMATIVOS.filter(c => c !== 'fiscais_participantes')
+                : VISA_CAMPOS_INFORMATIVOS;
+              if (!visaDiffOrigem(existing, _udAtalho).length &&
+                  !visaDiffInformativo(existing, _udAtalho, _camposInfAtalho).length) {
+                ignorados++;
+                snapAtalhos++;
+                continue;
+              }
+              existing = await window.db_getVISAManual(controleVisa, emailFiscal, alvo.cnae);
+              snapReleituras++;
+            }
+
+            if (existing) {
+              // Mês fechado é intocável: nem comparado, nem sinalizado.
+              if (existing.status === 'fechado') {
+                ignorados++;
+                onProgress(`⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: competência fechada, ignorado.`, 'warn');
+                continue;
+              }
+              const updateData = _montarUpdateData();
               // ── Recusado: avaliação definitiva, nunca sobrescrita ──────
               // A importação não devolve o lançamento à conferência nem apaga o
               // motivo da recusa. Mas o que o fiscal mexeu no WCVS depois da
@@ -1975,10 +2094,21 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     // Exclui lançamentos VISA que foram removidos do CSV e ainda não foram homologados
     let excluidos = 0;
     let migrados = 0;
+    let docsParaRevalidar;   // undefined → a revalidação lê do banco, como antes
     try {
       const candidatos = fiscalEmail
         ? await window.db_getManuais(fiscalEmail, mes, ano)
         : await window.db_getManuaisTodos(mes, ano);
+      // A revalidação cruzada (abaixo) relia o mês inteiro logo depois deste
+      // purge. Agora ela recebe esta mesma leitura, com as gravações do purge
+      // espelhadas em cópias — o mesmo estado que a releitura traria. Na
+      // simulação nada é gravado, então ela recebe a lista como está (é o que
+      // a releitura traria também).
+      if (simulacao) {
+        docsParaRevalidar = candidatos.map(m => ({ ...m }));
+      } else {
+        espelhoPurge = new Map(candidatos.map(m => [m.id, { ...m }]));
+      }
       for (const m of candidatos) {
         if (m.origem !== 'visa_csv') continue;
         if (m.status === 'fechado') continue;              // mês fechado: intocável
@@ -2137,6 +2267,10 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     } catch(e) {
       onProgress('⚠️ Erro ao verificar lançamentos órfãos: ' + e.message, 'warn');
     }
+    if (espelhoPurge) {
+      docsParaRevalidar = Array.from(espelhoPurge.values());
+      espelhoPurge = null;   // daqui em diante a revalidação cuida dos próprios objetos
+    }
 
     // ── Revalidação cruzada do mês ──
     // Roda depois da reconciliação porque depende do estado final do dia (uma
@@ -2151,6 +2285,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         onProgress('🔁 Revalidando incompatibilidades do mês...', 'info');
         const rev = await revalidarCruzadoMes({
           mes, ano, fiscalEmail, escrever, anota, onProgress, marcarReabertura,
+          docsPreCarregados: docsParaRevalidar,
         });
         reabertos_incompat += rev.reabertos_incompat;
         zerados_incompat = rev.zerados_incompat;
@@ -2191,6 +2326,11 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       `<strong>${erros}</strong> erro(s).`,
       erros > 0 ? 'warn' : 'ok'
     );
+    if (snapMes) {
+      onProgress(
+        `⚡ Snapshot do mês: ${snapAtalhos} lançamento(s) homologado(s) sem alteração conferido(s) ` +
+        `em memória, ${snapReleituras} relido(s) do banco por terem diferença.`, 'info');
+    }
     if (migrados) {
       onProgress(
         `🔁 ${migrados} lançamento(s) com CNAE reclassificado no WCVS: a homologação passou para o ` +
@@ -2212,6 +2352,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       criados, atualizados, ignorados, excluidos, migrados, erros,
       reabertos, reabertos_orfaos, reabertos_incompat, zerados_incompat,
       sincronizados,
+      snap_atalhos: snapAtalhos, snap_releituras: snapReleituras,
       relatorio,
     };
   } finally {

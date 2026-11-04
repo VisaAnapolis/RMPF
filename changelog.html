@@ -44,6 +44,22 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.41.0</span>
+            <span class="badge-date">04/11/2026</span>
+          </div>
+          <div class="changelog-title">Importa&ccedil;&atilde;o do VISA l&ecirc; os lan&ccedil;amentos do m&ecirc;s uma vez s&oacute;</div>
+          <ul class="changelog-changes">
+            <li><strong>O desperd&iacute;cio</strong> &mdash; cada rodada da importa&ccedil;&atilde;o lia os mesmos lan&ccedil;amentos do m&ecirc;s 3 a 4 vezes: uma leitura por linha &times; fiscal &times; CNAE, a lista de cada fiscal, o m&ecirc;s inteiro no purge de &oacute;rf&atilde;os e o m&ecirc;s inteiro de novo na revalida&ccedil;&atilde;o. No fim de outubro eram ~9.300 leituras e 3 a 14 minutos por rodada, mesmo com pouqu&iacute;ssimas altera&ccedil;&otilde;es.</li>
+            <li><strong>Agora</strong> &mdash; o m&ecirc;s &eacute; lido uma vez no in&iacute;cio da rodada. Lan&ccedil;amento homologado sem <em>nenhuma</em> diferen&ccedil;a para o CSV &eacute; conferido em mem&oacute;ria (hoje esse caso j&aacute; terminava sem grava&ccedil;&atilde;o); a revalida&ccedil;&atilde;o cruzada aproveita a leitura do purge em vez de reler o m&ecirc;s.</li>
+            <li><strong>Regras intactas</strong> &mdash; a mem&oacute;ria s&oacute; conclui &ldquo;n&atilde;o h&aacute; nada a fazer&rdquo;. Qualquer decis&atilde;o de gravar (reabrir homologado alterado na origem, atualizar, zerar, excluir) &eacute; tomada com o lan&ccedil;amento relido do banco na hora: uma homologa&ccedil;&atilde;o, reabertura ou recusa feita na Confer&ecirc;ncia durante a rodada &eacute; respeitada. Compet&ecirc;ncia fechada continua intoc&aacute;vel. Sem a leitura inicial (falha), a rodada segue o caminho antigo.</li>
+            <li><strong>Medi&ccedil;&atilde;o</strong> &mdash; a importa&ccedil;&atilde;o manual e a simula&ccedil;&atilde;o da Parametriza&ccedil;&atilde;o mostram &ldquo;Leituras desta execu&ccedil;&atilde;o&rdquo; e a dura&ccedil;&atilde;o; a manual passa a registrar esses n&uacute;meros no hist&oacute;rico do painel Custo &amp; Leituras.</li>
+            <li><strong>Testes</strong> &mdash; <code>tests/visa-import-snapshot.test.js</code> roda a vers&atilde;o anterior e a nova sobre o mesmo banco e os mesmos CSVs: banco final e relat&oacute;rio id&ecirc;nticos, com menos leituras; cobre homologado alterado (reabre), recusado, &oacute;rf&atilde;o, fiscal removido, CNAE reclassificado, plant&atilde;o no dia, m&ecirc;s fechado e homologa&ccedil;&atilde;o feita no meio da rodada.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>js/visa-import.js</code>; <code>js/firestore.js</code> &mdash; <code>db_visaDocId</code>; <code>parametrizacao.html</code>; <code>tests/visa-import-snapshot.test.js</code>; <code>js/version.js</code> &mdash; 1.41.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.41.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.40.3</span>
             <span class="badge-date">08/10/2026</span>
           </div>

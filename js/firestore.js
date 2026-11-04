@@ -1367,6 +1367,7 @@ window.db_getTodosUsuarios    = getTodosUsuarios;
 window.db_updateUsuario       = updateUsuario;
 window.db_deleteUsuario        = deleteUsuario;
 window.db_getVISAManual        = getVISAManual;
+window.db_visaDocId           = _visaDocId;
 window.db_getManuaisPorVisaControle = getManuaisPorVisaControle;
 window.db_upsertVISAManual     = upsertVISAManual;
 window.db_acquireVisaImportLock = acquireVisaImportLock;
