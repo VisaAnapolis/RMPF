@@ -292,21 +292,19 @@ test('validação para salvar: tudo o que a chefia confere precisa estar informa
   const ctx = { cnaeMap, hoje: '2026-11-30', usuarioEmail: A.email };
   const ok = {
     codigo: 'R1', data: '2026-11-04', documento: 'TERMO DE INTIMAÇÃO', numeroDoc: '127236',
-    semNumero: false, entregue: true, cnae: '1111-1/01', cnaesExtras: ['2222-2/02'],
+    entregue: true, cnae: '1111-1/01', cnaesExtras: ['2222-2/02'],
     fiscais: [{ ...A, eh360: true }, { ...B, eh360: false }],
   };
   const campos = (insp) => validarInspecao360(insp, ctx).map(e => e.campo);
   assert.deepEqual(campos(ok), []);
 
-  // Nº obrigatório nos documentos de talão…
+  // Nº obrigatório em TODO documento lavrado…
   assert.deepEqual(campos({ ...ok, numeroDoc: '' }), ['f-numero-doc']);
-  // …salvo "documento sem número" declarado.
-  assert.deepEqual(campos({ ...ok, numeroDoc: '', semNumero: true }), []);
-  // Opcional onde o número é exceção (certidão).
-  assert.deepEqual(campos({ ...ok, documento: 'CERTIDÃO', numeroDoc: '' }), []);
-  // Formato: só dígitos, não zerado.
-  assert.deepEqual(campos({ ...ok, numeroDoc: '12a36' }), ['f-numero-doc']);
-  assert.deepEqual(campos({ ...ok, numeroDoc: '000000' }), ['f-numero-doc']);
+  assert.deepEqual(campos({ ...ok, numeroDoc: '   ' }), ['f-numero-doc']);
+  assert.deepEqual(campos({ ...ok, documento: 'CERTIDÃO', numeroDoc: '' }), ['f-numero-doc']);
+  // …em qualquer formato (a numeração do 360 não é a do talão do CVS).
+  assert.deepEqual(campos({ ...ok, numeroDoc: '360/2026-15' }), []);
+  assert.deepEqual(campos({ ...ok, numeroDoc: '7' }), []);
   // Demais campos.
   assert.deepEqual(campos({ ...ok, codigo: '' }), ['f-regulado-busca']);
   assert.deepEqual(campos({ ...ok, data: '' }), ['f-data']);

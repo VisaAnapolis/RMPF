@@ -35,21 +35,6 @@
     'TERMO DE COLETA DE AMOSTRA',
   ];
 
-  // Documentos de talão: no CVS praticamente sempre têm nº impresso (0–2% sem
-  // número em 2026). No 360 o nº é obrigatório para eles, salvo quando o fiscal
-  // declara "documento sem número". Nos demais (certidão, PAS, relatórios,
-  // manifestação…), onde o número é exceção, segue opcional.
-  const DOCUMENTOS_COM_NUMERO = [
-    'TERMO DE INTIMAÇÃO',
-    'TERMO DE NOTIFICAÇÃO',
-    'AUTO DE INFRAÇÃO',
-    'AUTO DE IMPOSIÇÃO DE PENALIDADE',
-    'TERMO DE COLETA DE AMOSTRA',
-  ];
-  function exigeNumeroDocumento(documento) {
-    return DOCUMENTOS_COM_NUMERO.includes(String(documento || '').trim());
-  }
-
   // Sem OS não há autorização prévia a conferir: o 3º fiscal em diante entra
   // pendente e o administrador autoriza na Conferência, como no CVS.
   const MOTIVO_PENDENCIA_360 =
@@ -323,15 +308,9 @@
     if (!insp.documento) add('f-documento', 'Selecione o documento lavrado.');
     else if (!DOCUMENTOS_360.includes(insp.documento)) add('f-documento', 'Documento lavrado inválido.');
 
-    const num = String(insp.numeroDoc || '').trim();
-    if (num) {
-      if (!/^\d{1,10}$/.test(num) || /^0+$/.test(num)) {
-        add('f-numero-doc', 'Nº impresso do documento inválido — use só os dígitos do talão (ex.: 127236).');
-      }
-    } else if (exigeNumeroDocumento(insp.documento) && !insp.semNumero) {
-      add('f-numero-doc', `Informe o nº impresso do ${String(insp.documento).toLowerCase()} ` +
-        '(ou marque "Documento sem número", se for o caso).');
-    }
+    // Nº do documento: obrigatório em TODO documento lavrado. O formato não é
+    // conferido — a numeração do 360 não é a do talão do CVS; basta haver um nº.
+    if (!String(insp.numeroDoc || '').trim()) add('f-numero-doc', 'Informe o nº do documento lavrado.');
 
     if (insp.entregue !== true && insp.entregue !== false) add('f-entregue', 'Informe se o documento foi entregue.');
 
@@ -403,7 +382,6 @@
       data: insp.data, mes, ano,
       documento: String(insp.documento || '').trim(),
       numero_documento: insp.numeroDoc ? String(insp.numeroDoc).trim() : null,
-      documento_sem_numero: !insp.numeroDoc && !!insp.semNumero,
       entregue: insp.entregue !== false,
       modalidade: MODALIDADE_360,
       cnae: String(insp.cnae || '').trim(),
@@ -436,8 +414,6 @@
   window.MODALIDADE_360        = MODALIDADE_360;
   window.DOCUMENTOS_360        = DOCUMENTOS_360;
   window.MOTIVO_PENDENCIA_360  = MOTIVO_PENDENCIA_360;
-  window.DOCUMENTOS_COM_NUMERO_360 = DOCUMENTOS_COM_NUMERO;
-  window.exigeNumeroDocumento360   = exigeNumeroDocumento;
   window.validarInspecao360        = validarInspecao360;
   window.insp360EhTravado      = ehTravado;
   window.ehParticipante360     = ehParticipante360;
