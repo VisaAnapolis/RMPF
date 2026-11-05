@@ -64,6 +64,7 @@
         <div class="form-group">
           <label class="form-label required" for="f-entregue">Documento entregue?</label>
           <select class="form-control" id="f-entregue">
+            <option value="">— selecione —</option>
             <option value="sim">Sim</option>
             <option value="nao">Não</option>
           </select>
@@ -76,8 +77,8 @@
           <select class="form-control" id="f-documento"><option value="">— selecione —</option></select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="f-numero-doc">Nº impresso do documento</label>
-          <input type="text" class="form-control" id="f-numero-doc" maxlength="20" inputmode="numeric">
+          <label class="form-label required" for="f-numero-doc">Nº do documento</label>
+          <input type="text" class="form-control" id="f-numero-doc" maxlength="30" autocomplete="off">
         </div>
       </div>
 
@@ -305,27 +306,28 @@
       data: $('f-data').value || '',
       documento: $('f-documento').value,
       numeroDoc: $('f-numero-doc').value.trim(),
-      entregue: $('f-entregue').value !== 'nao',
+      // null = não informado (a validação cobra); o cálculo de prévia trata como entregue.
+      entregue: $('f-entregue').value === '' ? null : $('f-entregue').value !== 'nao',
       cnae: cnaeDoTexto($('f-cnae').value),
       cnaesExtras: extras.slice(),
       fiscais: fiscaisDoForm(),
     };
   }
 
-  function validar(insp) {
-    const erros = [];
-    if (!insp.codigo) erros.push('selecione o regulado');
-    if (!insp.data) erros.push('informe a data da visita');
-    else {
-      const [a, m] = insp.data.split('-').map(Number);
-      if (!visaMesAberto(m, a)) erros.push('data anterior a abril/2026');
-      if (insp.data > hojeISO()) erros.push('a data da visita não pode ser futura');
+  // Pendências para salvar (js/insp360.js › validarInspecao360): tudo o que a
+  // chefia precisa para conferir o lançamento. Destaca os campos com problema.
+  const CAMPOS_VALIDADOS = ['f-regulado-busca', 'f-data', 'f-documento', 'f-numero-doc',
+    'f-entregue', 'f-cnae', 'f-cnae-extra', 'fiscais-linhas'];
+  function validar(insp, destacar) {
+    const erros = validarInspecao360(insp, { cnaeMap, hoje: hojeISO(), usuarioEmail: user.email });
+    if (destacar) {
+      const comErro = new Set(erros.map(e => e.campo));
+      for (const id of CAMPOS_VALIDADOS) $(id).classList.toggle('i360-invalido', comErro.has(id));
     }
-    if (!insp.documento) erros.push('selecione o documento lavrado');
-    if (!insp.cnae) erros.push('informe o CNAE');
-    else if (!cnaeMap.has(insp.cnae)) erros.push(`o CNAE ${insp.cnae} não consta como competência da vigilância (cnae.csv) — será pontuado como média`);
-    if (!insp.fiscais.length) erros.push('informe os fiscais');
     return erros;
+  }
+  function limparDestaques() {
+    for (const id of CAMPOS_VALIDADOS) $(id).classList.remove('i360-invalido');
   }
 
   // Estado do dia do fiscal logado (próprios lançamentos, escala, ocorrências).
@@ -377,9 +379,11 @@
   }
 
   function renderCalculo(insp, calc) {
-    const avisos = validar(insp).filter(e => e.includes('CNAE') || e.includes('data'));
+    const pend = validar(insp, false);
     let html = '';
-    if (avisos.length) html += alerta('warn', avisos.map(escHtml).join('<br>'));
+    if (pend.length) {
+      html += alerta('warn', '<strong>Pendências para salvar:</strong><br>' + pend.map(e => '• ' + escHtml(e.msg)).join('<br>'));
+    }
     html += `<p style="margin:0 0 8px"><strong>Tipo:</strong> ${escHtml(calc.tipoInfo.tipo_nome)} ` +
       `<span class="text-muted">(${escHtml(calc.tipoInfo.tipo_codigo)})</span> · ` +
       `<strong>Modalidade:</strong> ${escHtml(MODALIDADE_360)} · <strong>Fiscais:</strong> ${calc.porFiscal.length}</p>`;
@@ -428,17 +432,37 @@
   }
 
   function atualizarBotaoSalvar() {
-    $('btn-salvar').disabled = !(podeSalvar && ultimoCalc);
+    // Para o participante 360 o botão fica sempre ativo: o clique valida e
+    // lista o que falta (desabilitado, ele não diria por quê).
+    $('btn-salvar').disabled = !podeSalvar;
     $('btn-salvar').title = podeSalvar ? '' : 'Salvamento restrito aos fiscais da fase de transição 360';
   }
 
   // ── Salvar ─────────────────────────────────────────────
   async function salvar() {
-    if (!podeSalvar || !ultimoCalc) return;
+    if (!podeSalvar) return;
+    // Validação primeiro, sobre o formulário atual: tudo o que a chefia precisa
+    // para conferir tem de estar informado.
+    const pendencias = validar(lerFormulario(), true);
+    if (pendencias.length) {
+      showAlert('warn', '<strong>Corrija antes de salvar:</strong><br>' +
+        pendencias.map(e => '• ' + escHtml(e.msg)).join('<br>'));
+      const primeiro = pendencias.find(e => e.campo);
+      if (primeiro && $(primeiro.campo).focus) $(primeiro.campo).focus();
+      return;
+    }
+    limparDestaques();
+    // Recalcula AGORA a partir do formulário atual. O último campo mexido antes
+    // do clique (ex.: nº do documento) só dispara recálculo ao perder o foco, e
+    // esse recálculo ainda está agendado: gravar o `ultimoCalc` anterior perdia
+    // o que acabou de ser digitado.
+    clearTimeout(_timerCalc);
+    await calcular();
+    if (!ultimoCalc) {
+      showAlert('warn', 'Não foi possível calcular a produção com os dados informados — confira o formulário.');
+      return;
+    }
     const { insp, calc } = ultimoCalc;
-    const erros = validar(insp).filter(e => !e.includes('será pontuado como média'));
-    if (!insp.fiscais.some(f => f.email === user.email)) erros.push('você precisa constar entre os fiscais');
-    if (erros.length) { showAlert('warn', 'Corrija antes de salvar: ' + erros.map(escHtml).join('; ') + '.'); return; }
     const [ano, mes] = insp.data.split('-').map(Number);
     try {
       if (await db_isMesFechado(user.email, mes, ano)) {
@@ -484,7 +508,8 @@
     $('f-data').value = hojeISO();
     $('f-documento').value = '';
     $('f-numero-doc').value = '';
-    $('f-entregue').value = 'sim';
+    $('f-entregue').value = '';
+    limparDestaques();
     $('f-cnae').value = '';
     $('f-cnae-extra').value = '';
     renderExtras();
@@ -630,6 +655,7 @@
       if (ex) { excluir(ex.dataset.excluir); }
     });
     ['f-data', 'f-documento', 'f-entregue', 'f-numero-doc'].forEach(id => $(id).addEventListener('change', agendarCalculo));
+    $('f-numero-doc').addEventListener('input', agendarCalculo);
     $('f-cnae').addEventListener('change', agendarCalculo);
     $('f-cnae').addEventListener('input', agendarCalculo);
     $('btn-add-extra').addEventListener('click', adicionarExtra);

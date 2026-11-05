@@ -1057,6 +1057,8 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
 .i360-fiscal-linha { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
 .i360-total { font-weight: 700; }
 .i360-nota { font-size: .78rem; color: var(--cinzaT); }
+.i360-invalido, .i360-invalido select { border-color: var(--verm) !important; box-shadow: 0 0 0 2px var(--vermP); }
+#fiscais-linhas.i360-invalido { border: 1px solid var(--verm); border-radius: 6px; padding: 6px; }
 @media (max-width: 600px) {
   .i360-fiscal-linha { grid-template-columns: 1fr auto; }
   .i360-fiscal-linha > label { grid-column: 1 / -1; }
