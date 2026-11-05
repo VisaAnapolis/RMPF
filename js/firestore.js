@@ -1324,6 +1324,87 @@ async function releaseFeriasSyncLock() {
 
 // ── Exports ──────────────────────────────────────────────
 
+
+// ── Lançamento 360 (docs/lancamento-360.md) ───────────────
+// `insp360/{numero}` guarda a INSPEÇÃO digitada no Lançamento 360; os
+// lançamentos de produção dela vão para `manuais` (origem 'insp360'), um por
+// fiscal-360 × CNAE, com id determinístico. Numeração anual por transação em
+// `insp360_sequencia/{ano}` → "360-AAAA-NNNNN".
+
+function insp360DocId(numero, fiscalEmail, cnae) {
+  const emailSan = String(fiscalEmail).replace(/[.@+]/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+  const cnaePart = cnae ? String(cnae).replace(/[^a-zA-Z0-9]/g, '') + '_' : 'sem_cnae_';
+  return 'i360_' + String(numero).replace(/[^a-zA-Z0-9]/g, '') + '_' + cnaePart + emailSan;
+}
+
+// Chave de listagem "AAAA-MM|email" (campo array `chaves`): uma única
+// condição array-contains, sem índice composto.
+function insp360ChaveListagem(mes, ano, email) {
+  return `${Number(ano)}-${String(Number(mes)).padStart(2, '0')}|${String(email || '').toLowerCase()}`;
+}
+
+async function proximoNumeroInsp360(ano) {
+  const ref = window.db.collection('insp360_sequencia').doc(String(ano));
+  return window.db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const ultimo = snap.exists ? (Number(snap.data().ultimo) || 0) : 0;
+    const n = ultimo + 1;
+    tx.set(ref, { ultimo: n, ano: Number(ano), atualizado_em: firebase.firestore.FieldValue.serverTimestamp() });
+    return `360-${ano}-${String(n).padStart(5, '0')}`;
+  });
+}
+
+async function getInsp360(numero) {
+  const snap = await window.db.collection('insp360').doc(String(numero)).get();
+  return snap.exists ? { id: snap.id, ...snap.data() } : null;
+}
+
+async function getInsp360Fiscal(email, mes, ano) {
+  const snap = await window.db.collection('insp360')
+    .where('chaves', 'array-contains', insp360ChaveListagem(mes, ano, email))
+    .get();
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => String(a.data || '').localeCompare(String(b.data || '')) ||
+                    String(a.numero || '').localeCompare(String(b.numero || '')));
+}
+
+async function getManualPorId(id) {
+  const snap = await window.db.collection('manuais').doc(id).get();
+  return snap.exists ? { id: snap.id, ...snap.data() } : null;
+}
+
+// Grava a inspeção e seus lançamentos num único batch (tudo ou nada).
+//   inspecao: dados do doc insp360 (com `numero`)
+//   criar:    [{ id, data }]  lançamentos novos
+//   atualizar:[{ id, data }]  lançamentos existentes ainda editáveis
+//   remover:  [id]            lançamentos que deixaram de existir
+async function gravarInsp360({ inspecao, novaInspecao, criar, atualizar, remover }) {
+  const ts = firebase.firestore.FieldValue.serverTimestamp();
+  const batch = window.db.batch();
+  const refInsp = window.db.collection('insp360').doc(String(inspecao.numero));
+  const dadosInsp = { ...inspecao, alterado_em: ts };
+  if (novaInspecao) dadosInsp.criado_em = ts;
+  if (novaInspecao) batch.set(refInsp, dadosInsp);
+  else batch.update(refInsp, dadosInsp);
+  for (const c of (criar || [])) {
+    batch.set(window.db.collection('manuais').doc(c.id), { ...c.data, created_at: ts, updated_at: ts });
+  }
+  for (const u of (atualizar || [])) {
+    batch.update(window.db.collection('manuais').doc(u.id), { ...u.data, updated_at: ts });
+  }
+  for (const id of (remover || [])) {
+    batch.delete(window.db.collection('manuais').doc(id));
+  }
+  await batch.commit();
+}
+
+async function excluirInsp360(numero, idsLancamentos) {
+  const batch = window.db.batch();
+  for (const id of (idsLancamentos || [])) batch.delete(window.db.collection('manuais').doc(id));
+  batch.delete(window.db.collection('insp360').doc(String(numero)));
+  await batch.commit();
+}
+
 window.db_getFechamento                  = getFechamento;
 window.db_saveFechamento                 = saveFechamento;
 window.db_deleteFechamento               = deleteFechamento;
@@ -1403,4 +1484,12 @@ window.db_getCnaeAltaAlertaConfig    = db_getCnaeAltaAlertaConfig;
 window.db_updateCnaeAltaAlertaConfig = db_updateCnaeAltaAlertaConfig;
 window.db_getNotifConfig        = db_getNotifConfig;
 window.db_updateNotifConfig     = db_updateNotifConfig;
+window.db_insp360DocId               = insp360DocId;
+window.db_insp360ChaveListagem        = insp360ChaveListagem;
+window.db_proximoNumeroInsp360        = proximoNumeroInsp360;
+window.db_getInsp360                  = getInsp360;
+window.db_getInsp360Fiscal            = getInsp360Fiscal;
+window.db_getManualPorId              = getManualPorId;
+window.db_gravarInsp360               = gravarInsp360;
+window.db_excluirInsp360              = excluirInsp360;
 window.db_validateDeadlineReleaseDate = db_validateDeadlineReleaseDate;

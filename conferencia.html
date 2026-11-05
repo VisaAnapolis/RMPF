@@ -483,6 +483,7 @@
       ['dashboard.html','📊','Dashboard'],
       ['lancamento.html','✏️','Lançar Atividade'],
       ['meus-lancamentos.html','📋','Meus Lançamentos'],
+      ['lancamento-360.html','🔄','Lançamento 360'],
       ['ocorrencias.html','📌','Ocorrências'],
     ] : [
       ['dashboard.html','📊','Dashboard'],
@@ -593,6 +594,8 @@
       return;
     }
 
+    // Mesma inspeção pelo CVS e pelo Lançamento 360 (fase de transição).
+    const _dup360 = window.idsDuplicidade360 ? window.idsDuplicidade360(_manuais) : new Set();
     tbody.innerHTML = [..._manuais].sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(m => {
       const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
       let acoes = '—';
@@ -600,6 +603,8 @@
         acoes = `<span class="badge badge-cvs" title="Importado do VISA">CVS</span>`;
       } else if (m.origem === 'sim_csv' && !isAdmin) {
         acoes = `<span class="badge badge-cvs" title="Importado do SIM">SIM</span>`;
+      } else if (m.origem === 'insp360' && !isAdmin) {
+        acoes = `<span class="badge badge-360" title="Lançamento 360">360</span>`;
       } else if (isAdmin) {
         if (m.status === 'enviado') {
           acoes = `<button class="btn btn-outline btn-sm" onclick="abrirHom('${m.id}')">📝 Homologar</button>`;
@@ -645,7 +650,7 @@
         <td data-label="Pontos Requeridos" class="td-num">${m.pontos!=null?formatPontos(m.pontos):'—'}${window.zeradoWarningHtml(m)}</td>
         <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
         <td data-label="Pontos Homologados" class="td-num">${m.pontos_homologado!=null?formatPontos(m.pontos_homologado):'—'}</td>
-        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : (m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status))}${window.reabertoWarningHtml(m)}${window.cnaeMigradoWarningHtml ? window.cnaeMigradoWarningHtml(m) : ''}${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m, isAdmin) : ''}${window.motivoRecusaHtml ? window.motivoRecusaHtml(m, isAdmin) : ''}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
+        <td data-label="Status">${m.status === 'pendente' && m.motivo_pendencia ? badge('pendente-fiscal') : (m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status))}${m.origem === 'insp360' && isAdmin ? ' <span class="badge badge-360" title="Lançamento 360">360</span>' : ''}${window.duplicidade360Html ? window.duplicidade360Html(m, _dup360) : ''}${window.reabertoWarningHtml(m)}${window.cnaeMigradoWarningHtml ? window.cnaeMigradoWarningHtml(m) : ''}${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m, isAdmin) : ''}${window.motivoRecusaHtml ? window.motivoRecusaHtml(m, isAdmin) : ''}${(m.status === 'aceito' || m.status === 'homologado') && m.dispositivo_legal ? ` <a href="#" class="link-dispositivo" onclick="abrirDispositivo('${escHtml(m.id)}');return false" title="Ver dispositivo legal">⚖️</a>` : ''}</td>
         <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
         <td data-label="Ações" class="nao-imprimir" style="white-space:nowrap">${acoes}</td>
       </tr>`;

@@ -73,8 +73,20 @@ async function _getEstadoPontosVisa(cache, emailFiscal, mes, ano, nomeFiscal, do
 // Um lançamento manual de Plantão Fiscal (tipo PLT) torna as vistorias
 // importadas do VISA na mesma data não cumulativas → pontos zerados.
 
+// ── Origens não digitadas no RMPF ─────────────────────────
+// visa_csv (importação do WCVS), sim_csv (importação do SIM) e insp360
+// (Lançamento 360 — inspeção digitada no novo transacional, docs/lancamento-360.md).
+// As três representam INSPEÇÕES: entram nas regras de não cumulatividade como
+// vistoria/relatório técnico, nunca como lançamento manual (PLT/OPF/SRV) —
+// uma "PRORROGAÇÃO" do WCVS ou do 360 vira PLT com 0 pt e não é plantão.
+const ORIGENS_INSPECAO = ['visa_csv', 'sim_csv', 'insp360'];
+function ehOrigemImportada(m) {
+  return !!m && ORIGENS_INSPECAO.includes(m.origem);
+}
+
 function ehPlantaoManual(m) {
-  return !!m && m.tipo_codigo === 'PLT' && m.origem !== 'visa_csv' && m.status !== 'recusado';
+  return !!m && m.tipo_codigo === 'PLT' && m.origem !== 'visa_csv' && m.origem !== 'insp360' &&
+         m.status !== 'recusado';
 }
 
 // Conjunto de datas (yyyy-mm-dd) que possuem plantão manual na lista informada.
@@ -115,8 +127,7 @@ async function vistoriasImportadasNoDia(fiscalEmail, dataISO, excluirId = null) 
 // com a vistoria (VIS) no mesmo dia. Uma OPF manual zera os pontos das vistorias
 // importadas (VISA/SIM) lançadas na mesma data.
 function ehOpfManual(m) {
-  return !!m && m.tipo_codigo === 'OPF' &&
-         m.origem !== 'visa_csv' && m.origem !== 'sim_csv' && m.status !== 'recusado';
+  return !!m && m.tipo_codigo === 'OPF' && !ehOrigemImportada(m) && m.status !== 'recusado';
 }
 
 function datasComOpfManual(manuais) {
@@ -130,7 +141,7 @@ function datasComOpfManual(manuais) {
 // Vistoria importada (VISA ou SIM) — usada para bloquear o lançamento de OPF
 // manual em data que já possui vistoria.
 function ehVistoriaQualquer(m) {
-  return !!m && m.tipo_codigo === 'VIS' && (m.origem === 'visa_csv' || m.origem === 'sim_csv');
+  return !!m && m.tipo_codigo === 'VIS' && ehOrigemImportada(m);
 }
 
 async function vistoriasNoDia(fiscalEmail, dataISO, excluirId = null) {
@@ -151,7 +162,7 @@ async function vistoriasNoDia(fiscalEmail, dataISO, excluirId = null) {
 // somenteCsv), então, ao contrário de Plantão/OPF, não há bloqueio de
 // lançamento manual a fazer aqui: a regra é só zerar a vistoria do mesmo dia.
 function ehRelAltaImportada(m) {
-  return !!m && m.origem === 'visa_csv' && m.tipo_codigo === 'REL' &&
+  return !!m && (m.origem === 'visa_csv' || m.origem === 'insp360') && m.tipo_codigo === 'REL' &&
          m.item_pontuacao === 10 && m.status !== 'recusado';
 }
 
@@ -174,7 +185,7 @@ const TIPOS_DIA_INTEIRO_MANUAL = ['PLT', 'OPF', 'SRV'];
 
 function ehAtividadeDiaInteiroManual(m) {
   return !!m && TIPOS_DIA_INTEIRO_MANUAL.includes(m.tipo_codigo) &&
-         m.origem !== 'visa_csv' && m.origem !== 'sim_csv' && m.status !== 'recusado';
+         !ehOrigemImportada(m) && m.status !== 'recusado';
 }
 
 // Atividades de dia inteiro (48 pts) já lançadas manualmente numa data para o
@@ -882,6 +893,186 @@ async function revalidarCruzadoMes({ mes, ano, fiscalEmail, escrever, anota, onP
   return { reabertos_incompat, zerados_incompat };
 }
 
+// Mapa CNAE → { complexidade, complexidade_origem, descricao, equipe } a partir
+// do texto do data/cnae.csv (fonte única). Complexidade inválida → CNAE fora
+// (sem competência). Aplica o override do Decreto 49.723/2023 (item C).
+// Compartilhado entre a importação e o Lançamento 360.
+function montarCnaeMapVisa(cnaeText) {
+  const cnaeMap = new Map();
+  const cnaeParsed = Papa.parse(cnaeText, {
+    header: true,
+    delimiter: ';',
+    skipEmptyLines: true,
+    transformHeader: h => h.replace(/^\uFEFF/, '').replace(/^"|"$/g, '').trim(),
+  });
+  for (const r of cnaeParsed.data) {
+    const sub = String(r['Subclasse'] || '').replace(/"/g, '').trim();
+    if (!sub) continue;
+    let compNorm = normNomeVisa(r['Complexidade'] || '').toLowerCase();
+    if (compNorm !== 'alta' && compNorm !== 'media' && compNorm !== 'baixa') continue;
+    // Exceção do Decreto 49.723/2023 (item C) sobrepõe a classificação da LC 377.
+    let complexidadeOrigem = null;
+    const ovr = window.complexidadeDecreto ? window.complexidadeDecreto(sub) : null;
+    if (ovr) {
+      const ovrNorm = normNomeVisa(ovr).toLowerCase();
+      if (ovrNorm !== compNorm) { complexidadeOrigem = compNorm; compNorm = ovrNorm; }
+    }
+    const desc = String(r['Atividade'] || '').replace(/"/g, '').trim();
+    const equipe = String(r['equipe'] || r['Equipe'] || r['EQUIPE'] || '').replace(/"/g, '').trim();
+    cnaeMap.set(sub, { complexidade: compNorm, complexidade_origem: complexidadeOrigem, descricao: desc, equipe });
+  }
+  return cnaeMap;
+}
+
+// ── Motor de cálculo da inspeção (compartilhado CVS × Lançamento 360) ──
+// As duas funções abaixo são o coração da pontuação de uma inspeção. São usadas
+// pela importação do inspecoes.csv (importarInspecoesVISA) e pelo Lançamento 360
+// (js/insp360.js), para que a mesma inspeção pontue EXATAMENTE igual nas duas
+// portas de entrada. Não leem nem gravam no banco: tudo vem por parâmetro.
+
+// CNAEs-alvo de uma inspeção, já com a pontuação nominal de cada um.
+// Vistoria (VIS) entregue: o CNAE informado + os CNAEs extras de competência
+// (cnae.csv), com pontuação por área para alta de alimentação (IA/AG, flag da
+// Parametrização), redução por dupla/trio (média 12→9, baixa 6→3) e seleção
+// gulosa sob o teto de 48 (maior pontuação primeiro; informado primeiro em
+// empate). Demais tipos: 1 alvo pelo CNAE informado (pontos do tipo).
+// `resolverArea` (async) só é chamado se houver candidato de alta de alimentação.
+// `subInfo` = cnaeMap.get(subclasse) (ou null); `cnaeInfo` = { complexidade, descricao }.
+async function montarAlvosInspecaoVisa({
+  tipoInfo, entregaFalse, subclasse, subInfo, cnaeInfo, complexidadeOrigemInformado,
+  cnaesExtras, cnaeMap, qtdFiscais, regraAreaAtiva, resolverArea, onCnaeSemCompetencia,
+}) {
+  const alvos = [];
+  if (tipoInfo.tipo_codigo === 'VIS' && !entregaFalse) {
+    const candidatos = [];
+    // CNAE informado na inspeção (pontos pela complexidade; default média = 12).
+    if (subclasse) {
+      candidatos.push({
+        cnae: subclasse,
+        complexidade: cnaeInfo.complexidade,
+        complexidade_origem: complexidadeOrigemInformado,
+        descricao: cnaeInfo.descricao,
+        equipe: (subInfo || {}).equipe || '',
+        pontos: complexToItem(cnaeInfo.complexidade).pontos,
+        informado: true,
+      });
+    }
+    // CNAEs extras informados pelo fiscal, exceto o já informado.
+    for (const cnaeExtra of (cnaesExtras || [])) {
+      if (cnaeExtra === subclasse) continue;
+      const info = cnaeMap.get(cnaeExtra);
+      if (!info) {                       // CNAE sem competência da vigilância → fora
+        if (onCnaeSemCompetencia) onCnaeSemCompetencia(cnaeExtra);
+        continue;
+      }
+      candidatos.push({
+        cnae: cnaeExtra,
+        complexidade: info.complexidade,
+        complexidade_origem: info.complexidade_origem || null,
+        descricao: info.descricao,
+        equipe: info.equipe || '',
+        pontos: complexToItem(info.complexidade).pontos,
+        informado: false,
+      });
+    }
+    // Pontuação por área (alta de alimentação IA/AG) — só com o flag ativo.
+    if (regraAreaAtiva && candidatos.some(c => ehAlimentacaoAlta(c.complexidade, c.equipe))) {
+      const areaRegulado = resolverArea ? await resolverArea() : null;
+      for (const c of candidatos) {
+        if (ehAlimentacaoAlta(c.complexidade, c.equipe)) {
+          c.pontos = pontosPorAreaVisa(areaRegulado);
+          c.visa_area = areaRegulado;     // pode ser null (sem área) → pontos 48
+          c.eh_alimentacao_alta = true;   // dispositivo_legal cita o Item 4 quando 48
+        }
+      }
+    }
+    // Redução por dupla/trio (decreto E.2): só média/baixa; alta intacta.
+    if (qtdFiscais >= 2) {
+      for (const c of candidatos) {
+        const item = complexToItem(c.complexidade).item;
+        if (item === 2 || item === 3) {
+          c.pontos = pontosReduzidosDuplaVisa(c.complexidade, c.pontos);
+          c.qtd_fiscais = qtdFiscais;
+        }
+      }
+    }
+    // Pontos desc; em empate, informado primeiro (sort estável no restante).
+    candidatos.sort((a, b) => (b.pontos - a.pontos) || (Number(b.informado) - Number(a.informado)));
+    let somaPontos = 0;
+    for (const c of candidatos) {
+      if (somaPontos + c.pontos > TETO_PONTOS_CNAE_VISA) continue; // não cabe → não lança
+      somaPontos += c.pontos;
+      alvos.push({ cnae: c.cnae, complexidade: c.complexidade, descricao: c.descricao,
+                   cnae_origem: c.informado ? 'INS' : 'CAE',
+                   pontos: c.pontos, visa_area: c.visa_area ?? null,
+                   qtd_fiscais: c.qtd_fiscais ?? null,
+                   complexidade_origem: c.complexidade_origem || null,
+                   eh_alimentacao_alta: !!c.eh_alimentacao_alta });
+    }
+  } else {
+    // Tipos não-VIS: CNAE informado; sem redução por dupla/trio (só Vistorias).
+    alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao,
+                 cnae_origem: subclasse ? 'INS' : '', pontos: null, visa_area: null, qtd_fiscais: null,
+                 complexidade_origem: complexidadeOrigemInformado || null });
+  }
+  return alvos;
+}
+
+// Regras do DIA para um alvo de um fiscal: vistoria não cumulativa com plantão
+// manual / escala de plantão (item 9), operação fiscal (item 18) ou relatório
+// técnico de alta (item 13); REL alta marca a data em `estadoPontos.relAltaDatas`
+// (mutação intencional, para as vistorias seguintes da mesma rodada); item 4
+// para alimentação alta com 48 pontos. `estadoPontos` vem de _getEstadoPontosVisa.
+// `onZerada(sufixo)` recebe o trecho final da mensagem de log.
+function regraDiaVistoriaVisa({ tipoInfoA, dataISO, pontosFinalA, pontosBaseA, plantaoFiscalOS, estadoPontos, alvo, onZerada }) {
+  let pontosFiscal = pontosFinalA;
+  let zeradoMotivo = null;
+  // Item do Anexo VII que REJEITA a pontuação (citado em dispositivo_legal no
+  // lugar do item produtivo quando pontosFiscal acaba em zero).
+  let itemDecretoZerado = plantaoFiscalOS && pontosBaseA > 0
+    ? 9 // vistoria já contemplada no Plantão Fiscal (item 9), não pontua em separado
+    : null;
+  const avisa = (sufixo) => { if (onZerada) onZerada(sufixo); };
+
+  if (tipoInfoA.tipo_codigo === 'VIS' && dataISO && pontosFiscal > 0) {
+    if (estadoPontos.plantaoDatas.has(dataISO)) {
+      pontosFiscal = 0;
+      itemDecretoZerado = 9;
+      zeradoMotivo = `Plantão fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 9).`;
+      avisa(`plantão fiscal manual em ${fmtData(dataISO)}`);
+    } else if (estadoPontos.escalaDatas.has(dataISO)) {
+      // Escalado pela gerência para plantão nesta data (escala do VISA), mesmo
+      // sem PLT manual lançado — força o cumprimento da escala (item 9).
+      pontosFiscal = 0;
+      itemDecretoZerado = 9;
+      zeradoMotivo = `Fiscal escalado pela gerência para plantão fiscal em ${fmtData(dataISO)} (escala de plantão do VISA) — não cumulativo com vistoria (Anexo VII, item 9).`;
+      avisa(`fiscal escalado pela gerência para plantão fiscal em ${fmtData(dataISO)} (escala VISA)`);
+    } else if (estadoPontos.opfDatas.has(dataISO)) {
+      pontosFiscal = 0;
+      itemDecretoZerado = 18;
+      zeradoMotivo = `Operação fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 18).`;
+      avisa(`operação fiscal (OPF) manual em ${fmtData(dataISO)}`);
+    } else if (estadoPontos.relAltaDatas.has(dataISO)) {
+      pontosFiscal = 0;
+      itemDecretoZerado = 13;
+      zeradoMotivo = `Relatório técnico de inspeção (alta complexidade) em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 13).`;
+      avisa(`relatório técnico de inspeção (alta) em ${fmtData(dataISO)}`);
+    }
+  } else if (tipoInfoA.tipo_codigo === 'REL' && tipoInfoA.item_pontuacao === 10 && dataISO) {
+    estadoPontos.relAltaDatas.add(dataISO);
+  }
+
+  // Item 4 do Anexo VII (alimentação alta, faixa ≥400m²/sem área — 48 pontos):
+  // sem isto, dispositivoLegal() não distingue esse caso do Item 1 genérico.
+  const itemDecretoAlimentacao =
+    !itemDecretoZerado && tipoInfoA.tipo_codigo === 'VIS' && tipoInfoA.item_pontuacao === 1 &&
+    alvo.eh_alimentacao_alta && pontosFiscal === 48
+      ? 4
+      : null;
+
+  return { pontosFiscal, zeradoMotivo, itemDecretoZerado, itemDecretoAlimentacao };
+}
+
 async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFiscais, onProgress, onProgressBar, simulacao }) {
   mes = Number(mes); ano = Number(ano);
   simulacao = !!simulacao;
@@ -1125,28 +1316,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const cnaeText = await window.fetchGitHubCSV('data/cnae.csv');
       if (cnaeText === null) fontesIncompletas = true;
       if (cnaeText !== null) {
-        const cnaeParsed = Papa.parse(cnaeText, {
-          header: true,
-          delimiter: ';',
-          skipEmptyLines: true,
-          transformHeader: h => h.replace(/^﻿/, '').replace(/^"|"$/g, '').trim(),
-        });
-        for (const r of cnaeParsed.data) {
-          const sub = String(r['Subclasse'] || '').replace(/"/g, '').trim();
-          if (!sub) continue;
-          let compNorm = normNomeVisa(r['Complexidade'] || '').toLowerCase();
-          if (compNorm !== 'alta' && compNorm !== 'media' && compNorm !== 'baixa') continue;
-          // Exceção do Decreto 49.723/2023 (item C) sobrepõe a classificação da LC 377.
-          let complexidadeOrigem = null;
-          const ovr = window.complexidadeDecreto ? window.complexidadeDecreto(sub) : null;
-          if (ovr) {
-            const ovrNorm = normNomeVisa(ovr).toLowerCase();
-            if (ovrNorm !== compNorm) { complexidadeOrigem = compNorm; compNorm = ovrNorm; }
-          }
-          const desc = String(r['Atividade'] || '').replace(/"/g, '').trim();
-          const equipe = String(r['equipe'] || r['Equipe'] || r['EQUIPE'] || '').replace(/"/g, '').trim();
-          cnaeMap.set(sub, { complexidade: compNorm, complexidade_origem: complexidadeOrigem, descricao: desc, equipe });
-        }
+        // Montagem compartilhada com o Lançamento 360 (montarCnaeMapVisa).
+        for (const [sub, info] of montarCnaeMapVisa(cnaeText)) cnaeMap.set(sub, info);
         onProgress(`🧬 ${cnaeMap.size} CNAE(s) de competência carregado(s).`, 'info');
       }
     } catch (err) {
@@ -1533,98 +1704,15 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
       const entregaRaw = String(row['entrega'] || row['Entrega'] || row['ENTREGA'] || '').replace(/"/g, '').trim().toLowerCase();
       const entregaFalse = entregaRaw === 'false' || entregaRaw === '0' || entregaRaw === 'nao' || entregaRaw === 'não';
       const cnaesExtras = inspecoesCnaeMap.get(controleVisa) || [];
-      const alvos = [];
-      if (tipoInfo.tipo_codigo === 'VIS' && !entregaFalse) {
-        const candidatos = [];
-        // CNAE informado na inspeção (pontos pela complexidade; default média = 12).
-        // complexidade/descrição/equipe (alimentação IA/AG) vêm todas do cnae.csv
-        // (cnaeMap/subInfo) — fonte única.
-        if (subclasse) {
-          candidatos.push({
-            cnae: subclasse,
-            complexidade: cnaeInfo.complexidade,
-            complexidade_origem: complexidadeOrigemInformado,
-            descricao: cnaeInfo.descricao,
-            equipe: (subInfo || {}).equipe || '',
-            pontos: complexToItem(cnaeInfo.complexidade).pontos,
-            informado: true,
-          });
-        }
-        // CNAEs extras informados pelo fiscal (inspecoes_cnae.csv), exceto o já informado
-        for (const cnaeExtra of cnaesExtras) {
-          if (cnaeExtra === subclasse) continue; // não duplica o informado
-          const info = cnaeMap.get(cnaeExtra);
-          if (!info) { // CNAE sem competência da vigilância → fora
-            onProgress(`⚠️ CONTROLE ${controleVisa}: CNAE extra ${cnaeExtra} sem competência no cnae.csv — ignorado.`, 'warn');
-            continue;
-          }
-          candidatos.push({
-            cnae: cnaeExtra,
-            complexidade: info.complexidade,
-            complexidade_origem: info.complexidade_origem || null,
-            descricao: info.descricao,
-            equipe: info.equipe || '',
-            pontos: complexToItem(info.complexidade).pontos,
-            informado: false,
-          });
-        }
-        // ── Pontuação por área (alta de alimentação IA/AG) ──
-        // Para esses CNAEs, a pontuação depende da área física do regulado
-        // (taxa.csv). Resolve a área uma única vez (carrega o taxa.csv só agora,
-        // de forma preguiçosa) e ajusta os pontos antes da seleção do teto.
-        // Aplicada somente com o flag da Parametrização ativo (regraAreaAlimentacaoAtiva);
-        // desligado, esses CNAEs seguem com os 48 fixos de alta complexidade.
-        if (regraAreaAlimentacaoAtiva && candidatos.some(c => ehAlimentacaoAlta(c.complexidade, c.equipe))) {
-          const areaRegulado = await resolverAreaRegulado(codigoRegulado);
-          for (const c of candidatos) {
-            if (ehAlimentacaoAlta(c.complexidade, c.equipe)) {
-              c.pontos = pontosPorAreaVisa(areaRegulado);
-              c.visa_area = areaRegulado; // pode ser null (sem área) → exibe '—', pontos 48
-              c.eh_alimentacao_alta = true; // marca para dispositivo_legal citar o Item 4 quando pontos=48
-            }
-          }
-        }
-        // ── Redução por dupla/trio fiscal (baixa e média) ──
-        // Decreto E.2: em fiscalização com 2+ fiscais, os CNAEs de baixa/média
-        // complexidade têm a pontuação reduzida para cada fiscal (média 12→9,
-        // baixa 6→3). Entra na seleção do teto de 48 já com o valor reduzido.
-        // fiscaisCsv.length = participantes físicos (Fiscal1/2/3 + adicionais do
-        // inspecoes_fiscais.csv), incluindo os não autorizados; como dupla, trio
-        // e 4+ reduzem igual, isso só muda o nº exibido, não os pontos.
-        const qtdFiscais = fiscaisCsv.length;
-        if (qtdFiscais >= 2) {
-          for (const c of candidatos) {
-            const item = complexToItem(c.complexidade).item;
-            if (item === 2 || item === 3) {          // só média/baixa (alta intacta)
-              c.pontos = pontosReduzidosDuplaVisa(c.complexidade, c.pontos);
-              c.qtd_fiscais = qtdFiscais;            // marca aplicação da regra
-            }
-          }
-        }
-        // Ordena por pontos desc; em empate, informado primeiro (sort estável
-        // mantém a ordem do inspecoes_cnae.csv no restante).
-        candidatos.sort((a, b) => (b.pontos - a.pontos) || (Number(b.informado) - Number(a.informado)));
-        // Seleção gulosa respeitando o teto de pontos da inspeção (usa os pontos
-        // já ajustados pela área).
-        let somaPontos = 0;
-        for (const c of candidatos) {
-          if (somaPontos + c.pontos > TETO_PONTOS_CNAE_VISA) continue; // não cabe → não lança
-          somaPontos += c.pontos;
-          alvos.push({ cnae: c.cnae, complexidade: c.complexidade, descricao: c.descricao,
-                       cnae_origem: c.informado ? 'INS' : 'CAE',
-                       pontos: c.pontos, visa_area: c.visa_area ?? null,
-                       qtd_fiscais: c.qtd_fiscais ?? null,
-                       complexidade_origem: c.complexidade_origem || null,
-                       eh_alimentacao_alta: !!c.eh_alimentacao_alta });
-        }
-      } else {
-        // Tipos não-VIS: o CNAE é sempre o informado na inspeção (inspecoes.csv).
-        // A redução por dupla/trio não se aplica (abrangência = só Vistorias).
-        alvos.push({ cnae: subclasse, complexidade: cnaeInfo.complexidade, descricao: cnaeInfo.descricao,
-                     cnae_origem: subclasse ? 'INS' : '', pontos: null, visa_area: null, qtd_fiscais: null,
-                     complexidade_origem: complexidadeOrigemInformado || null });
-      }
-
+      // Motor compartilhado com o Lançamento 360 (montarAlvosInspecaoVisa).
+      const alvos = await montarAlvosInspecaoVisa({
+        tipoInfo, entregaFalse, subclasse, subInfo, cnaeInfo, complexidadeOrigemInformado,
+        cnaesExtras, cnaeMap, qtdFiscais: fiscaisCsv.length,
+        regraAreaAtiva: regraAreaAlimentacaoAtiva,
+        resolverArea: () => resolverAreaRegulado(codigoRegulado),
+        onCnaeSemCompetencia: (cnaeExtra) => onProgress(
+          `⚠️ CONTROLE ${controleVisa}: CNAE extra ${cnaeExtra} sem competência no cnae.csv — ignorado.`, 'warn'),
+      });
       if (alvos.length === 0) {
         ignorados++;
         onProgress(`⚠️ CONTROLE ${controleVisa}: regulado ${codigoRegulado || '—'} sem CNAE de competência, ignorado.`, 'warn');
@@ -1696,75 +1784,18 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
               pontosEstadoCache, emailFiscal, mes, ano,
               emailNomeMap.get(emailFiscal) || nomeFiscalCsv,
               snapPorFiscal ? (snapPorFiscal.get(emailFiscal) || []) : undefined);
-            let pontosFiscal = pontosFinalA;
-            let zeradoMotivo = null;
-            // Item do Anexo VII que REJEITA a pontuação (citado em dispositivo_legal
-            // no lugar do item produtivo quando pontosFiscal acaba em zero).
-            let itemDecretoZerado = motivoOSNorm === 'PLANTAO FISCAL' && pontosBaseA > 0
-              ? 9 // vistoria já contemplada no Plantão Fiscal (item 9), não pontua em separado
-              : null;
-
-            // ── Vistoria não cumulativa com Plantão/OPF manual ou REL alta ──
-            // Se o fiscal tem, na mesma data, plantão manual (item 9), operação
-            // fiscal manual (item 18) ou relatório técnico de inspeção de alta
-            // complexidade importado (item 13), a vistoria entra com pontos zerados.
-            if (tipoInfoA.tipo_codigo === 'VIS' && dataISO && pontosFiscal > 0) {
-              if (estadoPontos.plantaoDatas.has(dataISO)) {
-                pontosFiscal = 0;
-                itemDecretoZerado = 9;
-                zeradoMotivo = `Plantão fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 9).`;
-                onProgress(
-                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
-                  `plantão fiscal manual em ${fmtData(dataISO)}.`,
-                  'warn'
-                );
-              } else if (estadoPontos.escalaDatas.has(dataISO)) {
-                // Mesmo sem PLT manual lançado, o fiscal está escalado pela
-                // gerência para plantão nesta data (escala do VISA) — a
-                // vistoria do dia não é cumulativa (Anexo VII, item 9),
-                // forçando o cumprimento da escala.
-                pontosFiscal = 0;
-                itemDecretoZerado = 9;
-                zeradoMotivo = `Fiscal escalado pela gerência para plantão fiscal em ${fmtData(dataISO)} (escala de plantão do VISA) — não cumulativo com vistoria (Anexo VII, item 9).`;
-                onProgress(
-                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
-                  `fiscal escalado pela gerência para plantão fiscal em ${fmtData(dataISO)} (escala VISA).`,
-                  'warn'
-                );
-              } else if (estadoPontos.opfDatas.has(dataISO)) {
-                pontosFiscal = 0;
-                itemDecretoZerado = 18;
-                zeradoMotivo = `Operação fiscal manual em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 18).`;
-                onProgress(
-                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
-                  `operação fiscal (OPF) manual em ${fmtData(dataISO)}.`,
-                  'warn'
-                );
-              } else if (estadoPontos.relAltaDatas.has(dataISO)) {
-                pontosFiscal = 0;
-                itemDecretoZerado = 13;
-                zeradoMotivo = `Relatório técnico de inspeção (alta complexidade) em ${fmtData(dataISO)} — não cumulativo com vistoria (Anexo VII, item 13).`;
-                onProgress(
-                  `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ` +
-                  `relatório técnico de inspeção (alta) em ${fmtData(dataISO)}.`,
-                  'warn'
-                );
-              }
-            } else if (tipoInfoA.tipo_codigo === 'REL' && tipoInfoA.item_pontuacao === 10 && dataISO) {
-              // Marca a data já nesta rodada, para que vistorias do mesmo dia
-              // processadas em seguida (graças à pré-ordenação de rowsFiltradas)
-              // já enxerguem este relatório técnico de alta complexidade.
-              estadoPontos.relAltaDatas.add(dataISO);
-            }
-
-            // Item 4 do Anexo VII (vistoria de alimentação de alta complexidade,
-            // faixa ≥400m²/sem área — 48 pontos): sem isto, dispositivoLegal() não
-            // consegue distinguir esse caso do Item 1 genérico (mesma pontuação).
-            const itemDecretoAlimentacao =
-              !itemDecretoZerado && tipoInfoA.tipo_codigo === 'VIS' && tipoInfoA.item_pontuacao === 1 &&
-              alvo.eh_alimentacao_alta && pontosFiscal === 48
-                ? 4
-                : null;
+            // Motor compartilhado com o Lançamento 360 (regraDiaVistoriaVisa).
+            const _regraDia = regraDiaVistoriaVisa({
+              tipoInfoA, dataISO, pontosFinalA, pontosBaseA,
+              plantaoFiscalOS: motivoOSNorm === 'PLANTAO FISCAL',
+              estadoPontos, alvo,
+              onZerada: (sufixo) => onProgress(
+                `⚠️ CONTROLE ${controleVisa} — ${nomeCurto(nomeFiscalCsv)}: vistoria zerada — ${sufixo}.`, 'warn'),
+            });
+            const pontosFiscal = _regraDia.pontosFiscal;
+            const zeradoMotivo = _regraDia.zeradoMotivo;
+            const itemDecretoZerado = _regraDia.itemDecretoZerado;
+            const itemDecretoAlimentacao = _regraDia.itemDecretoAlimentacao;
 
             // ── Dia coberto por ocorrência aceita → importação ignorada ─
             // Alinhado com a regra de lançamento manual (lancamento.html /
@@ -2378,3 +2409,15 @@ window.visaClassificaDiff          = visaClassificaDiff;
 window.visaDiffInformativo         = visaDiffInformativo;
 window.visaPatchInformativo        = visaPatchInformativo;
 window.revalidarCruzadoMes         = revalidarCruzadoMes;
+window.ehOrigemImportada           = ehOrigemImportada;
+window.montarAlvosInspecaoVisa     = montarAlvosInspecaoVisa;
+window.montarCnaeMapVisa           = montarCnaeMapVisa;
+window.regraDiaVistoriaVisa        = regraDiaVistoriaVisa;
+window.resolverTipoVisa            = resolverTipoVisa;
+window.complexToItem               = complexToItem;
+window.normNomeVisa                = normNomeVisa;
+window.normMunicipalVisa           = normMunicipalVisa;
+window.parseTaxaArea               = parseTaxaArea;
+window._getEstadoPontosVisa        = _getEstadoPontosVisa;
+window._getOcorrenciasAceitasVisa  = _getOcorrenciasAceitasVisa;
+window._dataCobertaOcorrVisa       = _dataCobertaOcorrVisa;

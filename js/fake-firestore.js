@@ -2,7 +2,7 @@
 // Firestore "compat" FALSO, em memória, com a superfície mínima que js/firestore.js
 // usa: collection().doc().get/set/update/delete, collection().add,
 // where()/orderBy()/limit()/get(), db.batch() e db.runTransaction().
-// Só o operador '==' é implementado no where().
+// Operadores implementados no where(): '==' e 'array-contains'.
 //
 // Dois usos, nenhum deles toca o projeto Firebase real:
 //   - tests/*.test.js (Node): `require('../js/fake-firestore.js')`.
@@ -73,14 +73,15 @@ class Query {
     this._filtros = filtros || []; this._ordem = ordem || []; this._limite = limite || null;
   }
   where(campo, op, valor) {
-    if (op !== '==') throw new Error(`fake-firestore: operador não suportado: ${op}`);
-    return new Query(this._db, this._col, [...this._filtros, [campo, valor]], this._ordem, this._limite);
+    if (op !== '==' && op !== 'array-contains') throw new Error(`fake-firestore: operador não suportado: ${op}`);
+    return new Query(this._db, this._col, [...this._filtros, [campo, valor, op]], this._ordem, this._limite);
   }
   orderBy(campo, dir) { return new Query(this._db, this._col, this._filtros, [...this._ordem, [campo, dir || 'asc']], this._limite); }
   limit(n) { return new Query(this._db, this._col, this._filtros, this._ordem, n); }
   async get() {
     let docs = [...this._db._col(this._col).entries()]
-      .filter(([, d]) => this._filtros.every(([c, v]) => d[c] === v))
+      .filter(([, d]) => this._filtros.every(([c, v, op]) =>
+        op === 'array-contains' ? (Array.isArray(d[c]) && d[c].includes(v)) : d[c] === v))
       .map(([id, d]) => new DocSnapshot(id, d));
     for (const [campo, dir] of [...this._ordem].reverse()) {
       docs.sort((a, b) => {

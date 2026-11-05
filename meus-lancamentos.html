@@ -33,6 +33,7 @@
     <a href="dashboard.html"       class="sidebar-link"><span class="icon">📊</span>Dashboard</a>
     <a href="lancamento.html"      class="sidebar-link"><span class="icon">✏️</span>Lançar Atividade</a>
     <a href="meus-lancamentos.html"class="sidebar-link active"><span class="icon">📋</span>Meus Lançamentos</a>
+    <a href="lancamento-360.html"  class="sidebar-link"><span class="icon">🔄</span>Lançamento 360</a>
     <a href="ocorrencias.html"     class="sidebar-link"><span class="icon">📌</span>Ocorrências</a>
     <a href="changelog.html"       class="sidebar-link"><span class="icon">📜</span>Changelog</a>
     <span id="sidebar-visa-link"></span>
@@ -378,6 +379,12 @@
         }
       } else if (m.origem === 'sim_csv') {
         acoes = `<span class="badge badge-cvs" title="Importado do SIM — somente leitura">SIM</span>`;
+      } else if (m.origem === 'insp360') {
+        acoes = `<span class="badge badge-360" title="Lançamento 360 — editar pela página Lançamento 360">360</span>` +
+          `<br><a href="lancamento-360.html" style="font-size:.75rem">Editar no 360</a>`;
+        if (m.status === 'pendente') {
+          acoes += `<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia || 'Aguardando autorização')}</span>`;
+        }
       } else if (m.status === 'rascunho') {
         if (_fechamento) {
           acoes = `<span class="text-muted" style="font-size:.8rem">🔒 Competência fechada</span>`;
@@ -406,7 +413,7 @@
       // O botão "Remover" só é exibido enquanto o lançamento está em rascunho.
       // Após ser enviado ao administrador (status != 'rascunho'), o fiscal
       // pode apenas visualizar o anexo, mas não removê-lo.
-      const podeAnexar = !_fechamento && m.status === 'rascunho' && m.origem !== 'visa_csv' && m.origem !== 'sim_csv';
+      const podeAnexar = !_fechamento && m.status === 'rascunho' && m.origem !== 'visa_csv' && m.origem !== 'sim_csv' && m.origem !== 'insp360';
       let anexoCell = '';
       if (m.anexo_url) {
         const nomeSeguro = escHtml(m.anexo_nome || 'arquivo');
@@ -502,7 +509,7 @@
   }
 
   async function validarPrazoLancamento(dataISO, origem) {
-    if (origem === 'visa_csv' || origem === 'sim_csv' || origem === 'ocorrencia') {
+    if (origem === 'visa_csv' || origem === 'sim_csv' || origem === 'insp360' || origem === 'ocorrencia') {
       return { permitido: true, mensagem: '' };
     }
     return await db_validateDeadlineReleaseDate(dataISO);
