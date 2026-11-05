@@ -1,36 +1,22 @@
 # RMPF
 Relatório Mensal de Produtividade Fiscal
 
-## 🔄 Mirror automático → visaanapolis/RMPF
+## 📚 Documentação
 
-O workflow `.github/workflows/mirror.yml` sincroniza automaticamente todo push em `garrado/RMPF` para `visaanapolis/RMPF`.
+Comece por [`docs/README.md`](docs/README.md) (arquitetura, páginas, coleções e
+automação). As regras de negócio numeradas estão em
+[`docs/RN-RMPF-REGRAS-NEGOCIO-v1.0.md`](docs/RN-RMPF-REGRAS-NEGOCIO-v1.0.md).
 
-Após espelhar, o workflow acompanha o build do GitHub Pages em `visaanapolis/RMPF` até ele publicar. Se o deploy corporativo falhar (ex.: erro transitório do GitHub), ele solicita novos builds automaticamente (até 3 tentativas) e, se mesmo assim não publicar, o job falha — ou seja, basta olhar o Actions de `garrado/RMPF`: verde significa código **e site** corporativos atualizados.
+---
 
-### Configuração (usa PAT — muito mais simples que SSH)
+## 🔄 Mirror automático → VisaAnapolis/RMPF
 
-**Passo 1 — Criar o Personal Access Token na conta `visaanapolis`**
-1. Acesse https://github.com/settings/tokens (logado como `visaanapolis`)
-2. Clique em **"Generate new token (classic)"**
-3. Nome: `mirror-rmpf`
-4. Escopos necessários: ✅ `repo` (marcar o item pai — seleciona todos os subitens)
-5. Expiration: **No expiration** (ou o prazo que preferir)
-6. Clique em **"Generate token"** e **copie o token** (começa com `ghp_...`)
-
-**Passo 2 — Adicionar o token como Secret em `garrado/RMPF`**
-1. Acesse https://github.com/garrado/RMPF/settings/secrets/actions
-2. Clique em **"New repository secret"**
-3. Nome: `MIRROR_PAT`
-4. Valor: cole o token copiado (`ghp_...`)
-5. Clique em **"Add secret"**
-
-**Passo 3 — Testar**
-1. Acesse https://github.com/garrado/RMPF/actions
-2. Selecione o workflow **"Mirror → visaanapolis/RMPF"**
-3. Clique em **"Run workflow"** → **"Run workflow"**
-4. Aguarde — deve ficar verde ✅
-
-> ⚠️ Certifique-se que o repositório `visaanapolis/RMPF` existe antes de rodar o workflow.
+O workflow `.github/workflows/mirror.yml` espelha todo push em `garrado/RMPF`
+para `VisaAnapolis/RMPF` (`git push --mirror` com a chave SSH do secret
+`SSH_DEPLOY_KEY`). A publicação do site corporativo é feita **lá**, pelo
+`.github/workflows/pages-corporativo.yml`, com o `GITHUB_TOKEN` do próprio
+repositório — **não há mais PAT** (`MIRROR_PAT` foi aposentado na v1.36.0, depois
+de expirar e congelar o site).
 
 ---
 
