@@ -434,7 +434,17 @@
 
   // ── Salvar ─────────────────────────────────────────────
   async function salvar() {
-    if (!podeSalvar || !ultimoCalc) return;
+    if (!podeSalvar) return;
+    // Recalcula AGORA a partir do formulário atual. O último campo mexido antes
+    // do clique (ex.: nº do documento) só dispara recálculo ao perder o foco, e
+    // esse recálculo ainda está agendado: gravar o `ultimoCalc` anterior perdia
+    // o que acabou de ser digitado.
+    clearTimeout(_timerCalc);
+    await calcular();
+    if (!ultimoCalc) {
+      showAlert('warn', 'Não foi possível calcular a produção com os dados informados — confira o formulário.');
+      return;
+    }
     const { insp, calc } = ultimoCalc;
     const erros = validar(insp).filter(e => !e.includes('será pontuado como média'));
     if (!insp.fiscais.some(f => f.email === user.email)) erros.push('você precisa constar entre os fiscais');
@@ -630,6 +640,7 @@
       if (ex) { excluir(ex.dataset.excluir); }
     });
     ['f-data', 'f-documento', 'f-entregue', 'f-numero-doc'].forEach(id => $(id).addEventListener('change', agendarCalculo));
+    $('f-numero-doc').addEventListener('input', agendarCalculo);
     $('f-cnae').addEventListener('change', agendarCalculo);
     $('f-cnae').addEventListener('input', agendarCalculo);
     $('btn-add-extra').addEventListener('click', adicionarExtra);
