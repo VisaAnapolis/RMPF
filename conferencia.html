@@ -908,7 +908,10 @@
     // homologação: o admin é avisado e decide caso a caso (ex.: substituição
     // de última hora ainda não refletida na escala).
     if (status === 'aceito' && manual && manual.tipo_codigo === 'PLT'
-        && manual.origem !== 'visa_csv'
+        // Só plantão MANUAL: a Prorrogação do CVS e do Lançamento 360 vira PLT
+        // com 0 pt e não é plantão de escala.
+        && !(typeof window.ehOrigemImportada === 'function'
+              ? window.ehOrigemImportada(manual) : manual.origem === 'visa_csv')
         && typeof window.fiscalEscaladoNoDia === 'function') {
       const nomeFiscal = manual.fiscal_nome
         || (typeof window.nomeFiscalPorEmail === 'function'

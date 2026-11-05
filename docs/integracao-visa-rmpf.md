@@ -494,6 +494,11 @@ pela importação e pelo Lançamento 360 (`docs/lancamento-360.md`). Mexer em um
 regra de pontuação muda as duas portas de entrada ao mesmo tempo. Os
 lançamentos do 360 (origem `insp360`) contam como vistoria/relatório técnico nas
 regras de não cumulatividade (`ehOrigemImportada`) e nunca como lançamento manual.
+A revalidação do mês (`revalidarCruzadoMes`) também roda quando só o Lançamento
+360 mudou (`revalidarMesVISA`, disparada pela importação automática via
+`insp360_sequencia/rev`) e tem dois casos exclusivos do 360 — excluir o não
+homologado em dia de ocorrência aceita e devolver a pontuação nominal quando o
+conflito do dia deixa de existir. Detalhes em `docs/lancamento-360.md` §3.1.
 
 ---
 
