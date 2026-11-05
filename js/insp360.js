@@ -18,6 +18,10 @@
   // OS/Ofício/Protocolo/Denúncia, sem prazo e sem "fora do prazo".
   const MODALIDADE_360 = 'TRANSIÇÃO 360';
 
+  // Primeira data de visita aceita: início da Transição 360. Antes disso a
+  // produção veio só do CVS (e outubro/2026 já está fechado).
+  const DATA_INICIO_360 = '2026-11-03';
+
   // Documentos lavrados (campo TIPO do inspecoes.csv), na grafia do WCVS.
   const DOCUMENTOS_360 = [
     'TERMO DE INTIMAÇÃO',
@@ -301,7 +305,9 @@
     else if (!/^\d{4}-\d{2}-\d{2}$/.test(insp.data)) add('f-data', 'Data da visita inválida.');
     else {
       const [a, m] = insp.data.split('-').map(Number);
-      if (!window.visaMesAberto(m, a)) add('f-data', 'A data da visita é anterior a abril/2026.');
+      if (!window.visaMesAberto(m, a) || insp.data < DATA_INICIO_360) {
+        add('f-data', 'A data da visita é anterior a 03/11/2026, início da Transição 360.');
+      }
       if (ctx.hoje && insp.data > ctx.hoje) add('f-data', 'A data da visita não pode ser futura.');
     }
 
@@ -414,6 +420,7 @@
   window.MODALIDADE_360        = MODALIDADE_360;
   window.DOCUMENTOS_360        = DOCUMENTOS_360;
   window.MOTIVO_PENDENCIA_360  = MOTIVO_PENDENCIA_360;
+  window.DATA_INICIO_360       = DATA_INICIO_360;
   window.validarInspecao360        = validarInspecao360;
   window.insp360EhTravado      = ehTravado;
   window.ehParticipante360     = ehParticipante360;

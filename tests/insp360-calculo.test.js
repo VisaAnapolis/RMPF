@@ -310,6 +310,9 @@ test('validação para salvar: tudo o que a chefia confere precisa estar informa
   assert.deepEqual(campos({ ...ok, data: '' }), ['f-data']);
   assert.deepEqual(campos({ ...ok, data: '2026-12-01' }), ['f-data']);           // futura
   assert.deepEqual(campos({ ...ok, data: '2026-03-31' }), ['f-data']);           // antes de abr/2026
+  assert.deepEqual(campos({ ...ok, data: '2026-10-31' }), ['f-data']);           // outubro (fechado)
+  assert.deepEqual(campos({ ...ok, data: '2026-11-02' }), ['f-data']);           // véspera do início
+  assert.deepEqual(campos({ ...ok, data: '2026-11-03' }), []);                   // início da Transição 360
   assert.deepEqual(campos({ ...ok, documento: '' }), ['f-documento']);
   assert.deepEqual(campos({ ...ok, entregue: null }), ['f-entregue']);
   assert.deepEqual(campos({ ...ok, cnae: '' }), ['f-cnae']);
