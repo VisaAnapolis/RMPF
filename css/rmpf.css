@@ -241,6 +241,8 @@ input, select, textarea { font-family: var(--font); }
 .badge-pendente         { background: var(--laraP); color: var(--lara);  }
 .badge-pendente-fiscal  { background: var(--azulP); color: var(--azul);  }
 .badge-cvs              { background: var(--azulP);  color: var(--azul);  }
+.badge-360              { background: #ede9fe;       color: #6d28d9;      }
+.dup360-alerta          { background: var(--amarP);  color: #92400e; cursor: pointer; border: 1px solid var(--amar); }
 .badge-manual   { background: var(--verdeP); color: var(--verde); }
 /* Reaberto: homologação desfeita pela reconciliação com o WCVS. Roxo para não
    se confundir com "enviado" (amarelo, fluxo normal) nem com "recusado". */
@@ -1030,4 +1032,32 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
 @media (prefers-reduced-motion: reduce) {
   .versiculo-card,
   .versiculo-toast.is-on .versiculo-card { transform: none; transition: none; }
+}
+
+/* ── Lançamento 360 (lancamento-360.html) ── */
+.i360-busca { position: relative; }
+.i360-resultados {
+  position: absolute; z-index: 30; left: 0; right: 0; top: 100%;
+  background: var(--branco); border: 1px solid var(--cinzaL); border-radius: 6px;
+  box-shadow: var(--shadow); max-height: 280px; overflow-y: auto;
+}
+.i360-resultados button {
+  display: block; width: 100%; text-align: left; padding: 8px 10px;
+  border: 0; border-bottom: 1px solid var(--cinzaB); background: transparent;
+  font: inherit; font-size: .84rem; cursor: pointer; color: inherit;
+}
+.i360-resultados button:hover, .i360-resultados button:focus { background: var(--verdeP); }
+.i360-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.i360-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px;
+  border-radius: 14px; background: var(--azulP); color: var(--azul); font-size: .78rem;
+}
+.i360-chip button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: .9rem; padding: 0; }
+.i360-sugestao { background: var(--cinzaB); color: inherit; border: 1px dashed var(--cinzaL); cursor: pointer; }
+.i360-fiscal-linha { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.i360-total { font-weight: 700; }
+.i360-nota { font-size: .78rem; color: var(--cinzaT); }
+@media (max-width: 600px) {
+  .i360-fiscal-linha { grid-template-columns: 1fr auto; }
+  .i360-fiscal-linha > label { grid-column: 1 / -1; }
 }

@@ -393,6 +393,7 @@
         { href: 'dashboard.html',        icon: '📊', label: 'Dashboard'        },
         { href: 'lancamento.html',        icon: '✏️',  label: 'Lançar Atividade' },
         { href: 'meus-lancamentos.html',  icon: '📋', label: 'Meus Lançamentos' },
+        { href: 'lancamento-360.html',    icon: '🔄', label: 'Lançamento 360'   },
         { href: 'ocorrencias.html',       icon: '📌', label: 'Ocorrências'      },
         { href: 'changelog.html',         icon: '📜', label: 'Changelog'        },
       ];
@@ -640,6 +641,8 @@
           }
         } else if (m.origem === 'sim_csv') {
           acoes = `<span class="badge badge-cvs" title="Importado do SIM — somente leitura">SIM</span>`;
+        } else if (m.origem === 'insp360') {
+          acoes = `<a href="lancamento-360.html" class="badge badge-360" title="Lançamento 360 — editar pela página Lançamento 360">360</a>`;
         } else if (m.status === 'rascunho') {
           acoes = `<a href="meus-lancamentos.html" class="btn btn-outline btn-sm">✏️ Editar</a>`;
         } else if (m.status === 'enviado') {

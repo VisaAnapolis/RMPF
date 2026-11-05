@@ -1322,7 +1322,7 @@ function abrirMotivoRecusa(ds) {
 
   const gestao   = !!(ds && ds.gestao);
   const origem   = ds && ds.origem;
-  const importado = origem === 'visa_csv' || origem === 'sim_csv';
+  const importado = origem === 'visa_csv' || origem === 'sim_csv' || origem === 'insp360';
 
   let html =
     `<p style="margin:0 0 12px"><strong>Motivo da recusa (chefia):</strong><br>` +
@@ -1401,6 +1401,46 @@ if (typeof document !== 'undefined') {
 // `lista` são os lançamentos com status 'recusado' da competência aberta.
 // `opts.link` acrescenta o atalho para Meus Lançamentos (só o Dashboard usa;
 // em Meus Lançamentos o fiscal já está na tela da lista).
+// ── Possível duplicidade CVS × Lançamento 360 ─────────────────────────────
+// Na fase de transição o fiscal 360 lança a inspeção no 360 e, enquanto o CVS
+// continuar em uso, a mesma inspeção também chega pela importação do
+// inspecoes.csv. Não há chave comum entre as duas (o CONTROLE do CVS não
+// existe no 360): a coincidência de fiscal + data + regulado + CNAE é o sinal.
+// O gestor decide qual prevalece (homologa um e recusa o outro).
+function _chaveDuplicidade360(m) {
+  if (!m || !m.fiscal_email || !m.data || !m.codigo) return null;
+  return [m.fiscal_email, m.data, String(m.codigo).trim(), m.visa_cnae || ''].join('|');
+}
+// Ids dos lançamentos (visa_csv ou insp360) que têm par na outra origem.
+// Recusados não contam: a duplicidade já foi resolvida pelo gestor.
+function idsDuplicidade360(lista) {
+  const porChave = new Map();
+  for (const m of (lista || [])) {
+    if (m.status === 'recusado' || (m.origem !== 'visa_csv' && m.origem !== 'insp360')) continue;
+    const k = _chaveDuplicidade360(m);
+    if (!k) continue;
+    if (!porChave.has(k)) porChave.set(k, []);
+    porChave.get(k).push(m);
+  }
+  const ids = new Set();
+  for (const grupo of porChave.values()) {
+    if (grupo.some(m => m.origem === 'visa_csv') && grupo.some(m => m.origem === 'insp360')) {
+      for (const m of grupo) ids.add(m.id);
+    }
+  }
+  return ids;
+}
+function duplicidade360Html(m, ids) {
+  if (!m || !ids || !ids.has(m.id)) return '';
+  const outra = m.origem === 'insp360' ? 'importação do CVS' : 'Lançamento 360';
+  const txt = `Possível duplicidade: a mesma inspeção (fiscal, data, regulado e CNAE) também consta pela ${outra}. ` +
+              'Homologue um dos lançamentos e recuse o outro.';
+  return ` <span class="badge dup360-alerta" title="${escHtml(txt)}" aria-label="${escHtml(txt)}" ` +
+         `onclick="alert(this.title)" role="button" tabindex="0">CVS×360</span>`;
+}
+window.idsDuplicidade360  = idsDuplicidade360;
+window.duplicidade360Html = duplicidade360Html;
+
 const _RECUSADOS_NO_BANNER = 5;
 
 function alertaRecusadosHtml(lista, opts) {

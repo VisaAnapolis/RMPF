@@ -485,6 +485,18 @@ O modal abre com o **motivo da recusa** — que num lançamento importado do VIS
 
 ---
 
+## 15.6. Motor de cálculo compartilhado com o Lançamento 360
+
+A seleção de CNAEs-alvo (§7: teto de 48, área, dupla/trio) e as regras do dia
+(§15.1–15.2) vivem em funções próprias de `js/visa-import.js` —
+`montarCnaeMapVisa`, `montarAlvosInspecaoVisa` e `regraDiaVistoriaVisa` —, usadas
+pela importação e pelo Lançamento 360 (`docs/lancamento-360.md`). Mexer em uma
+regra de pontuação muda as duas portas de entrada ao mesmo tempo. Os
+lançamentos do 360 (origem `insp360`) contam como vistoria/relatório técnico nas
+regras de não cumulatividade (`ehOrigemImportada`) e nunca como lançamento manual.
+
+---
+
 ## 16. Regras de Negócio — Resumo Rápido
 
 | Regra | Detalhe |

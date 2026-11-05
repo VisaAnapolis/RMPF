@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lançamento 360 — RMPF</title>
+  <link rel="stylesheet" href="css/rmpf.css">
+  <link rel="icon" type="image/x-icon"     href="icons/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+  <link rel="icon" type="image/svg+xml"    href="icons/favicon.svg">
+  <link rel="apple-touch-icon"             href="icons/apple-touch-icon.png">
+  <link rel="manifest"                     href="manifest.webmanifest">
+  <meta name="theme-color" content="#1565c0">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner spinner-lg"></div>
+  <div class="loading-text">Carregando…</div>
+</div>
+
+<div class="app-layout" id="app" style="display:none">
+  <header class="app-header nao-imprimir">
+    <button class="hamburger" id="hamburger">☰</button>
+    <div><div class="logo-text">🏛️ RMPF</div><div class="logo-sub">Produtividade Fiscal</div></div>
+    <div class="header-right">
+      <span class="user-name" id="header-nome">—</span>
+      <button class="btn-logout" id="btn-logout">Sair</button>
+    </div>
+  </header>
+  <nav class="app-sidebar nao-imprimir" id="sidebar"></nav>
+
+  <main class="app-main">
+    <div class="page-title">🔄 Lançamento 360</div>
+    <p class="text-muted" style="margin:-6px 0 14px;font-size:.88rem">
+      Lançamento manual da inspeção no novo sistema transacional (360), que substituirá o CVS.
+      A produção é calculada pelas mesmas regras da importação do CVS.
+    </p>
+    <div id="faixa-acesso"></div>
+    <div id="alert-area"></div>
+
+    <div class="card" style="max-width:860px">
+      <div class="card-title"><span id="titulo-form">📄 Nova inspeção</span></div>
+
+      <!-- Regulado -->
+      <div class="form-group i360-busca">
+        <label class="form-label required" for="f-regulado-busca">Regulado</label>
+        <input type="search" class="form-control" id="f-regulado-busca" autocomplete="off"
+               placeholder="Código, razão social, nome fantasia ou CNPJ/CPF">
+        <div class="i360-resultados" id="regulado-resultados" style="display:none"></div>
+        <div id="regulado-selecionado" class="i360-nota" style="margin-top:6px"></div>
+      </div>
+
+      <div class="form-row cols-3">
+        <div class="form-group">
+          <label class="form-label required" for="f-data">Data da visita</label>
+          <input type="date" class="form-control" id="f-data">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="f-modalidade">Modalidade (OS)</label>
+          <input type="text" class="form-control" id="f-modalidade" readonly>
+        </div>
+        <div class="form-group">
+          <label class="form-label required" for="f-entregue">Documento entregue?</label>
+          <select class="form-control" id="f-entregue">
+            <option value="sim">Sim</option>
+            <option value="nao">Não</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row cols-2">
+        <div class="form-group">
+          <label class="form-label required" for="f-documento">Documento lavrado</label>
+          <select class="form-control" id="f-documento"><option value="">— selecione —</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="f-numero-doc">Nº impresso do documento</label>
+          <input type="text" class="form-control" id="f-numero-doc" maxlength="20" inputmode="numeric">
+        </div>
+      </div>
+
+      <!-- CNAEs -->
+      <div class="form-group">
+        <label class="form-label required" for="f-cnae">CNAE informado</label>
+        <input type="text" class="form-control" id="f-cnae" list="dl-cnae" autocomplete="off"
+               placeholder="Digite o código ou parte da descrição (ex.: 5611-2/01)">
+        <div id="cnae-sugestoes" class="i360-chips"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="f-cnae-extra">CNAEs extras (outras atividades vistoriadas)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" class="form-control" id="f-cnae-extra" list="dl-cnae" autocomplete="off" placeholder="CNAE adicional">
+          <button type="button" class="btn btn-default" id="btn-add-extra">+ Adicionar</button>
+        </div>
+        <div id="cnae-extras" class="i360-chips"></div>
+      </div>
+      <datalist id="dl-cnae"></datalist>
+
+      <!-- Fiscais -->
+      <div class="form-group">
+        <label class="form-label required">Fiscais participantes</label>
+        <div id="fiscais-linhas"></div>
+        <button type="button" class="btn btn-default btn-sm" id="btn-add-fiscal">+ Fiscal adicional</button>
+        <div class="i360-nota" style="margin-top:6px">
+          <span class="badge badge-360">360</span> = participante da transição: recebe o lançamento por aqui.
+          Os demais continuam recebendo a produção pela importação do CVS.
+        </div>
+      </div>
+
+      <div class="btn-group" style="margin-top:8px">
+        <button type="button" class="btn btn-primary" id="btn-salvar" disabled>💾 Salvar inspeção</button>
+        <button type="button" class="btn btn-default" id="btn-limpar">Limpar</button>
+      </div>
+    </div>
+
+    <!-- Cálculo -->
+    <div class="card" style="max-width:860px">
+      <div class="card-title">🧮 Cálculo da produção</div>
+      <div id="calculo"><p class="text-muted">Preencha a data, o documento, o CNAE e os fiscais para ver o cálculo.</p></div>
+    </div>
+
+    <!-- Lista -->
+    <div class="card" style="max-width:860px">
+      <div class="card-title">📋 Minhas inspeções 360</div>
+      <div class="form-row cols-3" style="align-items:end">
+        <div class="form-group"><label class="form-label" for="l-mes">Mês</label><select class="form-control" id="l-mes"></select></div>
+        <div class="form-group"><label class="form-label" for="l-ano">Ano</label><select class="form-control" id="l-ano"></select></div>
+        <div class="form-group"><button type="button" class="btn btn-outline" id="btn-listar">Carregar</button></div>
+      </div>
+      <div id="lista"></div>
+    </div>
+  </main>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/version.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/calculo.js"></script>
+<script src="js/firestore.js"></script>
+<script src="js/versiculo.js"></script>
+<script src="js/guard.js"></script>
+<script src="js/plantao-escala.js"></script>
+<script src="js/visa-import.js"></script>
+<script src="js/insp360.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+
+  let user = null;
+  let podeSalvar = false;
+  let cnaeMap = new Map();
+  let regIndex = [];
+  let fiscais = [];                 // usuarios perfil Fiscal ativos
+  let regraAreaAtiva = true;
+  let regulado = null;              // { codigo, razao, fantasia, documento }
+  let extras = [];                  // CNAEs extras
+  let editando = null;              // doc insp360 em edição
+  let ultimoCalc = null;            // { insp, calc }
+  let _seqCalc = 0;
+
+  function buildSidebar(perfil) {
+    const links = perfil === 'Administrador'
+      ? [
+          ['dashboard.html', '📊', 'Dashboard'], ['conferencia.html', '🔍', 'Conferência'],
+          ['ocorrencias.html', '📌', 'Ocorrências'], ['fechamento.html', '🔒', 'Fechamento'],
+          ['admin.html', '⚙️', 'Admin'], ['parametrizacao.html', '🔧', 'Parametrização'],
+          ['lancamento-360.html', '🔄', 'Lançamento 360'], ['changelog.html', '📜', 'Changelog'],
+        ]
+      : [
+          ['dashboard.html', '📊', 'Dashboard'], ['lancamento.html', '✏️', 'Lançar Atividade'],
+          ['meus-lancamentos.html', '📋', 'Meus Lançamentos'], ['lancamento-360.html', '🔄', 'Lançamento 360'],
+          ['ocorrencias.html', '📌', 'Ocorrências'], ['changelog.html', '📜', 'Changelog'],
+        ];
+    $('sidebar').innerHTML = links.map(([href, ic, lb]) =>
+      `<a href="${href}" class="sidebar-link${href === 'lancamento-360.html' ? ' active' : ''}"><span class="icon">${ic}</span>${lb}</a>`
+    ).join('') + visaAppSidebarLink() +
+      `<div class="sidebar-version">v<span id="sidebar-version">${escHtml(window.APP_VERSION || '')}</span></div>`;
+  }
+
+  function showAlert(tipo, html) {
+    $('alert-area').innerHTML = alerta(tipo, html);
+    $('alert-area').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function hojeISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // ── Regulado ───────────────────────────────────────────
+  function buscarRegulados(termo) {
+    const t = normNomeVisa(termo);
+    if (t.length < 2) return [];
+    const digitos = String(termo).replace(/\D/g, '');
+    const out = [];
+    for (const r of regIndex) {
+      if (r.codigo === String(termo).trim() || r._busca.includes(t) ||
+          (digitos.length >= 4 && r._busca.includes(digitos))) {
+        out.push(r);
+        if (out.length >= 25) break;
+      }
+    }
+    return out;
+  }
+
+  function mostrarResultados() {
+    const lista = buscarRegulados($('f-regulado-busca').value);
+    const box = $('regulado-resultados');
+    if (!lista.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    box.innerHTML = lista.map(r =>
+      `<button type="button" data-codigo="${escHtml(r.codigo)}"><strong>${escHtml(r.codigo)}</strong> — ${escHtml(r.razao)}` +
+      `${r.fantasia ? ' <span class="text-muted">(' + escHtml(r.fantasia) + ')</span>' : ''}` +
+      `${r.documento ? '<br><span class="text-muted">' + escHtml(r.documento) + '</span>' : ''}</button>`).join('');
+    box.style.display = '';
+  }
+
+  async function selecionarRegulado(codigo) {
+    regulado = regIndex.find(r => r.codigo === String(codigo)) || null;
+    $('regulado-resultados').style.display = 'none';
+    if (!regulado) { $('regulado-selecionado').innerHTML = ''; agendarCalculo(); return; }
+    $('f-regulado-busca').value = `${regulado.codigo} — ${regulado.razao}`;
+    $('regulado-selecionado').innerHTML =
+      `✔️ <strong>${escHtml(regulado.razao)}</strong>${regulado.fantasia ? ' · ' + escHtml(regulado.fantasia) : ''}` +
+      `${regulado.documento ? ' · ' + escHtml(regulado.documento) : ''}`;
+    $('cnae-sugestoes').innerHTML = '<span class="i360-nota">Buscando atividades cadastradas…</span>';
+    const ativ = await insp360CarregarAtividadesRegulado(regulado.codigo);
+    if (!regulado || String(regulado.codigo) !== String(codigo)) return;
+    $('cnae-sugestoes').innerHTML = ativ.length
+      ? '<span class="i360-nota">Atividades do cadastro:</span> ' + ativ.map(a =>
+          `<button type="button" class="i360-chip i360-sugestao" data-cnae="${escHtml(a.subclasse)}" title="${escHtml(a.atividade)}">` +
+          `${escHtml(a.subclasse)}${a.tipo ? ' · ' + escHtml(a.tipo) : ''}</button>`).join('')
+      : '';
+    agendarCalculo();
+  }
+
+  // ── CNAEs ──────────────────────────────────────────────
+  function cnaeDoTexto(v) {
+    const m = String(v || '').match(/\d{4}-\d\/\d{2}/);
+    return m ? m[0] : String(v || '').trim();
+  }
+  function descCnae(c) {
+    const i = cnaeMap.get(c);
+    return i ? `${c} — ${i.descricao} (${formatComplexidade ? formatComplexidade(i.complexidade) : i.complexidade})` : `${c} — sem competência da vigilância`;
+  }
+  function renderExtras() {
+    $('cnae-extras').innerHTML = extras.map((c, i) =>
+      `<span class="i360-chip" title="${escHtml(descCnae(c))}">${escHtml(c)}` +
+      `<button type="button" data-rm-extra="${i}" aria-label="Remover ${escHtml(c)}">×</button></span>`).join('');
+  }
+  function adicionarExtra() {
+    const c = cnaeDoTexto($('f-cnae-extra').value);
+    if (!c) return;
+    if (c !== cnaeDoTexto($('f-cnae').value) && !extras.includes(c)) extras.push(c);
+    $('f-cnae-extra').value = '';
+    renderExtras();
+    agendarCalculo();
+  }
+
+  // ── Fiscais ────────────────────────────────────────────
+  function opcoesFiscais(sel) {
+    return '<option value="">— nenhum —</option>' + fiscais.map(f =>
+      `<option value="${escHtml(f.email)}"${f.email === sel ? ' selected' : ''}>${escHtml(f.nome || f.email)}${ehParticipante360(f) ? ' · 360' : ''}</option>`).join('');
+  }
+  function addLinhaFiscal(email, travado) {
+    const box = $('fiscais-linhas');
+    const n = box.children.length + 1;
+    const div = document.createElement('div');
+    div.className = 'i360-fiscal-linha';
+    div.innerHTML =
+      `<label class="form-label" style="margin:0">Fiscal ${n}</label>` +
+      `<select class="form-control" data-fiscal${travado ? ' disabled' : ''}>${opcoesFiscais(email || '')}</select>` +
+      `<span data-selo></span>`;
+    box.appendChild(div);
+    atualizarSelos();
+  }
+  function atualizarSelos() {
+    for (const linha of $('fiscais-linhas').children) {
+      const email = linha.querySelector('select').value;
+      const f = fiscais.find(x => x.email === email);
+      linha.querySelector('[data-selo]').innerHTML = f && ehParticipante360(f) ? '<span class="badge badge-360">360</span>' : '';
+    }
+  }
+  function fiscaisDoForm() {
+    const out = [];
+    for (const sel of $('fiscais-linhas').querySelectorAll('select')) {
+      const f = fiscais.find(x => x.email === sel.value);
+      if (f) out.push({ nome: f.nome || f.email, email: f.email, eh360: ehParticipante360(f) });
+    }
+    return out;
+  }
+
+  // ── Formulário → inspeção ──────────────────────────────
+  function lerFormulario() {
+    return {
+      codigo: regulado ? regulado.codigo : '',
+      razao: regulado ? regulado.razao : '',
+      municipal: regulado ? insp360MunicipalDoRegulado(regulado.codigo) : '',
+      data: $('f-data').value || '',
+      documento: $('f-documento').value,
+      numeroDoc: $('f-numero-doc').value.trim(),
+      entregue: $('f-entregue').value !== 'nao',
+      cnae: cnaeDoTexto($('f-cnae').value),
+      cnaesExtras: extras.slice(),
+      fiscais: fiscaisDoForm(),
+    };
+  }
+
+  function validar(insp) {
+    const erros = [];
+    if (!insp.codigo) erros.push('selecione o regulado');
+    if (!insp.data) erros.push('informe a data da visita');
+    else {
+      const [a, m] = insp.data.split('-').map(Number);
+      if (!visaMesAberto(m, a)) erros.push('data anterior a abril/2026');
+      if (insp.data > hojeISO()) erros.push('a data da visita não pode ser futura');
+    }
+    if (!insp.documento) erros.push('selecione o documento lavrado');
+    if (!insp.cnae) erros.push('informe o CNAE');
+    else if (!cnaeMap.has(insp.cnae)) erros.push(`o CNAE ${insp.cnae} não consta como competência da vigilância (cnae.csv) — será pontuado como média`);
+    if (!insp.fiscais.length) erros.push('informe os fiscais');
+    return erros;
+  }
+
+  // Estado do dia do fiscal logado (próprios lançamentos, escala, ocorrências).
+  async function estadoDoUsuario(insp) {
+    const [ano, mes] = insp.data.split('-').map(Number);
+    let docs = await db_getManuais(user.email, mes, ano);
+    // A própria inspeção em edição não conta contra ela mesma.
+    if (editando) docs = docs.filter(d => d.insp360_numero !== editando.numero);
+    const estado = await _getEstadoPontosVisa(new Map(), user.email, mes, ano, user.nome, docs);
+    const ocorr = await _getOcorrenciasAceitasVisa(user.email, mes, ano);
+    return { estado, diaCoberto: _dataCobertaOcorrVisa(insp.data, ocorr) };
+  }
+
+  let _timerCalc = null;
+  function agendarCalculo() { clearTimeout(_timerCalc); _timerCalc = setTimeout(calcular, 250); }
+
+  async function calcular() {
+    const seq = ++_seqCalc;
+    const insp = lerFormulario();
+    ultimoCalc = null;
+    atualizarBotaoSalvar();
+    if (!insp.data || !insp.documento || !insp.cnae || !insp.fiscais.length) {
+      $('calculo').innerHTML = '<p class="text-muted">Preencha a data, o documento, o CNAE e os fiscais para ver o cálculo.</p>';
+      return;
+    }
+    $('calculo').innerHTML = '<p class="text-muted">⏳ Calculando…</p>';
+    try {
+      let estado = null, diaCoberto = false;
+      const usuarioNaLista = insp.fiscais.some(f => f.email === user.email);
+      if (usuarioNaLista && /^\d{4}-\d{2}-\d{2}$/.test(insp.data)) {
+        try { ({ estado, diaCoberto } = await estadoDoUsuario(insp)); }
+        catch (e) { console.warn('[360] Regras do dia indisponíveis:', e); }
+      }
+      const calc = await calcularInspecao360(insp, {
+        cnaeMap, regraAreaAtiva,
+        resolverArea: (cod) => insp360ResolverAreaRegulado(cod),
+        usuarioEmail: user.email, estadoPontosUsuario: estado, diaCobertoUsuario: diaCoberto,
+      });
+      if (seq !== _seqCalc) return;                 // chegou um cálculo mais novo
+      insp.municipal = regulado ? insp360MunicipalDoRegulado(regulado.codigo) : '';
+      ultimoCalc = { insp, calc };
+      renderCalculo(insp, calc);
+    } catch (e) {
+      if (seq !== _seqCalc) return;
+      console.error(e);
+      $('calculo').innerHTML = alerta('danger', 'Não foi possível calcular: ' + escHtml(e.message));
+    }
+    atualizarBotaoSalvar();
+  }
+
+  function renderCalculo(insp, calc) {
+    const avisos = validar(insp).filter(e => e.includes('CNAE') || e.includes('data'));
+    let html = '';
+    if (avisos.length) html += alerta('warn', avisos.map(escHtml).join('<br>'));
+    html += `<p style="margin:0 0 8px"><strong>Tipo:</strong> ${escHtml(calc.tipoInfo.tipo_nome)} ` +
+      `<span class="text-muted">(${escHtml(calc.tipoInfo.tipo_codigo)})</span> · ` +
+      `<strong>Modalidade:</strong> ${escHtml(MODALIDADE_360)} · <strong>Fiscais:</strong> ${calc.porFiscal.length}</p>`;
+    if (calc.extrasDesconsiderados.length) {
+      html += alerta('info', (calc.tipoInfo.tipo_codigo === 'VIS'
+        ? 'Documento não entregue: os CNAEs extras não são considerados — pontua só o CNAE informado (mesma regra do CVS). '
+        : 'CNAEs extras só contam em vistoria; neste documento pontua só o CNAE informado. ') +
+        'Desconsiderado(s): ' + calc.extrasDesconsiderados.map(escHtml).join(', '));
+    }
+    if (calc.semCompetencia.length) {
+      html += alerta('warn', 'CNAE(s) extra(s) sem competência da vigilância, ignorado(s): ' + calc.semCompetencia.map(escHtml).join(', '));
+    }
+    if (calc.naoLancados.length) {
+      html += alerta('info', 'Não lançado(s) por ultrapassar o teto de 48 pontos por inspeção: ' + calc.naoLancados.map(escHtml).join(', '));
+    }
+    if (!calc.alvos.length) {
+      html += alerta('warn', 'Esta inspeção não gera lançamento de produção.');
+    }
+    for (const f of calc.porFiscal) {
+      const selo = f.eh360 ? ' <span class="badge badge-360">360</span>' : ' <span class="badge badge-cvs">CVS</span>';
+      let nota = '';
+      if (f.ignoradoMotivo) nota = `⚠️ Sem lançamento: ${escHtml(f.ignoradoMotivo)}.`;
+      else if (!f.eh360) nota = 'Não participa da transição — a produção dele continua vindo da importação do CVS (prévia apenas).';
+      else if (!f.regrasDoDia) nota = 'Regras do dia (plantão, OPF, relatório técnico, ocorrência) deste colega são conferidas pela revalidação automática da importação.';
+      html += `<div style="margin-top:12px"><strong>${escHtml(f.nome)}</strong>${selo}` +
+        `${f.isTerceiro ? ' <span class="badge badge-pendente-fiscal">3º fiscal+ · pendente</span>' : ''}` +
+        `<span style="float:right" class="i360-total">${formatPontos(f.totalPontos)} pts</span>` +
+        (nota ? `<div class="i360-nota">${nota}</div>` : '') +
+        '<div class="table-wrap"><table class="rmpf-table" style="margin-top:6px">' +
+        '<colgroup><col style="width:15%"><col style="width:12%"><col style="width:6%"><col style="width:8%">' +
+        '<col style="width:10%"><col style="width:9%"><col style="width:40%"></colgroup><thead><tr>' +
+        '<th>CNAE</th><th>Complexidade</th><th>Item</th><th>Área m²</th><th>Dupla/trio</th><th>Pontos</th><th>Dispositivo</th>' +
+        '</tr></thead><tbody>' +
+        f.lancamentos.map(l => `<tr>
+          <td data-label="CNAE" title="${escHtml(l.descricao)}">${escHtml(l.alvo.cnae || '—')} <span class="text-muted">${escHtml(l.alvo.cnae_origem === 'CAE' ? 'extra' : '')}</span></td>
+          <td data-label="Complexidade">${escHtml(formatComplexidade(l.alvo.complexidade))}${l.alvo.complexidade_origem ? ' <span class="text-muted" title="Decreto 49.723/2023">(decreto)</span>' : ''}</td>
+          <td data-label="Item">${escHtml(String(l.tipoInfoA.item_pontuacao))}</td>
+          <td data-label="Área m²">${l.alvo.visa_area != null ? escHtml(String(l.alvo.visa_area)) : '—'}</td>
+          <td data-label="Dupla/trio">${l.alvo.qtd_fiscais != null ? escHtml(String(l.alvo.qtd_fiscais)) + ' fiscais' : '—'}</td>
+          <td data-label="Pontos"><strong>${formatPontos(l.pontos)}</strong>${l.zeradoMotivo ? ` <span title="${escHtml(l.zeradoMotivo)}">⚠️</span>` : ''}</td>
+          <td data-label="Dispositivo" style="font-size:.75rem">${escHtml(l.dispositivo_legal || '—')}</td>
+        </tr>`).join('') +
+        '</tbody></table></div></div>';
+    }
+    $('calculo').innerHTML = html;
+  }
+
+  function atualizarBotaoSalvar() {
+    $('btn-salvar').disabled = !(podeSalvar && ultimoCalc);
+    $('btn-salvar').title = podeSalvar ? '' : 'Salvamento restrito aos fiscais da fase de transição 360';
+  }
+
+  // ── Salvar ─────────────────────────────────────────────
+  async function salvar() {
+    if (!podeSalvar || !ultimoCalc) return;
+    const { insp, calc } = ultimoCalc;
+    const erros = validar(insp).filter(e => !e.includes('será pontuado como média'));
+    if (!insp.fiscais.some(f => f.email === user.email)) erros.push('você precisa constar entre os fiscais');
+    if (erros.length) { showAlert('warn', 'Corrija antes de salvar: ' + erros.map(escHtml).join('; ') + '.'); return; }
+    const [ano, mes] = insp.data.split('-').map(Number);
+    try {
+      if (await db_isMesFechado(user.email, mes, ano)) {
+        showAlert('warn', `A competência <strong>${MESES[mes - 1]}/${ano}</strong> já foi fechada e não aceita novos lançamentos.`);
+        return;
+      }
+    } catch (e) { console.warn('[360] Falha ao verificar fechamento:', e); }
+    const geram = calc.porFiscal.filter(f => f.geraLancamento && f.lancamentos.length);
+    if (!geram.length && !confirm('Nenhum lançamento de produção será gerado para esta inspeção. Salvar mesmo assim?')) return;
+
+    const btn = $('btn-salvar');
+    btn.disabled = true; btn.textContent = '⏳ Salvando…';
+    try {
+      const r = await salvarInspecao360({ insp, calc, existente: editando, usuario: user });
+      let msg = `Inspeção <strong>${escHtml(r.numero)}</strong> salva — ${r.criados} lançamento(s) criado(s), ` +
+        `${r.atualizados} atualizado(s), ${r.removidos} removido(s). Os lançamentos seguem para a Conferência.`;
+      if (r.preservados.length) {
+        msg += `<br>🔒 ${r.preservados.length} lançamento(s) já ${[...new Set(r.preservados.map(p => p.status))].join('/')} ` +
+          'foram mantidos sem alteração.';
+      }
+      showAlert('ok', msg);
+      limpar(true);
+      $('l-mes').value = mes; $('l-ano').value = ano;
+      listar();
+    } catch (e) {
+      console.error(e);
+      showAlert('danger', 'Não foi possível salvar: ' + escHtml(e.message) +
+        (/permission/i.test(e.message) ? ' — verifique se sua marcação de participante 360 está ativa no Admin do VISA.' : ''));
+    } finally {
+      btn.textContent = '💾 Salvar inspeção';
+      atualizarBotaoSalvar();
+    }
+  }
+
+  function limpar(manterAlerta) {
+    editando = null;
+    regulado = null;
+    extras = [];
+    $('titulo-form').textContent = '📄 Nova inspeção';
+    $('f-regulado-busca').value = '';
+    $('regulado-selecionado').innerHTML = '';
+    $('cnae-sugestoes').innerHTML = '';
+    $('f-data').value = hojeISO();
+    $('f-documento').value = '';
+    $('f-numero-doc').value = '';
+    $('f-entregue').value = 'sim';
+    $('f-cnae').value = '';
+    $('f-cnae-extra').value = '';
+    renderExtras();
+    $('fiscais-linhas').innerHTML = '';
+    addLinhaFiscal(user.perfil === 'Fiscal' ? user.email : '', user.perfil === 'Fiscal');
+    addLinhaFiscal('');
+    if (!manterAlerta) $('alert-area').innerHTML = '';
+    calcular();
+  }
+
+  // ── Lista / edição / exclusão ──────────────────────────
+  let _lista = [];
+  async function listar() {
+    const mes = Number($('l-mes').value), ano = Number($('l-ano').value);
+    $('lista').innerHTML = '<p class="text-muted">⏳ Carregando…</p>';
+    try {
+      _lista = await db_getInsp360Fiscal(user.email, mes, ano);
+    } catch (e) {
+      $('lista').innerHTML = alerta('danger', 'Não foi possível carregar: ' + escHtml(e.message));
+      return;
+    }
+    if (!_lista.length) { $('lista').innerHTML = '<p class="text-muted">Nenhuma inspeção 360 nesta competência.</p>'; return; }
+    $('lista').innerHTML = '<div class="table-wrap"><table class="rmpf-table"><thead><tr>' +
+      '<th>Nº 360</th><th>Data</th><th>Regulado</th><th>Documento</th><th>CNAE</th><th>Fiscais</th><th>Ações</th>' +
+      '</tr></thead><tbody>' + _lista.map(i => `<tr>
+        <td data-label="Nº 360">${escHtml(i.numero)}</td>
+        <td data-label="Data">${escHtml(fmtData(i.data))}</td>
+        <td data-label="Regulado">${escHtml(i.codigo)} — ${escHtml(i.razao || '')}</td>
+        <td data-label="Documento">${escHtml(i.documento)}${i.numero_documento ? ' nº ' + escHtml(i.numero_documento) : ''}</td>
+        <td data-label="CNAE">${escHtml(i.cnae)}${(i.cnaes_extras || []).length ? ' +' + i.cnaes_extras.length : ''}</td>
+        <td data-label="Fiscais">${(i.fiscais || []).map(f => escHtml(nomeCurto(f.nome))).join(', ')}</td>
+        <td data-label="Ações">${podeSalvar
+          ? `<button class="btn btn-outline btn-sm" data-editar="${escHtml(i.numero)}">✏️ Editar</button>
+             <button class="btn btn-danger btn-sm" data-excluir="${escHtml(i.numero)}">🗑️</button>`
+          : '—'}</td>
+      </tr>`).join('') + '</tbody></table></div>';
+  }
+
+  async function editar(numero) {
+    const i = await db_getInsp360(numero);
+    if (!i) { showAlert('warn', 'Inspeção não encontrada.'); return; }
+    editando = i;
+    $('titulo-form').textContent = `✏️ Editando ${i.numero}`;
+    await selecionarRegulado(i.codigo);
+    if (!regulado) {           // regulado fora do índice atual: mantém o gravado
+      regulado = { codigo: String(i.codigo), razao: i.razao || '', fantasia: '', documento: '' };
+      $('f-regulado-busca').value = `${i.codigo} — ${i.razao || ''}`;
+    }
+    $('f-data').value = i.data;
+    $('f-documento').value = i.documento;
+    $('f-numero-doc').value = i.numero_documento || '';
+    $('f-entregue').value = i.entregue === false ? 'nao' : 'sim';
+    $('f-cnae').value = i.cnae || '';
+    extras = (i.cnaes_extras || []).slice();
+    renderExtras();
+    $('fiscais-linhas').innerHTML = '';
+    for (const f of (i.fiscais || [])) addLinhaFiscal(f.email, false);
+    if ((i.fiscais || []).length < 2) addLinhaFiscal('');
+    $('alert-area').innerHTML = alerta('info', `Editando a inspeção <strong>${escHtml(i.numero)}</strong>. ` +
+      'Lançamentos já homologados, fechados ou recusados não são alterados.');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    calcular();
+  }
+
+  async function excluir(numero) {
+    const i = _lista.find(x => x.numero === numero) || await db_getInsp360(numero);
+    if (!i) return;
+    if (!confirm(`Excluir a inspeção ${numero} e os lançamentos dela? Esta ação não pode ser desfeita.`)) return;
+    try {
+      const n = await excluirInspecao360(i);
+      showAlert('ok', `Inspeção <strong>${escHtml(numero)}</strong> excluída (${n} lançamento(s) removido(s)).`);
+      if (editando && editando.numero === numero) limpar(true);
+      listar();
+    } catch (e) {
+      showAlert('danger', escHtml(e.message));
+    }
+  }
+
+  // ── Inicialização ──────────────────────────────────────
+  requireAuth(async (u) => {
+    user = u;
+    if (u.perfil !== 'Fiscal' && u.perfil !== 'Administrador') { location.href = 'dashboard.html'; return; }
+    buildSidebar(u.perfil);
+    $('loading-overlay').style.display = 'none';
+    $('app').style.display = '';
+    $('header-nome').textContent = nomeCurto(u.nome || u.email);
+    $('btn-logout').addEventListener('click', () => window.sharedLogout());
+    $('hamburger').addEventListener('click', () => $('sidebar').classList.toggle('open'));
+
+    podeSalvar = u.perfil === 'Fiscal' && ehParticipante360(u);
+    $('faixa-acesso').innerHTML = podeSalvar
+      ? alerta('ok', '<strong>Participante da transição 360.</strong> As inspeções salvas aqui geram lançamentos de produção ' +
+          '(selo <span class="badge badge-360">360</span>) que vão para a Conferência. Enquanto o CVS continuar em uso, a mesma ' +
+          'inspeção pode chegar também pela importação do CVS — o gestor homologa uma e recusa a outra.')
+      : alerta('info', '<strong>Modo familiarização.</strong> Você pode preencher e conferir o cálculo da produção; ' +
+          'o salvamento é restrito aos fiscais da fase de transição 360 (marcação no Admin de usuários do VISA).');
+
+    $('f-modalidade').value = MODALIDADE_360;
+    $('f-documento').innerHTML = '<option value="">— selecione —</option>' +
+      DOCUMENTOS_360.map(d => `<option value="${escHtml(d)}">${escHtml(d)}</option>`).join('');
+    const agora = new Date();
+    $('l-mes').innerHTML = MESES.map((m, i) => `<option value="${i + 1}">${m}</option>`).join('');
+    const anos = []; for (let a = 2026; a <= agora.getFullYear() + 1; a++) anos.push(a);
+    $('l-ano').innerHTML = anos.map(a => `<option value="${a}">${a}</option>`).join('');
+    $('l-mes').value = agora.getMonth() + 1; $('l-ano').value = agora.getFullYear();
+
+    $('calculo').innerHTML = '<p class="text-muted">⏳ Carregando tabelas do VISA (CNAE, regulados)…</p>';
+    try {
+      const [cm, ri, fs, area] = await Promise.all([
+        insp360CarregarCnaeMap(),
+        insp360CarregarIndiceRegulados(),
+        db_getTodosFiscais(),
+        db_getVisaAreaAlimentacaoConfig().catch(() => ({ ativo: true })),
+      ]);
+      cnaeMap = cm; regIndex = ri;
+      fiscais = fs.filter(f => f.ativo !== false && f.email);
+      regraAreaAtiva = area.ativo !== false;
+      $('dl-cnae').innerHTML = [...cnaeMap.entries()].map(([c, i]) =>
+        `<option value="${escHtml(c)}">${escHtml(i.descricao)} — ${escHtml(formatComplexidade(i.complexidade))}</option>`).join('');
+    } catch (e) {
+      console.error(e);
+      showAlert('danger', 'Não foi possível carregar as tabelas do VISA: ' + escHtml(e.message));
+    }
+
+    $('f-regulado-busca').addEventListener('input', () => { regulado = null; $('regulado-selecionado').innerHTML = ''; mostrarResultados(); agendarCalculo(); });
+    $('f-regulado-busca').addEventListener('focus', mostrarResultados);
+    document.addEventListener('click', (ev) => {
+      const b = ev.target.closest('[data-codigo]');
+      if (b) { selecionarRegulado(b.dataset.codigo); return; }
+      if (!ev.target.closest('.i360-busca')) $('regulado-resultados').style.display = 'none';
+      const s = ev.target.closest('[data-cnae]');
+      if (s) {
+        const c = s.dataset.cnae;
+        if (!cnaeDoTexto($('f-cnae').value)) $('f-cnae').value = c;
+        else if (c !== cnaeDoTexto($('f-cnae').value) && !extras.includes(c)) { extras.push(c); renderExtras(); }
+        agendarCalculo(); return;
+      }
+      const rm = ev.target.closest('[data-rm-extra]');
+      if (rm) { extras.splice(Number(rm.dataset.rmExtra), 1); renderExtras(); agendarCalculo(); return; }
+      const ed = ev.target.closest('[data-editar]');
+      if (ed) { editar(ed.dataset.editar); return; }
+      const ex = ev.target.closest('[data-excluir]');
+      if (ex) { excluir(ex.dataset.excluir); }
+    });
+    ['f-data', 'f-documento', 'f-entregue', 'f-numero-doc'].forEach(id => $(id).addEventListener('change', agendarCalculo));
+    $('f-cnae').addEventListener('change', agendarCalculo);
+    $('f-cnae').addEventListener('input', agendarCalculo);
+    $('btn-add-extra').addEventListener('click', adicionarExtra);
+    $('f-cnae-extra').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarExtra(); } });
+    $('fiscais-linhas').addEventListener('change', () => { atualizarSelos(); agendarCalculo(); });
+    $('btn-add-fiscal').addEventListener('click', () => addLinhaFiscal(''));
+    $('btn-salvar').addEventListener('click', salvar);
+    $('btn-limpar').addEventListener('click', () => limpar(false));
+    $('btn-listar').addEventListener('click', listar);
+
+    limpar(false);
+    listar();
+  });
+})();
+</script>
+</body>
+</html>
