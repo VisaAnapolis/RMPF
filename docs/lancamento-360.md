@@ -40,16 +40,43 @@ pode ser **digitada** no Lançamento 360, com o cálculo da produção na hora.
 - `montarAlvosInspecaoVisa({...})` — CNAEs-alvo: informado + extras de competência, área (alta de alimentação IA/AG: 8/16/48, flag da Parametrização), redução dupla/trio (12→9, 6→3), teto guloso de 48. Documento **não entregue** em vistoria: só o CNAE informado (extras desconsiderados).
 - `regraDiaVistoriaVisa({...})` — zeragem por plantão manual/escala (item 9), OPF (item 18), relatório técnico de alta (item 13) e item 4 da alimentação.
 
-Regras do dia: aplicadas na hora **só para o fiscal logado** (ele lê os próprios
-lançamentos, ocorrências aceitas e a escala). Os lançamentos dos colegas não
-podem ser lidos pelo fiscal; para eles a página mostra o nominal e a
-`revalidarCruzadoMes` da importação automática (sessão do admin, a cada ~10 min)
-zera/reabre o que conflitar — porque as regras de não cumulatividade passaram a
-reconhecer a origem `insp360` (`ehOrigemImportada`):
+### 3.1 Não cumulatividade — igual ao CSV
+
+As inspeções acumulam entre si. Plantão (item 9, inclusive pela escala da
+gerência), operação fiscal (item 18) e relatório técnico de alta (item 13) não
+acumulam com vistoria no mesmo dia. Vale nos dois sentidos, exatamente como para
+o que vem do `inspecoes.csv`, porque as regras reconhecem a origem `insp360`
+(`ehOrigemImportada`):
 
 - `ehVistoriaQualquer` e `ehRelAltaImportada` incluem `insp360`;
 - `ehPlantaoManual`, `ehOpfManual` e `ehAtividadeDiaInteiroManual` excluem `insp360`
   (uma "PRORROGAÇÃO" vira PLT com 0 pt e não é plantão manual).
+
+| Sentido | Comportamento |
+|---|---|
+| Lançar plantão/OPF depois (`lancamento.html`, edição em `meus-lancamentos.html`) | Plantão bloqueado em dia com vistoria 360 que pontua; OPF bloqueada em dia com qualquer vistoria 360; serviço técnico (SRV) permitido — mesmas mensagens do CSV, citando "CVS, SIM ou Lançamento 360". |
+| Lançar a inspeção no 360 depois — **fiscal logado** | A página lê os próprios lançamentos, ocorrências aceitas e escala: vistoria zerada (com `zerado_motivo` e ⚠️) ou não lançada em dia de ocorrência. |
+| Lançar a inspeção no 360 depois — **colegas 360** | O fiscal não lê lançamentos, ocorrências (licenças médicas) nem escala dos colegas: o lançamento nasce com a pontuação nominal e a **revalidação do mês** (sessão de administrador) aplica as regras do dia. |
+
+**Revalidação disparada pelo 360.** Todo salvamento/exclusão no 360 grava
+`insp360_sequencia/rev` (`{ em, por }`). A importação automática
+(`js/visa-auto-import.js`, Conferência/Parametrização abertas por administrador,
+~10 min) compara com `app_config/import_state.insp360_rev`: CSVs sem mudança e 360
+mudou → roda só `revalidarMesVISA` (mesmo lock, sem reimportar). A importação
+completa também carimba a marca. No painel de execuções aparece como `revalida_360`.
+
+**Casos próprios do 360 em `revalidarCruzadoMes`** (o caminho do CSV não muda):
+- dia coberto por ocorrência aceita → lançamento 360 **não homologado é excluído**
+  (o CSV nem o criaria); homologado é reaberto, como no CSV;
+- conflito que deixou de existir → vistoria 360 não homologada **volta a pontuar**
+  (`pontos_nominal`, `dispositivo_legal_nominal`, gravados no salvamento) — o CSV
+  faz isso sozinho ao ser reimportado.
+
+**Pontuação discricionária do gerente.** Na Conferência, o lançamento 360 tem
+*Pts Homologados* livre, como os importados: o conflito só avisa. A revalidação age
+sobre `pontos` (o calculado), nunca sobre `pontos_homologado`; homologado em
+conflito é reaberto uma vez (com `pontos` zerado) e, se o gerente homologar de novo
+com pontos, a decisão permanece.
 
 O purge de órfãos da importação só toca em `visa_csv`, e
 `db_deleteImportadosMes` só em ids `visa_`/`sim_` — o 360 não é reimportável.

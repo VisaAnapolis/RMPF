@@ -588,8 +588,8 @@
       const qtdVisEdit = await bloqueioPlantaoComVistoria(id, data);
       if (qtdVisEdit) {
         document.getElementById('edit-alert').innerHTML = alerta('danger',
-          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação. ` +
-          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisEdit}</strong> vistoria(s) importada(s) que geram pontos.`);
+          `🚫 Impossível lançar plantão em data com vistoria(s) do CVS, SIM ou Lançamento 360 com pontuação. ` +
+          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisEdit}</strong> vistoria(s) que geram pontos.`);
         return;
       }
       if (await bloqueioPlantaoForaEscala(id, data)) {
@@ -602,8 +602,8 @@
       const qtdVisOpfEdit = await bloqueioOpfComVistoria(id, data);
       if (qtdVisOpfEdit) {
         document.getElementById('edit-alert').innerHTML = alerta('danger',
-          `🚫 Impossível mover operação fiscal para data com vistoria(s) importada(s). ` +
-          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisOpfEdit}</strong> vistoria(s) (VISA/SIM).`);
+          `🚫 Impossível mover operação fiscal para data com vistoria(s). ` +
+          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisOpfEdit}</strong> vistoria(s) (CVS, SIM ou Lançamento 360).`);
         return;
       }
       const conflitoDiaEdit = await bloqueioAtividadeDiaInteiro(id, data);
@@ -714,8 +714,8 @@
       const qtdVisCorr = await bloqueioPlantaoComVistoria(id, data);
       if (qtdVisCorr) {
         document.getElementById('corrigir-alert').innerHTML = alerta('danger',
-          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação. ` +
-          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisCorr}</strong> vistoria(s) importada(s) que geram pontos.`);
+          `🚫 Impossível lançar plantão em data com vistoria(s) do CVS, SIM ou Lançamento 360 com pontuação. ` +
+          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisCorr}</strong> vistoria(s) que geram pontos.`);
         return;
       }
       if (await bloqueioPlantaoForaEscala(id, data)) {
@@ -728,8 +728,8 @@
       const qtdVisOpfCorr = await bloqueioOpfComVistoria(id, data);
       if (qtdVisOpfCorr) {
         document.getElementById('corrigir-alert').innerHTML = alerta('danger',
-          `🚫 Impossível mover operação fiscal para data com vistoria(s) importada(s). ` +
-          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisOpfCorr}</strong> vistoria(s) (VISA/SIM).`);
+          `🚫 Impossível mover operação fiscal para data com vistoria(s). ` +
+          `O dia <strong>${fmtData(data)}</strong> possui <strong>${qtdVisOpfCorr}</strong> vistoria(s) (CVS, SIM ou Lançamento 360).`);
         return;
       }
       const conflitoDiaCorr = await bloqueioAtividadeDiaInteiro(id, data);

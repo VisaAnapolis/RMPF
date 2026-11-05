@@ -143,6 +143,11 @@
     return (_cache.municipal && _cache.municipal.get(String(codigo || '').trim())) || '';
   }
 
+  // Estado do dia sem nenhum conflito (colegas e pontuação nominal).
+  function _estadoVazio() {
+    return { plantaoDatas: new Set(), escalaDatas: new Set(), opfDatas: new Set(), relAltaDatas: new Set() };
+  }
+
   // ── Cálculo ────────────────────────────────────────────────────────────
   // `insp` (formulário):
   //   { numero?, codigo, razao, data (ISO), documento, numeroDoc, entregue (bool),
@@ -216,15 +221,20 @@
       // Estado do dia: o do logado (lido do banco) ou vazio para colegas — os
       // lançamentos deles não podem ser lidos pelo fiscal; a revalidação
       // automática da importação confere as regras do dia depois.
-      const estado = res.regrasDoDia ? ctx.estadoPontosUsuario : {
-        plantaoDatas: new Set(), escalaDatas: new Set(), opfDatas: new Set(), relAltaDatas: new Set(),
-      };
+      const estado = res.regrasDoDia ? ctx.estadoPontosUsuario : _estadoVazio();
       for (const alvo of alvos) {
         const tipoInfoA = window.resolverTipoVisa(tipoRaw, alvo.complexidade);
         const pontosBaseA = (alvo.pontos != null) ? alvo.pontos : tipoInfoA.pontos;
         const r = window.regraDiaVistoriaVisa({
           tipoInfoA, dataISO, pontosFinalA: pontosBaseA, pontosBaseA,
           plantaoFiscalOS: false, estadoPontos: estado, alvo,
+        });
+        // Pontuação nominal (sem regras do dia): guardada no lançamento para a
+        // revalidação devolver os pontos quando o conflito do dia deixar de
+        // existir — o 360 não é reimportado como o CSV.
+        const r0 = window.regraDiaVistoriaVisa({
+          tipoInfoA, dataISO, pontosFinalA: pontosBaseA, pontosBaseA,
+          plantaoFiscalOS: false, estadoPontos: _estadoVazio(), alvo,
         });
         const descParts = [];
         if (alvo.cnae) descParts.push('CNAE ' + alvo.cnae);
@@ -236,6 +246,11 @@
           dispositivo_legal: window.dispositivoLegal
             ? window.dispositivoLegal(tipoInfoA.item_pontuacao, r.pontosFiscal, alvo.qtd_fiscais != null,
                 r.itemDecretoZerado || r.itemDecretoAlimentacao || undefined)
+            : null,
+          pontos_nominal: r0.pontosFiscal,
+          dispositivo_legal_nominal: window.dispositivoLegal
+            ? window.dispositivoLegal(tipoInfoA.item_pontuacao, r0.pontosFiscal, alvo.qtd_fiscais != null,
+                r0.itemDecretoZerado || r0.itemDecretoAlimentacao || undefined)
             : null,
           descricao: descParts.join(' — ') || tipoInfoA.descLabel,
         });
@@ -288,6 +303,8 @@
       qtd_fiscais: lanc.alvo.qtd_fiscais ?? null,
       fiscais_participantes: fiscais.length >= 2 ? calc.nomesParticipantes : null,
       dispositivo_legal: lanc.dispositivo_legal,
+      pontos_nominal: lanc.pontos_nominal,
+      dispositivo_legal_nominal: lanc.dispositivo_legal_nominal,
     };
   }
 

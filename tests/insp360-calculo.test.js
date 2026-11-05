@@ -322,3 +322,141 @@ test('validação para salvar: tudo o que a chefia confere precisa estar informa
   assert.deepEqual(campos({ ...ok, fiscais: [{ ...B, eh360: false }] }), ['fiscais-linhas']); // sem o logado
   assert.deepEqual(campos({ ...ok, fiscais: [{ ...A, eh360: true }, { ...A, eh360: true }] }), ['fiscais-linhas']);
 });
+
+// ── Revalidação do mês com lançamentos 360 (regras do dia dos colegas) ──
+test('revalidação: regras do dia aplicadas aos lançamentos 360 igual ao CSV', async () => {
+  const db = new fake.FakeFirestore();
+  window.db = db;
+  servir([CAB].join('\n'), 'CONTROLE;VISITA_CTRL;SUBCLASSE');
+  const vis360 = (id, data, extra) => db.semear('manuais', id, {
+    fiscal_email: B.email, fiscal_nome: B.nome, mes: MES, ano: ANO, data,
+    origem: 'insp360', controle: '360-2026-00009', tipo_codigo: 'VIS', item_pontuacao: 2,
+    status: 'enviado', pontos: 9, pontos_nominal: 9, qtd_fiscais: 2,
+    dispositivo_legal_nominal: 'Item 2 + E.2', dispositivo_legal: 'Item 2 + E.2', ...(extra || {}),
+  });
+  vis360('v_plt', '2026-11-05');                         // colega com plantão manual no dia
+  vis360('v_esc', '2026-11-06');                         // colega escalado pela gerência
+  vis360('v_ocr', '2026-11-07');                         // dia coberto por ocorrência aceita
+  vis360('v_ok1', '2026-11-10'); vis360('v_ok2', '2026-11-10');   // duas vistorias: acumulam
+  vis360('v_hom', '2026-11-11', { status: 'aceito', pontos_homologado: 9 }); // homologado em conflito
+  db.semear('manuais', 'plt5', { fiscal_email: B.email, mes: MES, ano: ANO, data: '2026-11-05',
+    origem: 'manual', tipo_codigo: 'PLT', status: 'enviado', pontos: 48 });
+  db.semear('manuais', 'opf11', { fiscal_email: B.email, mes: MES, ano: ANO, data: '2026-11-11',
+    origem: 'manual', tipo_codigo: 'OPF', status: 'enviado', pontos: 48 });
+  db.semear('ocorrencias', 'o1', { fiscal_email: B.email, mes: MES, ano: ANO, status: 'aceito',
+    data_inicio: '2026-11-07', data_fim: '2026-11-07', tipo: 'ferias' });
+  const escalaOrig = window.datasEscaladoNoMes;
+  window.datasEscaladoNoMes = async (nome) => new Set(nome === B.nome ? ['2026-11-06'] : []);
+  const doc = (id) => db._col('manuais').get(id);
+  try {
+    const r = await revalidarMesVISA({ mes: MES, ano: ANO });
+    assert.equal(doc('v_plt').pontos, 0);
+    assert.match(doc('v_plt').zerado_motivo, /plantão fiscal manual/);
+    assert.equal(doc('v_esc').pontos, 0);
+    assert.match(doc('v_esc').zerado_motivo, /escalado/);
+    assert.equal(doc('v_ocr'), undefined, 'dia de ocorrência: o CSV nem criaria — excluído');
+    assert.equal(doc('v_ok1').pontos, 9); assert.equal(doc('v_ok2').pontos, 9);
+    assert.equal(doc('v_hom').status, 'enviado', 'homologado em conflito é reaberto');
+    assert.equal(doc('v_hom').pontos, 0);
+    assert.equal(r.excluidos_360, 1);
+    assert.equal(db.todos('visa_import_locks').length, 0, 'lock liberado');
+
+    // Gerente decide homologar com pontos mesmo assim (discricionário): fica.
+    db._col('manuais').set('v_hom', { ...doc('v_hom'), status: 'aceito', pontos_homologado: 9 });
+    // O colega apaga o plantão: a vistoria volta a pontuar (o CSV recalcularia).
+    db._col('manuais').delete('plt5');
+    window.datasEscaladoNoMes = async () => new Set();
+    const r2 = await revalidarMesVISA({ mes: MES, ano: ANO });
+    assert.equal(doc('v_plt').pontos, 9);
+    assert.equal(doc('v_plt').zerado_motivo, null);
+    assert.equal(doc('v_plt').dispositivo_legal, 'Item 2 + E.2');
+    assert.equal(doc('v_esc').pontos, 9, 'saiu da escala: volta a pontuar');
+    assert.equal(doc('v_hom').status, 'aceito', 'decisão do gerente preservada');
+    assert.equal(doc('v_hom').pontos_homologado, 9);
+    assert.equal(r2.restaurados_360, 2);
+    assert.equal(r2.reabertos_incompat, 0);
+  } finally {
+    window.datasEscaladoNoMes = escalaOrig;
+  }
+});
+
+test('lançamento 360 grava a pontuação nominal (base para devolver os pontos)', async () => {
+  const db = new fake.FakeFirestore();
+  window.db = db;
+  servir([CAB].join('\n'), 'CONTROLE;VISITA_CTRL;SUBCLASSE');
+  db.semear('manuais', 'plt', { fiscal_email: A.email, mes: MES, ano: ANO, data: '2026-11-17',
+    origem: 'manual', tipo_codigo: 'PLT', status: 'enviado', pontos: 48 });
+  const cnaeMap = await insp360CarregarCnaeMap();
+  const estado = await _getEstadoPontosVisa(new Map(), A.email, MES, ANO, A.nome, await db_getManuais(A.email, MES, ANO));
+  const insp = { ...formulario(CASOS[0]), data: '2026-11-17', fiscais: [{ ...A, eh360: true }] };
+  const calc = await calcularInspecao360(insp, { cnaeMap, usuarioEmail: A.email, estadoPontosUsuario: estado });
+  const d = montarDocLancamento360('360-2026-00001', insp, calc, calc.porFiscal[0], calc.porFiscal[0].lancamentos[0]);
+  assert.equal(d.pontos, 0);
+  assert.equal(d.pontos_nominal, 12);
+  assert.match(d.dispositivo_legal_nominal, /Item 2/);
+});
+
+test('salvar e excluir no 360 marcam insp360_sequencia/rev (dispara a revalidação)', async () => {
+  const db = new fake.FakeFirestore();
+  window.db = db;
+  servir([CAB].join('\n'), 'CONTROLE;VISITA_CTRL;SUBCLASSE');
+  const cnaeMap = await insp360CarregarCnaeMap();
+  assert.equal(await db_getRevisaoInsp360(), null);
+  fake.congelarRelogio(Date.UTC(2026, 10, 5, 12));
+  const insp = { ...formulario(CASOS[0]), data: '2026-11-05', fiscais: [{ ...A, eh360: true }] };
+  const calc = await calcularInspecao360(insp, { cnaeMap });
+  const r = await salvarInspecao360({ insp, calc, existente: null, usuario: A });
+  const rev1 = await db_getRevisaoInsp360();
+  assert.ok(rev1 > 0);
+  assert.equal(db._col('insp360_sequencia').get('rev').por, A.email);
+  fake.congelarRelogio(Date.UTC(2026, 10, 5, 13));
+  await excluirInspecao360(await db_getInsp360(r.numero));
+  assert.ok((await db_getRevisaoInsp360()) > rev1);
+});
+
+test('importação automática: 360 mudou e CSVs não → só a revalidação do mês', async () => {
+  vm.runInThisContext(fs.readFileSync(path.join(RAIZ, 'js/visa-auto-import.js'), 'utf8'),
+    { filename: 'js/visa-auto-import.js' });
+  const db = new fake.FakeFirestore();
+  window.db = db;
+  const shas = { 'data/inspecoes.csv': 'aaa', 'data/cnae.csv': 'bbb' };
+  window.fetchGitHubDirBlobShas = async () => shas;
+  const compOrig = window.db_getProximaCompetencia;
+  window.db_getProximaCompetencia = async () => ({ mes: MES, ano: ANO });
+  const importOrig = window.importarInspecoesVISA;
+  let importou = 0;
+  window.importarInspecoesVISA = async () => { importou++; return {}; };
+  try {
+    db.semear('app_config', 'import_state', { visa: { blob_shas: shas, mes: MES, ano: ANO }, insp360_rev: 1000 });
+    db.semear('manuais', 'v360', { fiscal_email: B.email, fiscal_nome: B.nome, mes: MES, ano: ANO,
+      data: '2026-11-05', origem: 'insp360', controle: '360-2026-00001', tipo_codigo: 'VIS',
+      item_pontuacao: 2, status: 'enviado', pontos: 9, pontos_nominal: 9 });
+    db.semear('manuais', 'plt', { fiscal_email: B.email, mes: MES, ano: ANO, data: '2026-11-05',
+      origem: 'manual', tipo_codigo: 'PLT', status: 'enviado', pontos: 48 });
+    const admin = { perfil: 'Administrador', email: 'gestor@teste', nome: 'Gestor' };
+
+    // Marca do 360 igual à já revalidada: nada a fazer.
+    fake.congelarRelogio(1000);
+    db.semear('insp360_sequencia', 'rev', { em: firebase.firestore.FieldValue.serverTimestamp(), por: A.email });
+    await verificarEImportarVISA(admin);
+    assert.equal(db._col('manuais').get('v360').pontos, 9);
+
+    // Fiscal salvou no 360 depois: revalida o mês, sem reimportar o CSV.
+    fake.congelarRelogio(5000);
+    db.semear('insp360_sequencia', 'rev', { em: firebase.firestore.FieldValue.serverTimestamp(), por: A.email });
+    await verificarEImportarVISA(admin);
+    assert.equal(importou, 0, 'não reimporta o CSV');
+    assert.equal(db._col('manuais').get('v360').pontos, 0, 'regra do dia aplicada ao colega');
+    const st = db._col('app_config').get('import_state');
+    assert.equal(st.insp360_rev, 5000);
+    assert.equal(st.runs.at(-1).tipo, 'revalida_360');
+
+    // Próximo ciclo sem novidade: não roda de novo.
+    db._col('manuais').set('v360', { ...db._col('manuais').get('v360'), pontos: 7 });
+    await verificarEImportarVISA(admin);
+    assert.equal(db._col('manuais').get('v360').pontos, 7);
+  } finally {
+    window.db_getProximaCompetencia = compOrig;
+    window.importarInspecoesVISA = importOrig;
+  }
+});

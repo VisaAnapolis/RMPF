@@ -749,6 +749,12 @@ function _jaSinalizado(m) {
 
 async function revalidarCruzadoMes({ mes, ano, fiscalEmail, escrever, anota, onProgress, marcarReabertura, docsPreCarregados }) {
   let reabertos_incompat = 0, zerados_incompat = 0;
+  // Lançamento 360 (docs/lancamento-360.md): o fiscal não lê os lançamentos,
+  // as ocorrências nem a escala dos colegas, então o lançamento do colega nasce
+  // com a pontuação nominal. Esta revalidação (sessão de administrador) aplica
+  // a ele as mesmas regras do dia que a importação do CSV aplica na criação.
+  let excluidos_360 = 0, restaurados_360 = 0;
+  const ehNaoHomologado360 = (m) => !!m && m.origem === 'insp360' && !_ehHomologado(m);
 
   // `docsPreCarregados`: a lista lida do banco logo antes do purge de órfãos,
   // com as gravações do próprio purge já aplicadas — o mesmo estado que uma
@@ -831,6 +837,18 @@ async function revalidarCruzadoMes({ mes, ano, fiscalEmail, escrever, anota, onP
         // ── C: dia coberto por afastamento aceito ──
         if (_dataCobertaOcorrVisa(dia, ocorrAceitas)) {
           for (const m of doDia) {
+            // 360 não homologado: a importação do CSV nem criaria o lançamento
+            // num dia coberto por ocorrência aceita — exclui, igual ao CSV.
+            if (ehNaoHomologado360(m)) {
+              await escrever.remover(m.id);
+              excluidos_360++;
+              anota('excluir_360_ocorrencia', {
+                controle: m.controle, fiscal: m.fiscal_email, cnae: m.visa_cnae,
+                data: m.data, status_atual: m.status,
+                motivo: 'dia ' + dia + ' coberto por afastamento aceito (ocorrência)',
+              });
+              continue;
+            }
             if (m.origem === 'ocorrencia' || !_ehHomologado(m)) continue;
             await reabrir(m, _motivoReaberturaConflito(
               'o dia ' + dia + ' passou a ser coberto por um afastamento aceito (ocorrência), ' +
@@ -867,8 +885,34 @@ async function revalidarCruzadoMes({ mes, ano, fiscalEmail, escrever, anota, onP
           // escolher qual prevalece — a vistoria do WCVS ou o lançamento manual.
           if (pontuando.length && culpado && _ehHomologado(culpado)) {
             await reabrir(culpado, _motivoReaberturaConflito(
-              'passou a existir vistoria do WCVS no mesmo dia (CONTROLE ' +
-              (pontuando[0].visa_controle || '—') + '), não cumulativa com este lançamento'), {});
+              pontuando[0].origem === 'insp360'
+                ? 'passou a existir vistoria do Lançamento 360 no mesmo dia (' +
+                  (pontuando[0].controle || '—') + '), não cumulativa com este lançamento'
+                : 'passou a existir vistoria do WCVS no mesmo dia (CONTROLE ' +
+                  (pontuando[0].visa_controle || '—') + '), não cumulativa com este lançamento'), {});
+          }
+        } else {
+          // ── D: conflito que sumiu (só 360) ──
+          // O CSV é recalculado a cada importação e volta a pontuar sozinho
+          // quando o plantão/OPF/relatório do dia deixa de existir. O 360 não
+          // é reimportado: devolve a pontuação nominal guardada na gravação.
+          for (const v of vistorias) {
+            if (!ehNaoHomologado360(v)) continue;
+            const nominal = Number(v.pontos_nominal) || 0;
+            if ((Number(v.pontos) || 0) !== 0 || !v.zerado_motivo || nominal <= 0) continue;
+            const patch = {
+              pontos: nominal,
+              zerado_motivo: null,
+              dispositivo_legal: v.dispositivo_legal_nominal || v.dispositivo_legal || null,
+            };
+            await escrever.update(v.id, patch);
+            Object.assign(v, patch);
+            restaurados_360++;
+            anota('restaurar_360', {
+              controle: v.controle, fiscal: v.fiscal_email, cnae: v.visa_cnae,
+              data: v.data, status_atual: v.status,
+              motivo: 'não há mais plantão, escala, operação fiscal ou relatório técnico de alta no dia',
+            });
           }
         }
 
@@ -890,7 +934,7 @@ async function revalidarCruzadoMes({ mes, ano, fiscalEmail, escrever, anota, onP
     }
   }
 
-  return { reabertos_incompat, zerados_incompat };
+  return { reabertos_incompat, zerados_incompat, excluidos_360, restaurados_360 };
 }
 
 // Mapa CNAE → { complexidade, complexidade_origem, descricao, equipe } a partir
@@ -2307,7 +2351,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     // Roda depois da reconciliação porque depende do estado final do dia (uma
     // vistoria recém-criada pode tornar não cumulativo um manual homologado há
     // semanas). Falha aqui não derruba a importação já concluída.
-    let zerados_incompat = 0;
+    let zerados_incompat = 0, excluidos_360 = 0, restaurados_360 = 0;
     if (!fontesIncompletas) {
       try {
         if (!simulacao && typeof window.db_refreshVisaImportLock === 'function') {
@@ -2320,6 +2364,8 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
         });
         reabertos_incompat += rev.reabertos_incompat;
         zerados_incompat = rev.zerados_incompat;
+        excluidos_360 = rev.excluidos_360 || 0;
+        restaurados_360 = rev.restaurados_360 || 0;
       } catch (e) {
         onProgress('⚠️ Erro na revalidação cruzada: ' + e.message, 'warn');
       }
@@ -2382,6 +2428,7 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
     return {
       criados, atualizados, ignorados, excluidos, migrados, erros,
       reabertos, reabertos_orfaos, reabertos_incompat, zerados_incompat,
+      excluidos_360, restaurados_360,
       sincronizados,
       snap_atalhos: snapAtalhos, snap_releituras: snapReleituras,
       relatorio,
@@ -2391,7 +2438,48 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
   }
 }
 
+// ── Revalidação avulsa do mês (sem reimportar o CSV) ─────
+// Disparada pela importação automática quando o Lançamento 360 mudou e os CSVs
+// do VISA não: aplica aos lançamentos 360 as mesmas regras do dia que a
+// importação aplicaria (zerar, devolver pontos, excluir em dia de ocorrência,
+// reabrir homologado em conflito). Usa o mesmo lock da importação.
+async function revalidarMesVISA({ mes, ano, onProgress, quemEmail, quemNome }) {
+  mes = Number(mes); ano = Number(ano);
+  onProgress = onProgress || (() => {});
+  await window.db_acquireVisaImportLock(mes, ano, quemEmail || null, quemNome || 'Revalidação do Lançamento 360');
+  try {
+    _visaOcorrCache.clear();
+    const relatorio = [];
+    const anota = (acao, dados) => relatorio.push({ acao, ...dados });
+    const escrever = {
+      update: (id, patch) => window.db_updateManual(id, patch),
+      remover: (id) => window.db_deleteManual(id),
+    };
+    const reabertosPorFiscal = new Map();
+    const marcarReabertura = (email) => {
+      if (email) reabertosPorFiscal.set(email, (reabertosPorFiscal.get(email) || 0) + 1);
+    };
+    onProgress('🔁 Revalidando o mês após mudança no Lançamento 360...', 'info');
+    const rev = await revalidarCruzadoMes({
+      mes, ano, fiscalEmail: null, escrever, anota, onProgress, marcarReabertura,
+    });
+    if (reabertosPorFiscal.size && typeof window.dispararNotificacaoFiscal === 'function') {
+      for (const [email, qtd] of reabertosPorFiscal.entries()) {
+        try {
+          window.dispararNotificacaoFiscal(email, '🔄 Lançamento reaberto',
+            `${qtd} lançamento(s) de ${String(mes).padStart(2, '0')}/${ano} voltaram para conferência ` +
+            `por incompatibilidade. Abra Meus Lançamentos para ver o motivo.`);
+        } catch (_) { /* notificação nunca derruba a revalidação */ }
+      }
+    }
+    return { ...rev, relatorio };
+  } finally {
+    await window.db_releaseVisaImportLock(mes, ano);
+  }
+}
+
 window.visaMesAberto            = visaMesAberto;
+window.revalidarMesVISA         = revalidarMesVISA;
 window.importarInspecoesVISA    = importarInspecoesVISA;
 window.ehPlantaoManual          = ehPlantaoManual;
 window.datasComPlantaoManual    = datasComPlantaoManual;

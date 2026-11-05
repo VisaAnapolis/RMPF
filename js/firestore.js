@@ -1395,13 +1395,33 @@ async function gravarInsp360({ inspecao, novaInspecao, criar, atualizar, remover
   for (const id of (remover || [])) {
     batch.delete(window.db.collection('manuais').doc(id));
   }
+  _marcarRevisaoInsp360(batch, inspecao.alterado_por);
   await batch.commit();
+}
+
+// Marca de "o 360 mudou" (insp360_sequencia/rev): a importação automática
+// (sessão de administrador, js/visa-auto-import.js) compara com o estado salvo
+// e roda a revalidação do mês, que aplica aos lançamentos 360 dos colegas as
+// regras do dia que o fiscal não consegue conferir ao salvar.
+function _marcarRevisaoInsp360(batch, por) {
+  batch.set(window.db.collection('insp360_sequencia').doc('rev'), {
+    em: firebase.firestore.FieldValue.serverTimestamp(),
+    por: por || ((window.currentUser && window.currentUser.email) || null),
+  });
+}
+
+async function getRevisaoInsp360() {
+  const snap = await window.db.collection('insp360_sequencia').doc('rev').get();
+  if (!snap.exists) return null;
+  const em = snap.data().em;
+  return (em && typeof em.toMillis === 'function') ? em.toMillis() : null;
 }
 
 async function excluirInsp360(numero, idsLancamentos) {
   const batch = window.db.batch();
   for (const id of (idsLancamentos || [])) batch.delete(window.db.collection('manuais').doc(id));
   batch.delete(window.db.collection('insp360').doc(String(numero)));
+  _marcarRevisaoInsp360(batch);
   await batch.commit();
 }
 
@@ -1492,4 +1512,5 @@ window.db_getInsp360Fiscal            = getInsp360Fiscal;
 window.db_getManualPorId              = getManualPorId;
 window.db_gravarInsp360               = gravarInsp360;
 window.db_excluirInsp360              = excluirInsp360;
+window.db_getRevisaoInsp360           = getRevisaoInsp360;
 window.db_validateDeadlineReleaseDate = db_validateDeadlineReleaseDate;

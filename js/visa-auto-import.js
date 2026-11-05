@@ -83,12 +83,16 @@ async function registrarImportStateVisa(r, mes, ano, blobShas, opts) {
     reabertos_orfaos: (r && r.reabertos_orfaos) || 0,
     reabertos_incompat: (r && r.reabertos_incompat) || 0,
     sincronizados: (r && r.sincronizados) || 0,
+    excluidos_360: (r && r.excluidos_360) || 0,
+    restaurados_360: (r && r.restaurados_360) || 0,
     erros: (r && r.erros) || 0,
     mes: Number(mes), ano: Number(ano),
     csv_sha: String((blobShas && blobShas[VISA_AUTO_IMPORT_ARQUIVO]) || '').slice(0, 10),
   };
   const runs = (Array.isArray(state.runs) ? state.runs : []).concat(runEntry).slice(-60);
   const patch = { runs };
+  // Marca do Lançamento 360 já revalidada (insp360_sequencia/rev, em ms).
+  if (opts.insp360Rev != null) patch.insp360_rev = opts.insp360Rev;
   // Só carimba a competência/SHAs quando os SHAs foram de fato apurados; um
   // import manual de mês diverso não pode marcar a competência aberta como
   // "já importada".
@@ -226,9 +230,48 @@ async function verificarEImportarVISA(user) {
     let state = {};
     try { state = await window.db_getImportState(); } catch (_) {}
     const st = state && state.visa;
+
+    // Marca do Lançamento 360 (1 leitura). Lida ANTES de rodar: um salvamento
+    // no 360 durante a rodada fica com marca mais nova e é pego no próximo ciclo.
+    let rev360 = null;
+    try {
+      if (typeof window.db_getRevisaoInsp360 === 'function') rev360 = await window.db_getRevisaoInsp360();
+    } catch (_) { rev360 = null; }
+    const mudou360 = rev360 != null && rev360 > (Number(state && state.insp360_rev) || 0);
+
     if (st && st.blob_shas && !visaShasMudaram(st.blob_shas, blobShas) &&
         Number(st.mes) === Number(mes) && Number(st.ano) === Number(ano)) {
-      return; // já importado para esta versão dos CSVs — nada a fazer
+      // CSVs sem mudança. Se o 360 mudou, só a revalidação do mês: ela aplica
+      // aos lançamentos 360 dos colegas as regras do dia (plantão, escala,
+      // operação fiscal, relatório técnico, ocorrência) que a importação do
+      // CSV aplica na criação — sem reimportar nada.
+      if (mudou360 && typeof window.revalidarMesVISA === 'function') {
+        const _t0 = Date.now();
+        const _r0 = (typeof window.rmReadsSession === 'function') ? window.rmReadsSession() : 0;
+        if (typeof window.rmSetReadContext === 'function') window.rmSetReadContext('revalida_360');
+        try {
+          const r = await window.revalidarMesVISA({
+            mes, ano, onProgress: () => {},
+            quemEmail: user.email, quemNome: user.nome || user.email,
+          });
+          await registrarImportStateVisa(r, mes, ano, null, {
+            tipo: 'revalida_360', dur_s: Math.round((Date.now() - _t0) / 1000),
+            leituras: (typeof window.rmReadsSession === 'function') ? (window.rmReadsSession() - _r0) : null,
+            state, insp360Rev: rev360,
+          });
+          const reab = (r && r.reabertos_incompat) || 0;
+          if (reab) {
+            _visaAutoMsg(`🔄 ${reab} lançamento(s) reaberto(s) por incompatibilidade com o Lançamento 360 — confira na Conferência.`, 'warn');
+            _visaAutoToastHide(12000);
+          }
+        } catch (e) {
+          // Lock ocupado (importação em andamento) — tenta no próximo ciclo.
+          if (!/andamento/i.test(String(e && e.message || ''))) {
+            console.warn('[VISA auto-import] Falha na revalidação do 360:', e && e.message);
+          }
+        }
+      }
+      return; // já importado para esta versão dos CSVs
     }
 
     // 4. Importar todos os fiscais
@@ -253,6 +296,8 @@ async function verificarEImportarVISA(user) {
         tipo: 'visa', dur_s: Math.round((Date.now() - _runT0) / 1000),
         leituras: (typeof window.rmReadsSession === 'function') ? (window.rmReadsSession() - _runR0) : null,
         state,
+        // A importação completa já inclui a revalidação do mês.
+        insp360Rev: rev360,
       });
       const total = r ? ((r.criados || 0) + (r.atualizados || 0)) : 0;
       const reab = r ? ((r.reabertos || 0) + (r.reabertos_orfaos || 0) + (r.reabertos_incompat || 0)) : 0;

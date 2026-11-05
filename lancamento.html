@@ -355,9 +355,9 @@
       const vistorias = await window.vistoriasImportadasNoDia(user.email, data);
       if (vistorias.length) {
         showAlert('danger',
-          `🚫 Impossível lançar plantão em data com vistoria(s) importada(s) do VISA com pontuação. ` +
+          `🚫 Impossível lançar plantão em data com vistoria(s) do CVS, SIM ou Lançamento 360 com pontuação. ` +
           `O dia <strong>${fmtData(data)}</strong> já possui <strong>${vistorias.length}</strong> ` +
-          `vistoria(s) importada(s) que geram pontos.`);
+          `vistoria(s) que geram pontos.`);
         btns.forEach(b => { b.disabled = false; });
         return;
       }
@@ -385,9 +385,9 @@
       const vistorias = await window.vistoriasNoDia(user.email, data);
       if (vistorias.length) {
         showAlert('danger',
-          `🚫 Impossível lançar operação fiscal em data com vistoria(s) importada(s). ` +
+          `🚫 Impossível lançar operação fiscal em data com vistoria(s). ` +
           `O dia <strong>${fmtData(data)}</strong> já possui <strong>${vistorias.length}</strong> ` +
-          `vistoria(s) (VISA/SIM) — operação fiscal não é cumulativa com vistoria no mesmo dia.`);
+          `vistoria(s) (CVS, SIM ou Lançamento 360) — operação fiscal não é cumulativa com vistoria no mesmo dia.`);
         btns.forEach(b => { b.disabled = false; });
         return;
       }
