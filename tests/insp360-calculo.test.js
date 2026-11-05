@@ -285,3 +285,39 @@ test('Conferência: duplicidade CVS × 360 pela mesma inspeção', () => {
   lista[0].status = 'recusado';
   assert.equal(idsDuplicidade360(lista).size, 0);
 });
+
+test('validação para salvar: tudo o que a chefia confere precisa estar informado', async () => {
+  servir([CAB].join('\n'), 'CONTROLE;VISITA_CTRL;SUBCLASSE');
+  const cnaeMap = await insp360CarregarCnaeMap();
+  const ctx = { cnaeMap, hoje: '2026-11-30', usuarioEmail: A.email };
+  const ok = {
+    codigo: 'R1', data: '2026-11-04', documento: 'TERMO DE INTIMAÇÃO', numeroDoc: '127236',
+    semNumero: false, entregue: true, cnae: '1111-1/01', cnaesExtras: ['2222-2/02'],
+    fiscais: [{ ...A, eh360: true }, { ...B, eh360: false }],
+  };
+  const campos = (insp) => validarInspecao360(insp, ctx).map(e => e.campo);
+  assert.deepEqual(campos(ok), []);
+
+  // Nº obrigatório nos documentos de talão…
+  assert.deepEqual(campos({ ...ok, numeroDoc: '' }), ['f-numero-doc']);
+  // …salvo "documento sem número" declarado.
+  assert.deepEqual(campos({ ...ok, numeroDoc: '', semNumero: true }), []);
+  // Opcional onde o número é exceção (certidão).
+  assert.deepEqual(campos({ ...ok, documento: 'CERTIDÃO', numeroDoc: '' }), []);
+  // Formato: só dígitos, não zerado.
+  assert.deepEqual(campos({ ...ok, numeroDoc: '12a36' }), ['f-numero-doc']);
+  assert.deepEqual(campos({ ...ok, numeroDoc: '000000' }), ['f-numero-doc']);
+  // Demais campos.
+  assert.deepEqual(campos({ ...ok, codigo: '' }), ['f-regulado-busca']);
+  assert.deepEqual(campos({ ...ok, data: '' }), ['f-data']);
+  assert.deepEqual(campos({ ...ok, data: '2026-12-01' }), ['f-data']);           // futura
+  assert.deepEqual(campos({ ...ok, data: '2026-03-31' }), ['f-data']);           // antes de abr/2026
+  assert.deepEqual(campos({ ...ok, documento: '' }), ['f-documento']);
+  assert.deepEqual(campos({ ...ok, entregue: null }), ['f-entregue']);
+  assert.deepEqual(campos({ ...ok, cnae: '' }), ['f-cnae']);
+  assert.deepEqual(campos({ ...ok, cnae: '1234-5/67' }), ['f-cnae']);           // fora da tabela
+  assert.deepEqual(campos({ ...ok, cnaesExtras: ['8888-8/88'] }), ['f-cnae-extra']);
+  assert.deepEqual(campos({ ...ok, fiscais: [] }), ['fiscais-linhas']);
+  assert.deepEqual(campos({ ...ok, fiscais: [{ ...B, eh360: false }] }), ['fiscais-linhas']); // sem o logado
+  assert.deepEqual(campos({ ...ok, fiscais: [{ ...A, eh360: true }, { ...A, eh360: true }] }), ['fiscais-linhas']);
+});

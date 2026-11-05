@@ -35,6 +35,21 @@
     'TERMO DE COLETA DE AMOSTRA',
   ];
 
+  // Documentos de talão: no CVS praticamente sempre têm nº impresso (0–2% sem
+  // número em 2026). No 360 o nº é obrigatório para eles, salvo quando o fiscal
+  // declara "documento sem número". Nos demais (certidão, PAS, relatórios,
+  // manifestação…), onde o número é exceção, segue opcional.
+  const DOCUMENTOS_COM_NUMERO = [
+    'TERMO DE INTIMAÇÃO',
+    'TERMO DE NOTIFICAÇÃO',
+    'AUTO DE INFRAÇÃO',
+    'AUTO DE IMPOSIÇÃO DE PENALIDADE',
+    'TERMO DE COLETA DE AMOSTRA',
+  ];
+  function exigeNumeroDocumento(documento) {
+    return DOCUMENTOS_COM_NUMERO.includes(String(documento || '').trim());
+  }
+
   // Sem OS não há autorização prévia a conferir: o 3º fiscal em diante entra
   // pendente e o administrador autoriza na Conferência, como no CVS.
   const MOTIVO_PENDENCIA_360 =
@@ -287,6 +302,57 @@
     };
   }
 
+  // ── Validação para salvar ──────────────────────────────────────────────
+  // Tudo o que a chefia precisa para conferir o lançamento tem de estar
+  // informado. Retorna [{ campo, msg }] — `campo` é o id do controle na página
+  // (para destacar), vazio quando não há o que destacar.
+  //   ctx: { cnaeMap, hoje (ISO), usuarioEmail }
+  function validarInspecao360(insp, ctx) {
+    const erros = [];
+    const add = (campo, msg) => erros.push({ campo, msg });
+    if (!insp.codigo) add('f-regulado-busca', 'Selecione o regulado na lista.');
+
+    if (!insp.data) add('f-data', 'Informe a data da visita.');
+    else if (!/^\d{4}-\d{2}-\d{2}$/.test(insp.data)) add('f-data', 'Data da visita inválida.');
+    else {
+      const [a, m] = insp.data.split('-').map(Number);
+      if (!window.visaMesAberto(m, a)) add('f-data', 'A data da visita é anterior a abril/2026.');
+      if (ctx.hoje && insp.data > ctx.hoje) add('f-data', 'A data da visita não pode ser futura.');
+    }
+
+    if (!insp.documento) add('f-documento', 'Selecione o documento lavrado.');
+    else if (!DOCUMENTOS_360.includes(insp.documento)) add('f-documento', 'Documento lavrado inválido.');
+
+    const num = String(insp.numeroDoc || '').trim();
+    if (num) {
+      if (!/^\d{1,10}$/.test(num) || /^0+$/.test(num)) {
+        add('f-numero-doc', 'Nº impresso do documento inválido — use só os dígitos do talão (ex.: 127236).');
+      }
+    } else if (exigeNumeroDocumento(insp.documento) && !insp.semNumero) {
+      add('f-numero-doc', `Informe o nº impresso do ${String(insp.documento).toLowerCase()} ` +
+        '(ou marque "Documento sem número", se for o caso).');
+    }
+
+    if (insp.entregue !== true && insp.entregue !== false) add('f-entregue', 'Informe se o documento foi entregue.');
+
+    const cnaeMap = ctx.cnaeMap || new Map();
+    if (!insp.cnae) add('f-cnae', 'Informe o CNAE da atividade vistoriada.');
+    else if (!cnaeMap.has(insp.cnae)) add('f-cnae', `CNAE ${insp.cnae} não encontrado na tabela de competência da vigilância — escolha um CNAE da lista.`);
+    const extrasInvalidos = (insp.cnaesExtras || []).filter(c => !cnaeMap.has(c));
+    if (extrasInvalidos.length) {
+      add('f-cnae-extra', `CNAE(s) extra(s) fora da tabela de competência: ${extrasInvalidos.join(', ')} — remova ou corrija.`);
+    }
+
+    const fiscais = insp.fiscais || [];
+    if (!fiscais.length) add('fiscais-linhas', 'Informe os fiscais participantes.');
+    else if (ctx.usuarioEmail && !fiscais.some(f => f.email === ctx.usuarioEmail)) {
+      add('fiscais-linhas', 'Você precisa constar entre os fiscais da inspeção.');
+    }
+    const emails = fiscais.map(f => f.email).filter(Boolean);
+    if (new Set(emails).size !== emails.length) add('fiscais-linhas', 'Há fiscal repetido na lista.');
+    return erros;
+  }
+
   // ── Gravação ───────────────────────────────────────────────────────────
   // `existente`: doc insp360 quando é edição (null para nova inspeção).
   // Só cria/atualiza/apaga lançamentos editáveis (enviado/pendente); os
@@ -337,6 +403,7 @@
       data: insp.data, mes, ano,
       documento: String(insp.documento || '').trim(),
       numero_documento: insp.numeroDoc ? String(insp.numeroDoc).trim() : null,
+      documento_sem_numero: !insp.numeroDoc && !!insp.semNumero,
       entregue: insp.entregue !== false,
       modalidade: MODALIDADE_360,
       cnae: String(insp.cnae || '').trim(),
@@ -369,6 +436,9 @@
   window.MODALIDADE_360        = MODALIDADE_360;
   window.DOCUMENTOS_360        = DOCUMENTOS_360;
   window.MOTIVO_PENDENCIA_360  = MOTIVO_PENDENCIA_360;
+  window.DOCUMENTOS_COM_NUMERO_360 = DOCUMENTOS_COM_NUMERO;
+  window.exigeNumeroDocumento360   = exigeNumeroDocumento;
+  window.validarInspecao360        = validarInspecao360;
   window.insp360EhTravado      = ehTravado;
   window.ehParticipante360     = ehParticipante360;
   window.insp360CarregarCnaeMap          = carregarCnaeMap;
