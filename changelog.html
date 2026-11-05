@@ -44,6 +44,23 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.42.0</span>
+            <span class="badge-date">05/11/2026</span>
+          </div>
+          <div class="changelog-title">Lan&ccedil;amento 360: inspe&ccedil;&atilde;o digitada no RMPF na fase de transi&ccedil;&atilde;o</div>
+          <ul class="changelog-changes">
+            <li><strong>O que &eacute;</strong> &mdash; novo item de menu <strong>&#128260; Lan&ccedil;amento 360</strong> no perfil Fiscal. A inspe&ccedil;&atilde;o que hoje chega pelo <code>inspecoes.csv</code> pode ser digitada (regulado, data da visita, documento lavrado e n&ordm;, documento entregue, CNAE e CNAEs extras, fiscais), e o <strong>c&aacute;lculo da produ&ccedil;&atilde;o</strong> aparece na hora, por fiscal e por CNAE, com complexidade, &aacute;rea, redu&ccedil;&atilde;o de dupla/trio, teto de 48 pontos e dispositivo legal.</li>
+            <li><strong>Quem salva</strong> &mdash; todo fiscal pode preencher e conferir o c&aacute;lculo, para se familiarizar. O bot&atilde;o <em>Salvar</em> fica liberado s&oacute; para quem tem a marca&ccedil;&atilde;o <strong>Participante da Transi&ccedil;&atilde;o 360</strong> no Admin de usu&aacute;rios do VISA (campo <code>usuarios.transicao360</code>).</li>
+            <li><strong>Mesmo c&aacute;lculo do CVS</strong> &mdash; as regras de pontua&ccedil;&atilde;o sa&iacute;ram de dentro da importa&ccedil;&atilde;o para fun&ccedil;&otilde;es pr&oacute;prias em <code>js/visa-import.js</code> (<code>montarCnaeMapVisa</code>, <code>montarAlvosInspecaoVisa</code>, <code>regraDiaVistoriaVisa</code>), usadas pela importa&ccedil;&atilde;o e pelo 360. A importa&ccedil;&atilde;o n&atilde;o mudou: o teste de snapshot continua id&ecirc;ntico.</li>
+            <li><strong>Ao salvar</strong> &mdash; a inspe&ccedil;&atilde;o fica em <code>insp360/360-AAAA-NNNNN</code> e gera lan&ccedil;amentos em <code>manuais</code> (origem <code>insp360</code>) para cada fiscal da equipe marcado como 360, que seguem para a homologa&ccedil;&atilde;o. Modalidade fixa <em>TRANSI&Ccedil;&Atilde;O 360</em>, sem OS. Do 3&ordm; fiscal em diante o lan&ccedil;amento entra <em>pendente</em> at&eacute; a autoriza&ccedil;&atilde;o. O fiscal edita ou exclui em <em>Minhas inspe&ccedil;&otilde;es 360</em> at&eacute; a homologa&ccedil;&atilde;o; homologado, fechado e recusado nunca s&atilde;o alterados.</li>
+            <li><strong>Nas outras telas</strong> &mdash; selo <strong>360</strong> em Meus Lan&ccedil;amentos, no painel e na Confer&ecirc;ncia; alerta <strong>CVS&times;360</strong> na Confer&ecirc;ncia quando a mesma inspe&ccedil;&atilde;o (fiscal, data, regulado e CNAE) chega pelos dois caminhos. As regras de n&atilde;o cumulatividade passam a tratar o lan&ccedil;amento 360 como vistoria ou relat&oacute;rio t&eacute;cnico, nunca como lan&ccedil;amento manual de dia inteiro.</li>
+            <li><strong>Regras do Firestore</strong> &mdash; blocos <code>insp360</code>, <code>insp360_sequencia</code> e o trecho 360 de <code>manuais</code>, no reposit&oacute;rio do VISA, publicados manualmente no Console.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>lancamento-360.html</code> e <code>js/insp360.js</code> (novos); <code>js/visa-import.js</code> &mdash; motor compartilhado e origem <code>insp360</code>; <code>js/firestore.js</code> &mdash; fun&ccedil;&otilde;es <code>db_*Insp360</code>; <code>js/utils.js</code> &mdash; <code>idsDuplicidade360</code> e <code>duplicidade360Html</code>; <code>css/rmpf.css</code>; <code>meus-lancamentos.html</code>, <code>dashboard.html</code>, <code>conferencia.html</code> e menus do Fiscal; <code>tests/insp360-calculo.test.js</code>; <code>docs/lancamento-360.md</code>; <code>js/version.js</code> &mdash; 1.42.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.42.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.41.0</span>
             <span class="badge-date">04/11/2026</span>
           </div>
