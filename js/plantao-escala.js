@@ -8,7 +8,7 @@
 // `vespertino` (strings) e `integral` (array) — por isso o match usa a mesma
 // normalização de nome do pipeline de importação (acentos/caixa/espaços).
 //
-// Política fail-open (decisão de 03/07/2026, docs/validacao-escala-plantao.md):
+// Política fail-open (decisão de 03/07/2026, docs/RN-RMPF-REGRAS-NEGOCIO-v1.0.md, seção 4):
 // mês sem escala publicada ou falha de leitura NÃO bloqueia nem zera nada;
 // as validações só agem quando a escala do mês existe. Dia ausente do array
 // `dias[]` de uma escala publicada conta como "ninguém escalado".
