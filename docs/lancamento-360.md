@@ -27,7 +27,7 @@ pode ser **digitada** no Lançamento 360, com o cálculo da produção na hora.
 | 3º fiscal em diante | Entra `pendente` (sem OS, não há autorização prévia a conferir); o administrador autoriza na Conferência, como no CVS. |
 | Correção | O fiscal-360 edita/exclui a inspeção até a homologação. Lançamentos `aceito`/`homologado`/`fechado`/`recusado` nunca são alterados nem apagados pelo 360 (a recusa é definitiva, como no CVS); a exclusão da inspeção fica bloqueada se houver algum homologado/fechado/recusado. |
 | Prazo de lançamento | O prazo do lançamento manual (`db_validateDeadlineReleaseDate`) não se aplica — como no CVS. Competência fechada bloqueia. |
-| Datas | A partir de abril/2026 (mesma regra da importação) e não futura. |
+| Datas | Data da visita a partir de **03/11/2026** (início da Transição 360; outubro/2026 já fechado — `DATA_INICIO_360`, `js/insp360.js`) e não futura. |
 | Validação ao salvar | Tudo o que a chefia confere é obrigatório (`validarInspecao360`, `js/insp360.js`): regulado, data, documento lavrado, **nº do documento em todo documento** (qualquer formato — a numeração do 360 não é a do talão do CVS; basta haver um nº), documento entregue (sem valor padrão), CNAE da tabela de competência (extras também), fiscais (com o logado, sem repetição). O Salvar fica ativo e lista as pendências, destacando os campos. |
 | Salvar grava o que está na tela | `salvar()` recalcula a partir do formulário atual antes de gravar (antes, o último campo alterado antes do clique podia se perder). |
 
