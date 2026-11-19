@@ -30,6 +30,41 @@
       .metric-card-wide { grid-column: span 2; }
     }
 
+    /* Resumo dos lançamentos do fiscal (data, tipo, valor, status) */
+    .fiscal-resumo table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .88rem;
+    }
+    .fiscal-resumo thead th {
+      background: var(--cinzaB);
+      padding: .4rem .6rem;
+      text-align: left;
+      font-weight: 600;
+      color: var(--cinzaT);
+      white-space: nowrap;
+    }
+    .fiscal-resumo thead th.th-num { text-align: right; }
+    .fiscal-resumo thead th.th-center { text-align: center; }
+    .fiscal-resumo tbody td {
+      padding: .4rem .6rem;
+      border-bottom: 1px solid var(--cinzaB);
+      vertical-align: middle;
+    }
+    .fiscal-resumo tbody td.td-nowrap { white-space: nowrap; }
+    .fiscal-resumo tbody td.td-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .fiscal-resumo tbody td.td-status { text-align: center; font-size: 1.05rem; }
+    .fiscal-resumo tbody tr:last-child td { border-bottom: none; }
+    .fiscal-resumo .fiscal-resumo-legenda {
+      margin-top: .6rem;
+      font-size: .78rem;
+      color: var(--cinzaT);
+    }
+    @media (max-width: 600px) {
+      .fiscal-resumo table { font-size: .82rem; }
+      .fiscal-resumo thead th, .fiscal-resumo tbody td { padding: .3rem .45rem; }
+    }
+
     /* Mini-resumo de fiscais — visível apenas em mobile */
     .admin-mini-resumo { display: none; }
     @media (max-width: 600px) {
@@ -220,39 +255,25 @@
 
       <div id="alert-fiscal"></div>
 
-      <div class="card">
+      <div class="card fiscal-resumo">
         <div class="card-title d-flex justify-between align-center">
-          <span>⏳ Atividades Pendentes</span>
+          <span>📋 Resumo dos Lançamentos</span>
           <a href="lancamento.html" class="btn btn-primary btn-sm nao-imprimir">+ Nova Atividade</a>
         </div>
-        <div class="table-wrap">
-          <table class="rmpf-table">
-            <thead>
-              <tr>
-                <th>Controle</th>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Origem da Demanda</th>
-                <th>OS</th>
-                <th>Documento</th>
-                <th class="td-center">Origem CNAE</th>
-                <th class="td-center">Complexidade</th>
-                <th class="td-center">Área</th>
-                <th class="td-center">Fiscais</th>
-                <th>Descrição</th>
-                <th class="td-num">Pts Req.</th>
-                <th class="td-center">Prazo</th>
-                <th class="td-num">Pts Hom.</th>
-                <th>Status</th>
-                <th class="td-center nao-imprimir">Anexo</th>
-                <th class="td-center nao-imprimir">Ações</th>
-              </tr>
-            </thead>
-            <tbody id="tbody-fiscal">
-              <tr class="empty-row"><td colspan="17">Selecione uma competência e clique em Carregar</td></tr>
-            </tbody>
-          </table>
-        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Tipo</th>
+              <th class="th-num">Valor</th>
+              <th class="th-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody-fiscal">
+            <tr class="empty-row"><td colspan="4">Selecione uma competência e clique em Carregar</td></tr>
+          </tbody>
+        </table>
+        <div class="fiscal-resumo-legenda">✅ Homologado &nbsp;·&nbsp; ⏳ Pendente &nbsp;·&nbsp; ❌ Recusado &nbsp;·&nbsp; <a href="meus-lancamentos.html">Ver detalhes em Meus Lançamentos</a></div>
       </div>
     </div>
 
@@ -570,12 +591,41 @@
     }
   }
 
+  // ── Resumo do fiscal: tipo curto e ícone de status ────────
+  const TIPO_RESUMO = {
+    VIS: 'Inspeção',
+    PLT: 'Plantão',
+    OPF: 'Operação fiscal',
+    ARQ: 'Análise de projeto',
+    COL: 'Coleta de amostra',
+    MAN: 'Manifestação',
+    CUR: 'Curso / evento',
+    REL: 'Relatório técnico',
+    RLH: 'Relatório harmonizado',
+    SRV: 'Serviço técnico',
+    CER: 'Certidão',
+  };
+  function tipoResumo(codigo) {
+    if (TIPO_RESUMO[codigo]) return TIPO_RESUMO[codigo];
+    const t = TIPOS_ATIVIDADE.find(x => x.codigo === codigo);
+    return t ? t.nome : (codigo || '—');
+  }
+  // aceito/homologado → ✅; recusado → ❌; demais (enviado, pendente,
+  // rascunho, reaberto) ainda não homologados → ⏳.
+  function statusResumo(m) {
+    if (m.status === 'aceito' || m.status === 'homologado')
+      return { icone: '✅', titulo: 'Homologado', homologado: true };
+    if (m.status === 'recusado')
+      return { icone: '❌', titulo: 'Recusado' + (m.motivo_recusa ? ': ' + escHtml(m.motivo_recusa) : '') };
+    return { icone: '⏳', titulo: m.status === 'rascunho' ? 'Pendente (rascunho)' : 'Pendente' };
+  }
+
   // ── Fiscal view ───────────────────────────────────────────
   async function loadFiscal(user) {
     const mes = Number(document.getElementById('sel-mes').value);
     const ano = Number(document.getElementById('sel-ano').value);
     const tbody = document.getElementById('tbody-fiscal');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="17"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4"><div class="spinner"></div></td></tr>';
 
     try {
       const manuais = await db_getManuais(user.email, mes, ano);
@@ -601,80 +651,28 @@
       if (pendentesVisa.length > 0) alerts += alerta('warn', `Você tem <strong>${pendentesVisa.length}</strong> lançamento(s) importado(s) do VISA pendente(s) por falta de autorização do terceiro.`);
       document.getElementById('alert-fiscal').innerHTML = alerts;
 
-      const naoHomologados = manuais.filter(m => m.status !== 'aceito' && m.status !== 'homologado');
-
-      if (!naoHomologados.length) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="17">Nenhuma atividade pendente nesta competência</td></tr>';
+      if (!manuais.length) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Nenhum lançamento nesta competência</td></tr>';
         return;
       }
 
-      tbody.innerHTML = naoHomologados.map(m => {
-        const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
-        // Esta tabela lista justamente os não homologados — é aqui que o
-        // lançamento reaberto aparece para o fiscal. Sem o selo e sem o ícone
-        // com o motivo, ele vê a pontuação cair sem nenhuma explicação: o
-        // mesmo tratamento das outras telas passa a valer no painel.
-        const avisos =
-          `${window.reabertoWarningHtml ? window.reabertoWarningHtml(m) : ''}` +
-          `${window.cnaeMigradoWarningHtml ? window.cnaeMigradoWarningHtml(m) : ''}` +
-          `${window.recusaAlteradaWarningHtml ? window.recusaAlteradaWarningHtml(m) : ''}` +
-          `${window.motivoRecusaHtml ? window.motivoRecusaHtml(m) : ''}`;
-        const statusCell = m.status === 'pendente' && m.motivo_pendencia
-          ? `${badge('pendente-fiscal')}${avisos}<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia)}</span>`
-          : `${m.reaberto_motivo && m.status === 'enviado' ? badge('reaberto') : badge(m.status)}${avisos}`;
+      const ordenados = manuais.slice().sort((a, b) =>
+        String(a.data || '').localeCompare(String(b.data || '')) ||
+        String(a.controle || '').localeCompare(String(b.controle || '')));
 
-        const motivoOSNorm = (m.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
-        const isVigilanciaAtiva = motivoOSNorm === 'VIGILANCIA ATIVA';
-        const origemHtml = m.motivo_os
-          ? (isVigilanciaAtiva ? `<span class="text-vigilancia-ativa">${escHtml(m.motivo_os)}</span>` : escHtml(m.motivo_os))
-          : '—';
-
-        const anexoCell = m.anexo_url
-          ? `<a href="${escHtml(m.anexo_url)}" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="${escHtml(m.anexo_nome || 'arquivo')}">📎</a>`
-          : '—';
-
-        let acoes = '';
-        if (m.origem === 'visa_csv') {
-          acoes = `<span class="badge badge-cvs" title="Importado do VISA — somente leitura">CVS</span>`;
-          if (m.status === 'pendente') {
-            acoes += `<br><span style="font-size:.75rem;color:var(--azul)">⚠️ ${escHtml(m.motivo_pendencia || 'Aguardando autorização')}</span>`;
-          }
-        } else if (m.origem === 'sim_csv') {
-          acoes = `<span class="badge badge-cvs" title="Importado do SIM — somente leitura">SIM</span>`;
-        } else if (m.origem === 'insp360') {
-          acoes = `<a href="lancamento-360.html" class="badge badge-360" title="Lançamento 360 — editar pela página Lançamento 360">360</a>`;
-        } else if (m.status === 'rascunho') {
-          acoes = `<a href="meus-lancamentos.html" class="btn btn-outline btn-sm">✏️ Editar</a>`;
-        } else if (m.status === 'enviado') {
-          acoes = `<span class="text-muted" style="font-size:.8rem">⏳ Aguardando</span>`;
-        } else if (m.status === 'recusado') {
-          acoes = `<a href="meus-lancamentos.html" class="btn btn-outline btn-sm">✏️ Corrigir</a>`;
-        } else if (m.status === 'pendente') {
-          acoes = `<a href="meus-lancamentos.html" class="btn btn-outline btn-sm">Ver</a>`;
-        }
-
+      tbody.innerHTML = ordenados.map(m => {
+        const st = statusResumo(m);
+        // Homologado: vale o que a conferência homologou; demais: o requerido.
+        const valor = st.homologado && m.pontos_homologado != null ? m.pontos_homologado : m.pontos;
         return `<tr>
-          <td data-label="Controle"><span class="ctrl-num">${escHtml(m.controle || '—')}</span></td>
-          <td data-label="Data">${fmtData(m.data)}</td>
-          <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo || '—')}</td>
-          <td data-label="Origem da Demanda">${origemHtml}</td>
-          <td data-label="OS">${escHtml(m.os_numero || '—')}</td>
-          <td data-label="Documento">${window.documentoComNumeroHtml ? window.documentoComNumeroHtml(m) : escHtml(m.documento || '—')}</td>
-          <td data-label="Origem CNAE" class="td-center">${escHtml(m.cnae_origem || '—')}</td>
-          <td data-label="Complexidade" class="td-center">${window.complexidadeHtml ? window.complexidadeHtml(m) : escHtml(m.complexidade || '—')}${window.cnaeAltaIndicadaHtml ? window.cnaeAltaIndicadaHtml(m) : ''}</td>
-          <td data-label="Área" class="td-center td-nowrap">${m.visa_area != null ? escHtml((Math.round(m.visa_area * 100) / 100) + ' m²') : '—'}</td>
-          <td data-label="Fiscais" class="td-center td-nowrap">${window.fiscaisCountHtml ? window.fiscaisCountHtml(m) : '—'}${window.fiscaisAlertaHtml ? window.fiscaisAlertaHtml(m) : ''}</td>
-          <td data-label="Descrição">${(m.codigo || m.razao) ? `<a href="#" class="link-regulado" onclick="abrirRegulado('${escHtml(m.id)}');return false">${escHtml(m.descricao || '—')}</a>` : escHtml(m.descricao || '—')}</td>
-          <td data-label="Pts Req." class="td-num">${m.pontos != null ? formatPontos(m.pontos) : '—'}${window.zeradoWarningHtml ? window.zeradoWarningHtml(m) : ''}</td>
-          <td data-label="Prazo" class="td-center">${window.prazoWarningHtml(m)}</td>
-          <td data-label="Pts Hom." class="td-num">${m.pontos_homologado != null ? formatPontos(m.pontos_homologado) : '—'}</td>
-          <td data-label="Status">${statusCell}</td>
-          <td data-label="Anexo" class="td-center nao-imprimir">${anexoCell}</td>
-          <td data-label="Ações" class="td-center nao-imprimir">${acoes}</td>
+          <td class="td-nowrap">${fmtData(m.data)}</td>
+          <td>${escHtml(tipoResumo(m.tipo_codigo))}</td>
+          <td class="td-num">${valor != null ? formatPontos(valor) : '—'}</td>
+          <td class="td-status"><span title="${st.titulo}" aria-label="${st.titulo}">${st.icone}</span></td>
         </tr>`;
       }).join('');
     } catch (e) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="17">${alerta('danger','Erro ao carregar dados: ' + e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="4">${alerta('danger','Erro ao carregar dados: ' + escHtml(e.message))}</td></tr>`;
     }
   }
 
