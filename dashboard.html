@@ -119,8 +119,12 @@
       to   { box-shadow: inset 0 0 0 2px transparent; }
     }
 
-    /* Fiscais que não atingiram a apuração de 200% */
-    .tr-lara td { background: var(--laraP) !important; color: var(--lara) !important; font-weight: 600; }
+    /* Fiscais que não atingiram a apuração de 200%: linha neutra (mesmo
+       visual da tabela do fiscal) com um filete laranja à esquerda; a cor
+       fica só na apuração parcial. */
+    .tr-lara td:first-child { box-shadow: inset 3px 0 0 var(--lara); }
+    .apur-parcial { color: var(--lara); font-weight: 600; }
+    .apur-total   { color: var(--verde); font-weight: 600; }
 
     /* Sync card do VISA */
     .visa-sync-card {
@@ -677,6 +681,10 @@
   }
 
   // ── Admin view ────────────────────────────────────────────
+  // Apuração: verde só ao atingir 200%; laranja quando parcial.
+  function apurClasse(apur) {
+    return apur >= 200 ? 'apur-total' : apur > 0 ? 'apur-parcial' : '';
+  }
   function nomeAbrev(nome) {
     const partes = (nome || '').trim().split(/\s+/).filter(Boolean);
     if (partes.length < 2) return partes[0] || nome || '';
@@ -720,7 +728,7 @@
           <td data-label="PP" class="td-num">${formatPontos(result.pp)}</td>
           <td data-label="PN" class="td-num">${formatPontos(result.pn)}</td>
           <td data-label="PV" class="td-num">${formatPontos(result.pv)}</td>
-          <td data-label="Apuração" class="td-num fw-bold ${result.apuracao > 0 ? 'text-verde' : ''}">${result.apuracao}%</td>
+          <td data-label="Apuração" class="td-num fw-bold ${apurClasse(result.apuracao)}">${result.apuracao}%</td>
           <td data-label="Pendentes" class="td-num">${pendentes > 0 ? `<span class="badge badge-pendente">${pendentes}</span>` : '—'}</td>
           <td data-label="Ações" class="nao-imprimir">
             <a href="conferencia.html?fiscal=${encodeURIComponent(f.email || f.id)}&mes=${mes}&ano=${ano}" class="btn btn-outline btn-sm">Conferir</a>
@@ -741,7 +749,7 @@
           <td><a href="#${fiscalAnchor(f)}" class="mini-resumo-link">${escHtml(nomeAbrev(f.nome || f.id))}</a></td>
           <td class="td-num">${ptosReq > 0 ? formatPontos(ptosReq) : '—'}</td>
           <td class="td-num">${formatPontos(result.pv)}</td>
-          <td class="td-num ${result.apuracao > 0 ? 'text-verde fw-bold' : ''}">${result.apuracao > 0 ? result.apuracao + '%' : '—'}</td>
+          <td class="td-num ${apurClasse(result.apuracao)}">${result.apuracao > 0 ? result.apuracao + '%' : '—'}</td>
           <td class="td-status">${statusIcon}</td>
         </tr>`;
       }).join('');
