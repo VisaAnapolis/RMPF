@@ -833,6 +833,20 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
     --shadow-md: 0 4px 16px rgba(0,0,0,.50);
   }
   .loading-overlay { background: rgba(30,33,40,.85); }
+
+  /* Alertas: no claro o texto é um tom escuro da cor do alerta; no escuro
+     esse texto sumia sobre o fundo também escuro (--amarP etc.). Aqui o fundo
+     vira uma película translúcida da cor sobre o cartão e o texto passa a ser
+     um tom claro da mesma cor — contraste acima de 7:1 nos quatro tipos. */
+  .alert-warn  { background: rgba(224,124,39,.12); color: #fde4c4; }
+  .alert-info  { background: rgba(74,144,217,.12); color: #d3e6fb; }
+  .alert-danger{ background: rgba(224,85,85,.12);  color: #fbd5d5; }
+  .alert-ok    { background: rgba(61,186,114,.12); color: #c9f2da; }
+  .alert-warn strong   { color: #ffb066; }
+  .alert-info strong   { color: #8cc0f5; }
+  .alert-danger strong { color: #ff9a9a; }
+  .alert-ok strong     { color: #7fe0a8; }
+  .alert a { color: inherit; text-decoration: underline; }
 }
 
 /* ── Responsive ── */
