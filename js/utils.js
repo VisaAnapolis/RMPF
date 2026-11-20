@@ -1481,37 +1481,6 @@ function alertaRecusadosHtml(lista, opts) {
   return alerta('danger', html);
 }
 
-// ── Resumo de lançamentos: tipo curto e ícone de status ──
-// Usado na tabela resumida do painel do fiscal (dashboard) e na tabela
-// resumida da Conferência no celular.
-const TIPO_RESUMO = {
-  VIS: 'Inspeção',
-  PLT: 'Plantão',
-  OPF: 'Operação fiscal',
-  ARQ: 'Análise de projeto',
-  COL: 'Coleta de amostra',
-  MAN: 'Manifestação',
-  CUR: 'Curso / evento',
-  REL: 'Relatório técnico',
-  RLH: 'Relatório harmonizado',
-  SRV: 'Serviço técnico',
-  CER: 'Certidão',
-};
-function tipoResumo(codigo) {
-  if (TIPO_RESUMO[codigo]) return TIPO_RESUMO[codigo];
-  const t = TIPOS_ATIVIDADE.find(x => x.codigo === codigo);
-  return t ? t.nome : (codigo || '—');
-}
-// aceito/homologado → ✅; recusado → ❌; demais (enviado, pendente,
-// rascunho, reaberto) ainda não homologados → ⏳.
-function statusResumo(m) {
-  if (m.status === 'aceito' || m.status === 'homologado')
-    return { icone: '✅', titulo: 'Homologado', homologado: true };
-  if (m.status === 'recusado')
-    return { icone: '❌', titulo: 'Recusado' + (m.motivo_recusa ? ': ' + escHtml(m.motivo_recusa) : '') };
-  return { icone: '⏳', titulo: m.status === 'rascunho' ? 'Pendente (rascunho)' : 'Pendente' };
-}
-
 // Expose globals
 window.TABELA_PONTUACAO = TABELA_PONTUACAO;
 window.TIPOS_ATIVIDADE  = TIPOS_ATIVIDADE;
@@ -1529,8 +1498,6 @@ window.dispositivoLegal         = dispositivoLegal;
 window.dispositivoLegalOcorrencia = dispositivoLegalOcorrencia;
 window.TIPOS_OCORRENCIA         = TIPOS_OCORRENCIA;
 window.labelOcorrencia          = labelOcorrencia;
-window.tipoResumo               = tipoResumo;
-window.statusResumo             = statusResumo;
 window.round2               = round2;
 window.formatPontos         = formatPontos;
 window.FATOR_30H             = FATOR_30H;

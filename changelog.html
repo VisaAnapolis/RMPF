@@ -44,6 +44,20 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.45.1</span>
+            <span class="badge-date">20/11/2026</span>
+          </div>
+          <div class="changelog-title">Confer&ecirc;ncia: corre&ccedil;&atilde;o do erro &ldquo;statusResumo&rdquo;</div>
+          <ul class="changelog-changes">
+            <li><strong>Erro ao carregar</strong> &mdash; logo ap&oacute;s a publica&ccedil;&atilde;o da 1.45.0, a Confer&ecirc;ncia podia exibir &ldquo;Can&rsquo;t find variable: statusResumo&rdquo; e n&atilde;o mostrar nenhuma tabela: o navegador usava a p&aacute;gina nova com o <code>js/utils.js</code> antigo, ainda em cache. As fun&ccedil;&otilde;es do resumo voltam a ficar dentro de cada p&aacute;gina (painel e Confer&ecirc;ncia), sem depender do <code>utils.js</code>.</li>
+            <li><strong>Resumo n&atilde;o derruba a tabela</strong> &mdash; se o resumo do celular falhar por qualquer motivo, ele apenas some; os cart&otilde;es dos lan&ccedil;amentos continuam aparecendo.</li>
+            <li><strong>Atualiza&ccedil;&atilde;o dos arquivos</strong> &mdash; o service worker passa a revalidar scripts e estilos no servidor a cada carga, em vez de aceitar a c&oacute;pia guardada pelo navegador (at&eacute; 10 min no GitHub Pages). Evita que p&aacute;gina e scripts de vers&otilde;es diferentes se misturem ap&oacute;s uma publica&ccedil;&atilde;o.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code>; <code>dashboard.html</code>; <code>js/utils.js</code>; <code>service-worker.js</code> &mdash; revalida&ccedil;&atilde;o e <code>rmpf-v1.45.1</code>; <code>js/version.js</code> &mdash; 1.45.1; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.45.0</span>
             <span class="badge-date">20/11/2026</span>
           </div>
@@ -51,7 +65,6 @@
           <ul class="changelog-changes">
             <li><strong>Resumo dos Lan&ccedil;amentos</strong> &mdash; no celular, a Confer&ecirc;ncia passa a mostrar, antes dos cart&otilde;es, uma tabela compacta com Data, Tipo, Pontos e &iacute;cone de status (&#9989; homologado, &#9203; pendente, &#10060; recusado), na mesma ordem dos cart&otilde;es. No desktop n&atilde;o aparece, pois a pr&oacute;pria tabela de lan&ccedil;amentos j&aacute; cumpre esse papel.</li>
             <li><strong>Toque leva ao cart&atilde;o</strong> &mdash; tocar numa linha do resumo rola a tela at&eacute; o cart&atilde;o do lan&ccedil;amento, logo abaixo do cabe&ccedil;alho, com um contorno azul tempor&aacute;rio para identific&aacute;-lo.</li>
-            <li><strong>C&oacute;digo compartilhado</strong> &mdash; o tipo abreviado e o &iacute;cone de status passaram do painel para <code>js/utils.js</code>, usados pelo resumo do fiscal e pelo da Confer&ecirc;ncia.</li>
             <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code>; <code>dashboard.html</code>; <code>js/utils.js</code>; <code>js/version.js</code> &mdash; 1.45.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.45.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
           </ul>
         </li>

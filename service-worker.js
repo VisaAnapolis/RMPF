@@ -7,7 +7,7 @@
 // especialmente em PWAs no iOS e Android.
 // ============================================================
 
-const CACHE_NAME = 'rmpf-v1.45.0';
+const CACHE_NAME = 'rmpf-v1.45.1';
 
 // Assume controle imediatamente, sem aguardar abas serem fechadas
 self.addEventListener('install', () => self.skipWaiting());
@@ -35,8 +35,18 @@ self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
 
+  // Scripts e estilos: revalida no servidor (cache: 'no-cache') em vez de
+  // aceitar a cópia do cache HTTP do navegador. O GitHub Pages permite guardar
+  // cada arquivo por 10 min; sem isto, logo após uma publicação a página nova
+  // podia rodar com um js/utils.js antigo ("Can't find variable"). Com ETag,
+  // a revalidação custa só um 304 quando nada mudou. Navegações ficam como
+  // estavam (passar opções a um request "navigate" muda o seu modo).
+  const req = event.request.mode === 'navigate'
+    ? event.request
+    : new Request(event.request, { cache: 'no-cache' });
+
   event.respondWith(
-    fetch(event.request)
+    fetch(req)
       .then((networkResponse) => {
         if (networkResponse && networkResponse.status === 200) {
           const responseClone = networkResponse.clone();
