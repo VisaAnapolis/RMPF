@@ -13,6 +13,49 @@
   <link rel="manifest"                     href="manifest.webmanifest">
   <meta name="theme-color" content="#1565c0">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    /* Resumo dos lançamentos — só no celular (≤600px), onde a tabela vira
+       cartões. No desktop a própria tabela já é o resumo. */
+    .conf-resumo { display: none; }
+    @media (max-width: 600px) {
+      .conf-resumo.tem-dados { display: block; }
+      .conf-resumo table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+      .conf-resumo thead th {
+        background: var(--cinzaB);
+        padding: .3rem .45rem;
+        text-align: left;
+        font-weight: 600;
+        color: var(--cinzaT);
+        white-space: nowrap;
+      }
+      .conf-resumo thead th.th-num { text-align: right; }
+      .conf-resumo thead th.th-center { text-align: center; }
+      .conf-resumo tbody td {
+        padding: .4rem .45rem;
+        border-bottom: 1px solid var(--cinzaB);
+        vertical-align: middle;
+      }
+      .conf-resumo tbody td.td-nowrap { white-space: nowrap; }
+      .conf-resumo tbody td.td-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .conf-resumo tbody td.td-status { text-align: center; font-size: 1rem; }
+      .conf-resumo tbody tr:last-child td { border-bottom: none; }
+      .conf-resumo tbody tr[data-alvo] { cursor: pointer; }
+      .conf-resumo tbody tr[data-alvo]:active td { opacity: .6; }
+      .conf-resumo tbody tr[data-alvo] td:nth-child(2) {
+        text-decoration: underline dotted;
+        text-underline-offset: 2px;
+      }
+      .conf-resumo-legenda { margin-top: .4rem; font-size: .75rem; color: var(--cinzaT); }
+
+      /* Destino do salto: compensa o cabeçalho fixo e realça o cartão */
+      #tbody-conferencia tr { scroll-margin-top: calc(var(--header-h, 56px) + 12px); }
+      #tbody-conferencia tr.lanc-realce { animation: lanc-realce 2s ease-out; }
+      @keyframes lanc-realce {
+        from { outline: 3px solid var(--azul, #1565c0); outline-offset: 2px; }
+        to   { outline: 3px solid transparent; outline-offset: 2px; }
+      }
+    }
+  </style>
 </head>
 <body>
 <div id="loading-overlay" class="loading-overlay">
@@ -53,6 +96,23 @@
       <div class="metric-card verm"><div class="metric-label">PN</div><div class="metric-value" id="m-pn">—</div></div>
       <div class="metric-card amar"><div class="metric-label">PV</div><div class="metric-value" id="m-pv">—</div></div>
       <div class="metric-card verde"><div class="metric-label">Apuração</div><div class="metric-value" id="m-apur">—</div></div>
+    </div>
+
+    <!-- Resumo dos lançamentos (só no celular): toque na linha leva ao cartão -->
+    <div class="card conf-resumo" id="conf-resumo">
+      <div class="card-title">📑 Resumo dos Lançamentos</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th class="th-num">Pontos</th>
+            <th class="th-center">Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-conf-resumo"></tbody>
+      </table>
+      <div class="conf-resumo-legenda">✅ Homologado · ⏳ Pendente · ❌ Recusado — toque na linha para ir ao lançamento</div>
     </div>
 
     <div class="card">
@@ -552,6 +612,7 @@
     document.getElementById('alert-area').innerHTML = '';
     const tbody = document.getElementById('tbody-conferencia');
     tbody.innerHTML = '<tr class="empty-row"><td colspan="17"><div class="spinner"></div></td></tr>';
+    renderResumo([]);
 
     try {
       const _timeout = new Promise((_, rej) =>
@@ -585,18 +646,60 @@
     }
   }
 
+  // Resumo para o celular: mesma ordem da tabela; cada linha leva ao cartão
+  // correspondente (id "lanc-<id>"). Escondido no desktop via CSS.
+  function renderResumo(lista) {
+    const card = document.getElementById('conf-resumo');
+    const tb   = document.getElementById('tbody-conf-resumo');
+    card.classList.toggle('tem-dados', lista.length > 0);
+    tb.innerHTML = lista.map(m => {
+      const st = statusResumo(m);
+      // Homologado: vale o que a conferência homologou; demais: o requerido.
+      const valor = st.homologado && m.pontos_homologado != null ? m.pontos_homologado : m.pontos;
+      return `<tr data-alvo="lanc-${escHtml(m.id)}" tabindex="0" role="link" aria-label="Ir para o lançamento ${escHtml(m.controle || '')}">
+        <td class="td-nowrap">${fmtData(m.data)}</td>
+        <td>${escHtml(tipoResumo(m.tipo_codigo))}</td>
+        <td class="td-num">${valor != null ? formatPontos(valor) : '—'}</td>
+        <td class="td-status"><span title="${st.titulo}">${st.icone}</span></td>
+      </tr>`;
+    }).join('');
+  }
+
+  function irParaLancamento(alvoId) {
+    const alvo = document.getElementById(alvoId);
+    if (!alvo) return;
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    alvo.classList.remove('lanc-realce');
+    void alvo.offsetWidth;            // reinicia a animação em toques repetidos
+    alvo.classList.add('lanc-realce');
+  }
+
+  // Toque numa linha do resumo (celular) → rola até o cartão do lançamento.
+  document.getElementById('tbody-conf-resumo').addEventListener('click', e => {
+    const tr = e.target.closest('tr[data-alvo]');
+    if (tr) irParaLancamento(tr.dataset.alvo);
+  });
+  document.getElementById('tbody-conf-resumo').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const tr = e.target.closest('tr[data-alvo]');
+    if (tr) { e.preventDefault(); irParaLancamento(tr.dataset.alvo); }
+  });
+
   function renderTabela() {
     const tbody = document.getElementById('tbody-conferencia');
     const isAdmin = _perfil === 'Administrador';
 
     if (!_manuais.length) {
       tbody.innerHTML = '<tr class="empty-row"><td colspan="17">Nenhum lançamento nesta competência</td></tr>';
+      renderResumo([]);
       return;
     }
 
     // Mesma inspeção pelo CVS e pelo Lançamento 360 (fase de transição).
     const _dup360 = window.idsDuplicidade360 ? window.idsDuplicidade360(_manuais) : new Set();
-    tbody.innerHTML = [..._manuais].sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(m => {
+    const ordenados = [..._manuais].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+    renderResumo(ordenados);
+    tbody.innerHTML = ordenados.map(m => {
       const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
       let acoes = '—';
       if (m.origem === 'visa_csv' && !isAdmin) {
@@ -635,7 +738,7 @@
       const motivoOSNorm = (m.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
       const isVigilanciaAtiva = motivoOSNorm === 'VIGILANCIA ATIVA';
 
-      return `<tr>
+      return `<tr id="lanc-${escHtml(m.id)}">
         <td data-label="Controle" class="td-controle"><span class="ctrl-num" title="${escHtml(m.controle||'—')}">${escHtml(m.controle||'—')}</span></td>
         <td data-label="Data" class="td-nowrap">${fmtData(m.data)}</td>
         <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo||'—')}</td>

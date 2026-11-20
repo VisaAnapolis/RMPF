@@ -595,34 +595,7 @@
     }
   }
 
-  // ── Resumo do fiscal: tipo curto e ícone de status ────────
-  const TIPO_RESUMO = {
-    VIS: 'Inspeção',
-    PLT: 'Plantão',
-    OPF: 'Operação fiscal',
-    ARQ: 'Análise de projeto',
-    COL: 'Coleta de amostra',
-    MAN: 'Manifestação',
-    CUR: 'Curso / evento',
-    REL: 'Relatório técnico',
-    RLH: 'Relatório harmonizado',
-    SRV: 'Serviço técnico',
-    CER: 'Certidão',
-  };
-  function tipoResumo(codigo) {
-    if (TIPO_RESUMO[codigo]) return TIPO_RESUMO[codigo];
-    const t = TIPOS_ATIVIDADE.find(x => x.codigo === codigo);
-    return t ? t.nome : (codigo || '—');
-  }
-  // aceito/homologado → ✅; recusado → ❌; demais (enviado, pendente,
-  // rascunho, reaberto) ainda não homologados → ⏳.
-  function statusResumo(m) {
-    if (m.status === 'aceito' || m.status === 'homologado')
-      return { icone: '✅', titulo: 'Homologado', homologado: true };
-    if (m.status === 'recusado')
-      return { icone: '❌', titulo: 'Recusado' + (m.motivo_recusa ? ': ' + escHtml(m.motivo_recusa) : '') };
-    return { icone: '⏳', titulo: m.status === 'rascunho' ? 'Pendente (rascunho)' : 'Pendente' };
-  }
+  // tipoResumo() e statusResumo() ficam em js/utils.js (usados também na Conferência).
 
   // ── Fiscal view ───────────────────────────────────────────
   async function loadFiscal(user) {
