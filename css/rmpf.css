@@ -787,6 +787,62 @@ table.rmpf-table--lancamentos { min-width: 1480px; }
 }
 .changelog-changes li { margin-bottom: 3px; }
 
+/* ── Tabela resumida de lançamentos (Data, Tipo, Valor, Status) ──
+   dashboard.html (fiscal) e conferencia.html (só no celular) */
+.fiscal-resumo table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .88rem;
+}
+.fiscal-resumo thead th {
+  background: var(--cinzaB);
+  padding: .4rem .6rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--cinzaT);
+  white-space: nowrap;
+}
+.fiscal-resumo thead th.th-num { text-align: right; }
+.fiscal-resumo thead th.th-center { text-align: center; }
+.fiscal-resumo tbody td {
+  padding: .4rem .6rem;
+  border-bottom: 1px solid var(--cinzaB);
+  vertical-align: middle;
+}
+.fiscal-resumo tbody td.td-nowrap { white-space: nowrap; }
+.fiscal-resumo tbody td.td-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fiscal-resumo tbody td.td-status { text-align: center; font-size: 1.05rem; }
+.fiscal-resumo tbody tr:last-child td { border-bottom: none; }
+.fiscal-resumo .fiscal-resumo-legenda {
+  margin-top: .6rem;
+  font-size: .78rem;
+  color: var(--cinzaT);
+}
+@media (max-width: 600px) {
+  .fiscal-resumo table { font-size: .82rem; }
+  .fiscal-resumo thead th, .fiscal-resumo tbody td { padding: .3rem .45rem; }
+}
+.fiscal-resumo .resumo-link {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.fiscal-resumo tr.resumo-clicavel { cursor: pointer; }
+.fiscal-resumo tr.resumo-clicavel:active td { opacity: .7; }
+/* Conferência: o resumo só aparece no celular — no desktop os lançamentos
+   já estão em tabela. */
+.resumo-somente-mobile { display: none; }
+@media (max-width: 600px) {
+  .resumo-somente-mobile { display: block; }
+}
+/* Destino do clique no resumo: compensa o cabeçalho fixo e realça o card */
+#tbody-conferencia tr { scroll-margin-top: calc(var(--header-h, 56px) + 16px); }
+#tbody-conferencia tr.resumo-alvo { animation: resumo-alvo-realce 2s ease-out; }
+@keyframes resumo-alvo-realce {
+  from { box-shadow: inset 0 0 0 2px var(--azul, #1565c0); }
+  to   { box-shadow: inset 0 0 0 2px transparent; }
+}
+
 /* ── Print ── */
 @media print {
   .nao-imprimir { display: none !important; }

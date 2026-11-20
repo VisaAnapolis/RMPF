@@ -44,6 +44,21 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.45.0</span>
+            <span class="badge-date">20/11/2026</span>
+          </div>
+          <div class="changelog-title">Conferência: tabela resumida no celular</div>
+          <ul class="changelog-changes">
+            <li><strong>Resumo antes dos lançamentos</strong> &mdash; no celular, a Confer&ecirc;ncia passa a mostrar, entre os totais e os cards dos lan&ccedil;amentos, uma tabela compacta com <em>Data</em>, <em>Tipo</em>, <em>Valor</em> e o status por &iacute;cone (✅ homologado, ⏳ pendente, ❌ recusado), igual &agrave; do painel do fiscal.</li>
+            <li><strong>Toque leva ao card</strong> &mdash; tocar em uma linha do resumo rola a p&aacute;gina at&eacute; o card daquele lan&ccedil;amento e o realça por alguns segundos.</li>
+            <li><strong>Desktop sem mudança</strong> &mdash; em telas largas o resumo n&atilde;o aparece, pois os lan&ccedil;amentos j&aacute; est&atilde;o em tabela.</li>
+            <li><strong>Código comum</strong> &mdash; nome curto do tipo, &iacute;cone de status e valor (<code>tipoResumo</code>, <code>statusResumo</code>, <code>valorResumo</code>) e o estilo <code>.fiscal-resumo</code> sa&iacute;ram do <code>dashboard.html</code> para <code>js/utils.js</code> e <code>css/rmpf.css</code>, usados pelas duas telas.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>conferencia.html</code>; <code>dashboard.html</code>; <code>js/utils.js</code>; <code>css/rmpf.css</code>; <code>js/version.js</code> &mdash; 1.45.0; <code>service-worker.js</code> &mdash; <code>rmpf-v1.45.0</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.44.2</span>
             <span class="badge-date">19/11/2026</span>
           </div>

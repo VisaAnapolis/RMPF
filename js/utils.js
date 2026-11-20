@@ -93,6 +93,42 @@ const TIPOS_ATIVIDADE = [
   { id: 11, codigo: "CER", nome: "Certidão",                                          itensPontuacao: [16],         somenteCsv: true  },
 ];
 
+// ── Tabela resumida de lançamentos (painel do fiscal e conferência) ──
+// Nome curto do tipo e ícone de status, usados nas tabelas de 4 colunas
+// (Data, Tipo, Valor, Status) de dashboard.html e conferencia.html.
+const TIPO_RESUMO = {
+  VIS: 'Inspeção',
+  PLT: 'Plantão',
+  OPF: 'Operação fiscal',
+  ARQ: 'Análise de projeto',
+  COL: 'Coleta de amostra',
+  MAN: 'Manifestação',
+  CUR: 'Curso / evento',
+  REL: 'Relatório técnico',
+  RLH: 'Relatório harmonizado',
+  SRV: 'Serviço técnico',
+  CER: 'Certidão',
+};
+function tipoResumo(codigo) {
+  if (TIPO_RESUMO[codigo]) return TIPO_RESUMO[codigo];
+  const t = TIPOS_ATIVIDADE.find(x => x.codigo === codigo);
+  return t ? t.nome : (codigo || '—');
+}
+// aceito/homologado → ✅; recusado → ❌; demais (enviado, pendente,
+// rascunho, reaberto) ainda não homologados → ⏳. `titulo` já vem escapado.
+function statusResumo(m) {
+  if (m.status === 'aceito' || m.status === 'homologado')
+    return { icone: '✅', titulo: 'Homologado', homologado: true };
+  if (m.status === 'recusado')
+    return { icone: '❌', titulo: 'Recusado' + (m.motivo_recusa ? ': ' + escHtml(m.motivo_recusa) : '') };
+  return { icone: '⏳', titulo: m.status === 'rascunho' ? 'Pendente (rascunho)' : 'Pendente' };
+}
+// Valor exibido: homologado vale o que a conferência homologou; demais, o requerido.
+function valorResumo(m) {
+  const st = statusResumo(m);
+  return st.homologado && m.pontos_homologado != null ? m.pontos_homologado : m.pontos;
+}
+
 const MESES = [
   "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
   "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"
@@ -1541,3 +1577,6 @@ window.motivoRecusaHtml          = motivoRecusaHtml;
 window.abrirMotivoRecusa         = abrirMotivoRecusa;
 window.alertaRecusadosHtml       = alertaRecusadosHtml;
 window.visaAppSidebarLink        = visaAppSidebarLink;
+window.tipoResumo               = tipoResumo;
+window.statusResumo             = statusResumo;
+window.valorResumo              = valorResumo;

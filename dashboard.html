@@ -30,41 +30,6 @@
       .metric-card-wide { grid-column: span 2; }
     }
 
-    /* Resumo dos lançamentos do fiscal (data, tipo, valor, status) */
-    .fiscal-resumo table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: .88rem;
-    }
-    .fiscal-resumo thead th {
-      background: var(--cinzaB);
-      padding: .4rem .6rem;
-      text-align: left;
-      font-weight: 600;
-      color: var(--cinzaT);
-      white-space: nowrap;
-    }
-    .fiscal-resumo thead th.th-num { text-align: right; }
-    .fiscal-resumo thead th.th-center { text-align: center; }
-    .fiscal-resumo tbody td {
-      padding: .4rem .6rem;
-      border-bottom: 1px solid var(--cinzaB);
-      vertical-align: middle;
-    }
-    .fiscal-resumo tbody td.td-nowrap { white-space: nowrap; }
-    .fiscal-resumo tbody td.td-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .fiscal-resumo tbody td.td-status { text-align: center; font-size: 1.05rem; }
-    .fiscal-resumo tbody tr:last-child td { border-bottom: none; }
-    .fiscal-resumo .fiscal-resumo-legenda {
-      margin-top: .6rem;
-      font-size: .78rem;
-      color: var(--cinzaT);
-    }
-    @media (max-width: 600px) {
-      .fiscal-resumo table { font-size: .82rem; }
-      .fiscal-resumo thead th, .fiscal-resumo tbody td { padding: .3rem .45rem; }
-    }
-
     /* Mini-resumo de fiscais — visível apenas em mobile */
     .admin-mini-resumo { display: none; }
     @media (max-width: 600px) {
@@ -595,35 +560,6 @@
     }
   }
 
-  // ── Resumo do fiscal: tipo curto e ícone de status ────────
-  const TIPO_RESUMO = {
-    VIS: 'Inspeção',
-    PLT: 'Plantão',
-    OPF: 'Operação fiscal',
-    ARQ: 'Análise de projeto',
-    COL: 'Coleta de amostra',
-    MAN: 'Manifestação',
-    CUR: 'Curso / evento',
-    REL: 'Relatório técnico',
-    RLH: 'Relatório harmonizado',
-    SRV: 'Serviço técnico',
-    CER: 'Certidão',
-  };
-  function tipoResumo(codigo) {
-    if (TIPO_RESUMO[codigo]) return TIPO_RESUMO[codigo];
-    const t = TIPOS_ATIVIDADE.find(x => x.codigo === codigo);
-    return t ? t.nome : (codigo || '—');
-  }
-  // aceito/homologado → ✅; recusado → ❌; demais (enviado, pendente,
-  // rascunho, reaberto) ainda não homologados → ⏳.
-  function statusResumo(m) {
-    if (m.status === 'aceito' || m.status === 'homologado')
-      return { icone: '✅', titulo: 'Homologado', homologado: true };
-    if (m.status === 'recusado')
-      return { icone: '❌', titulo: 'Recusado' + (m.motivo_recusa ? ': ' + escHtml(m.motivo_recusa) : '') };
-    return { icone: '⏳', titulo: m.status === 'rascunho' ? 'Pendente (rascunho)' : 'Pendente' };
-  }
-
   // ── Fiscal view ───────────────────────────────────────────
   async function loadFiscal(user) {
     const mes = Number(document.getElementById('sel-mes').value);
@@ -666,8 +602,7 @@
 
       tbody.innerHTML = ordenados.map(m => {
         const st = statusResumo(m);
-        // Homologado: vale o que a conferência homologou; demais: o requerido.
-        const valor = st.homologado && m.pontos_homologado != null ? m.pontos_homologado : m.pontos;
+        const valor = valorResumo(m);
         return `<tr>
           <td class="td-nowrap">${fmtData(m.data)}</td>
           <td>${escHtml(tipoResumo(m.tipo_codigo))}</td>

@@ -55,6 +55,25 @@
       <div class="metric-card verde"><div class="metric-label">Apuração</div><div class="metric-value" id="m-apur">—</div></div>
     </div>
 
+    <!-- Resumo compacto (visível apenas no celular): toque leva ao card -->
+    <div class="card fiscal-resumo resumo-somente-mobile" id="conf-resumo">
+      <div class="card-title">📋 Resumo</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Tipo</th>
+            <th class="th-num">Valor</th>
+            <th class="th-center">Status</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-conf-resumo">
+          <tr class="empty-row"><td colspan="4">Selecione um fiscal e competência</td></tr>
+        </tbody>
+      </table>
+      <div class="fiscal-resumo-legenda">✅ Homologado &nbsp;·&nbsp; ⏳ Pendente &nbsp;·&nbsp; ❌ Recusado &nbsp;·&nbsp; toque na linha para ir ao lançamento</div>
+    </div>
+
     <div class="card">
       <div class="card-title">📋 Lançamentos</div>
       <div class="table-wrap">
@@ -552,6 +571,7 @@
     document.getElementById('alert-area').innerHTML = '';
     const tbody = document.getElementById('tbody-conferencia');
     tbody.innerHTML = '<tr class="empty-row"><td colspan="17"><div class="spinner"></div></td></tr>';
+    document.getElementById('tbody-conf-resumo').innerHTML = '<tr class="empty-row"><td colspan="4"><div class="spinner"></div></td></tr>';
 
     try {
       const _timeout = new Promise((_, rej) =>
@@ -582,8 +602,48 @@
       renderTabela();
     } catch(e) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="17">${alerta('danger','Erro: '+escHtml(e.message))}</td></tr>`;
+      renderResumo([], 'Erro ao carregar');
     }
   }
+
+  // ── Resumo compacto (celular) ─────────────────────────────
+  // Uma linha por lançamento (Data, Tipo, Valor, Status); o toque leva ao
+  // card correspondente na tabela principal, que no celular vira pilha de cards.
+  function lancAnchor(m) {
+    return 'lanc-' + String(m.id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+  function renderResumo(ordenados, msgVazio) {
+    const tb = document.getElementById('tbody-conf-resumo');
+    if (!tb) return;
+    if (!ordenados.length) {
+      tb.innerHTML = `<tr class="empty-row"><td colspan="4">${msgVazio || 'Nenhum lançamento nesta competência'}</td></tr>`;
+      return;
+    }
+    tb.innerHTML = ordenados.map(m => {
+      const st = statusResumo(m);
+      const valor = valorResumo(m);
+      const alvo = lancAnchor(m);
+      return `<tr class="resumo-clicavel" data-alvo="${alvo}">
+        <td class="td-nowrap"><a href="#${alvo}" class="resumo-link">${fmtData(m.data)}</a></td>
+        <td>${escHtml(tipoResumo(m.tipo_codigo))}</td>
+        <td class="td-num">${valor != null ? formatPontos(valor) : '—'}</td>
+        <td class="td-status"><span title="${st.titulo}" aria-label="${st.titulo}">${st.icone}</span></td>
+      </tr>`;
+    }).join('');
+  }
+  // Linha inteira clicável (não só a data). Rola por JS em vez de depender do
+  // #hash: tocar duas vezes no mesmo lançamento também precisa levar ao card.
+  document.getElementById('tbody-conf-resumo').addEventListener('click', (ev) => {
+    const tr = ev.target.closest('tr[data-alvo]');
+    if (!tr) return;
+    const el = document.getElementById(tr.dataset.alvo);
+    if (!el) return;
+    ev.preventDefault();
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.remove('resumo-alvo');
+    void el.offsetWidth;            // reinicia a animação de realce
+    el.classList.add('resumo-alvo');
+  });
 
   function renderTabela() {
     const tbody = document.getElementById('tbody-conferencia');
@@ -591,12 +651,15 @@
 
     if (!_manuais.length) {
       tbody.innerHTML = '<tr class="empty-row"><td colspan="17">Nenhum lançamento nesta competência</td></tr>';
+      renderResumo([]);
       return;
     }
 
     // Mesma inspeção pelo CVS e pelo Lançamento 360 (fase de transição).
     const _dup360 = window.idsDuplicidade360 ? window.idsDuplicidade360(_manuais) : new Set();
-    tbody.innerHTML = [..._manuais].sort((a, b) => (a.data || '').localeCompare(b.data || '')).map(m => {
+    const ordenados = [..._manuais].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
+    renderResumo(ordenados);
+    tbody.innerHTML = ordenados.map(m => {
       const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
       let acoes = '—';
       if (m.origem === 'visa_csv' && !isAdmin) {
@@ -635,7 +698,7 @@
       const motivoOSNorm = (m.motivo_os || '').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim();
       const isVigilanciaAtiva = motivoOSNorm === 'VIGILANCIA ATIVA';
 
-      return `<tr>
+      return `<tr id="${lancAnchor(m)}">
         <td data-label="Controle" class="td-controle"><span class="ctrl-num" title="${escHtml(m.controle||'—')}">${escHtml(m.controle||'—')}</span></td>
         <td data-label="Data" class="td-nowrap">${fmtData(m.data)}</td>
         <td data-label="Tipo">${tipo.nome ? escHtml(tipo.nome) : escHtml(m.tipo_codigo||'—')}</td>
