@@ -646,6 +646,38 @@
     }
   }
 
+  // ── Resumo de lançamentos: tipo curto e ícone de status ──
+  // Mantido também na outra tela (dashboard/conferência) de propósito: fica
+  // na própria página para não depender de um js/utils.js que o navegador
+  // pode ainda ter em cache da versão anterior.
+  const TIPO_RESUMO = {
+    VIS: 'Inspeção',
+    PLT: 'Plantão',
+    OPF: 'Operação fiscal',
+    ARQ: 'Análise de projeto',
+    COL: 'Coleta de amostra',
+    MAN: 'Manifestação',
+    CUR: 'Curso / evento',
+    REL: 'Relatório técnico',
+    RLH: 'Relatório harmonizado',
+    SRV: 'Serviço técnico',
+    CER: 'Certidão',
+  };
+  function tipoResumo(codigo) {
+    if (TIPO_RESUMO[codigo]) return TIPO_RESUMO[codigo];
+    const t = TIPOS_ATIVIDADE.find(x => x.codigo === codigo);
+    return t ? t.nome : (codigo || '—');
+  }
+  // aceito/homologado → ✅; recusado → ❌; demais (enviado, pendente,
+  // rascunho, reaberto) ainda não homologados → ⏳.
+  function statusResumo(m) {
+    if (m.status === 'aceito' || m.status === 'homologado')
+      return { icone: '✅', titulo: 'Homologado', homologado: true };
+    if (m.status === 'recusado')
+      return { icone: '❌', titulo: 'Recusado' + (m.motivo_recusa ? ': ' + escHtml(m.motivo_recusa) : '') };
+    return { icone: '⏳', titulo: m.status === 'rascunho' ? 'Pendente (rascunho)' : 'Pendente' };
+  }
+
   // Resumo para o celular: mesma ordem da tabela; cada linha leva ao cartão
   // correspondente (id "lanc-<id>"). Escondido no desktop via CSS.
   function renderResumo(lista) {
@@ -698,7 +730,9 @@
     // Mesma inspeção pelo CVS e pelo Lançamento 360 (fase de transição).
     const _dup360 = window.idsDuplicidade360 ? window.idsDuplicidade360(_manuais) : new Set();
     const ordenados = [..._manuais].sort((a, b) => (a.data || '').localeCompare(b.data || ''));
-    renderResumo(ordenados);
+    // O resumo é acessório: se falhar, some — mas a tabela principal continua.
+    try { renderResumo(ordenados); }
+    catch (e) { console.error('Resumo da conferência:', e); document.getElementById('conf-resumo').classList.remove('tem-dados'); }
     tbody.innerHTML = ordenados.map(m => {
       const tipo = TIPOS_ATIVIDADE.find(t => t.codigo === m.tipo_codigo) || {};
       let acoes = '—';
