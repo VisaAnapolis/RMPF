@@ -105,18 +105,9 @@
         text-underline-offset: 2px;
       }
       .mini-resumo-link:active { opacity: .7; }
-    }
-
-    /* Realce temporário ao navegar da Visão Geral até o card do fiscal */
-    #tbody-admin tr {
-      scroll-margin-top: calc(var(--header-h, 56px) + 16px);
-    }
-    #tbody-admin tr:target {
-      animation: fiscal-card-highlight 2s ease-out;
-    }
-    @keyframes fiscal-card-highlight {
-      from { box-shadow: inset 0 0 0 2px var(--azul, #1565c0); }
-      to   { box-shadow: inset 0 0 0 2px transparent; }
+      /* No celular a Visão Geral já leva direto à Conferência: os cards
+         do "Resumo por Fiscal" ficam ocultos. */
+      .admin-resumo-fiscal { display: none; }
     }
 
     /* Fiscais que não atingiram a apuração de 200%: linha neutra (mesmo
@@ -332,7 +323,7 @@
         </table>
       </div>
 
-      <div class="card">
+      <div class="card admin-resumo-fiscal">
         <div class="card-title">👥 Resumo por Fiscal</div>
         <div class="table-wrap">
           <table class="rmpf-table">
@@ -694,8 +685,8 @@
     return partes[0] + ' ' + partes[partes.length - 1][0] + '.';
   }
 
-  function fiscalAnchor(f) {
-    return 'fiscal-card-' + String(f.email || f.id || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+  function linkConferencia(f, mes, ano) {
+    return `conferencia.html?fiscal=${encodeURIComponent(f.email || f.id)}&mes=${mes}&ano=${ano}`;
   }
 
   async function loadAdmin() {
@@ -725,7 +716,7 @@
           .filter(m => m.status === 'enviado')
           .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
         const pendentes = manuais.filter(m => m.status === 'enviado' || m.status === 'pendente').length;
-        return `<tr id="${fiscalAnchor(f)}"${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
+        return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td data-label="Fiscal">${escHtml(f.nome || f.id)}</td>
           <td data-label="Pts Req." class="td-num">${ptosReq > 0 ? formatPontos(ptosReq) : '—'}</td>
           <td data-label="PP" class="td-num">${formatPontos(result.pp)}</td>
@@ -734,7 +725,7 @@
           <td data-label="Apuração" class="td-num fw-bold ${apurClasse(result.apuracao)}">${result.apuracao}%</td>
           <td data-label="Pendentes" class="td-num">${pendentes > 0 ? `<span class="badge badge-pendente">${pendentes}</span>` : '—'}</td>
           <td data-label="Ações" class="nao-imprimir">
-            <a href="conferencia.html?fiscal=${encodeURIComponent(f.email || f.id)}&mes=${mes}&ano=${ano}" class="btn btn-outline btn-sm">Conferir</a>
+            <a href="${linkConferencia(f, mes, ano)}" class="btn btn-outline btn-sm">Conferir</a>
           </td>
         </tr>`;
       }).join('');
@@ -749,7 +740,7 @@
         const temPendente  = manuais.some(m => m.status === 'enviado' || m.status === 'pendente');
         const statusIcon   = temRecusado ? '⚠️' : temPendente ? '⏳' : manuais.length ? '✅' : '—';
         return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
-          <td><a href="#${fiscalAnchor(f)}" class="mini-resumo-link">${escHtml(nomeAbrev(f.nome || f.id))}</a></td>
+          <td><a href="${linkConferencia(f, mes, ano)}" class="mini-resumo-link" title="Conferir">${escHtml(nomeAbrev(f.nome || f.id))}</a></td>
           <td class="td-num">${ptosReq > 0 ? formatPontos(ptosReq) : '—'}</td>
           <td class="td-num">${formatPontos(result.pv)}</td>
           <td class="td-num ${apurClasse(result.apuracao)}">${result.apuracao > 0 ? result.apuracao + '%' : '—'}</td>
