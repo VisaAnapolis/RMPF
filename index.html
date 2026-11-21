@@ -416,9 +416,20 @@
           showError(res.msg);
         }
       } catch (err) {
+        // Popup bloqueado pelo navegador (bloqueador de pop-ups, política
+        // corporativa, Safari/Firefox estritos com o gesto do clique, etc.):
+        // em vez de mostrar erro, cai automaticamente no login por navegação
+        // de topo (OAuth first-party), o mesmo usado no PWA/iOS.
+        if (err && (err.code === 'auth/popup-blocked' ||
+                    err.code === 'auth/operation-not-supported-in-this-environment')) {
+          console.warn('[Login] Popup indisponível (' + err.code + ') — usando redirect.');
+          window.__rmpfAguardandoRetornoOAuth = true;
+          _rmpfIniciarLoginOAuth(compartilhado);
+          return;
+        }
         btn.disabled = false;
         btn.innerHTML = GOOGLE_BTN_CONTENT;
-        if (err.code !== 'auth/popup-closed-by-user') {
+        if (err.code !== 'auth/popup-closed-by-user' && err.code !== 'auth/cancelled-popup-request') {
           showError('Erro ao entrar: ' + (err.message || err.code));
         }
       }
