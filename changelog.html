@@ -44,6 +44,19 @@
 
         <li class="changelog-item">
           <div class="changelog-version">
+            <span class="badge-version">v1.45.3</span>
+            <span class="badge-date">21/11/2026</span>
+          </div>
+          <div class="changelog-title">Login: popup bloqueado pelo navegador cai automaticamente no redirect</div>
+          <ul class="changelog-changes">
+            <li><strong>Erro corrigido</strong> &mdash; em computadores com bloqueador de pop-ups (ou navegador que n&atilde;o reconhece o clique como gesto do usu&aacute;rio), o login exibia &ldquo;Firebase: Unable to establish a connection with the popup&hellip; (auth/popup-blocked)&rdquo; e n&atilde;o entrava.</li>
+            <li><strong>Fallback autom&aacute;tico</strong> &mdash; ao detectar <code>auth/popup-blocked</code> (ou <code>auth/operation-not-supported-in-this-environment</code>), o app sai para a p&aacute;gina do Google na pr&oacute;pria aba (OAuth first-party, o mesmo fluxo do PWA/iOS) e volta logado. A op&ccedil;&atilde;o &ldquo;computador compartilhado&rdquo; continua respeitada.</li>
+            <li><strong>Arquivos</strong> &mdash; <code>index.html</code>; <code>js/version.js</code> &mdash; 1.45.3; <code>service-worker.js</code> &mdash; <code>rmpf-v1.45.3</code>; <code>changelog.html</code> &mdash; esta entrada.</li>
+          </ul>
+        </li>
+
+        <li class="changelog-item">
+          <div class="changelog-version">
             <span class="badge-version">v1.45.2</span>
             <span class="badge-date">20/11/2026</span>
           </div>
