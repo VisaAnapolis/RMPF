@@ -65,6 +65,52 @@
       .fiscal-resumo thead th, .fiscal-resumo tbody td { padding: .3rem .45rem; }
     }
 
+    /* Resumo em calendário (padrão do Calendário do Plantão do VISA):
+       grade seg–dom; no celular vira agenda só com os dias lançados. */
+    .resumo-vista { display: inline-flex; border: 1px solid var(--cinzaL); border-radius: 6px; overflow: hidden; }
+    .resumo-vista button {
+      background: transparent; border: none; padding: 4px 10px; font: inherit;
+      font-size: .78rem; font-weight: 600; color: var(--cinzaT); cursor: pointer;
+    }
+    .resumo-vista button + button { border-left: 1px solid var(--cinzaL); }
+    .resumo-vista button.ativo { background: var(--azulP); color: var(--azul); }
+    .resumo-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .calr-grade { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
+    .calr-dow { text-align: center; font-weight: 700; font-size: .72rem; color: var(--cinzaT); padding: 2px 0; }
+    .calr-dia {
+      border: 1px solid var(--cinzaL); border-radius: 8px; padding: 5px 6px;
+      min-height: 78px; font-size: .78rem; display: flex; flex-direction: column; gap: 3px;
+    }
+    .calr-dia.fora { border: none; background: none; min-height: 0; }
+    .calr-dia.naoutil { background: rgba(127,127,127,.09); color: var(--cinzaT); }
+    .calr-dia.hoje { border: 2px solid var(--azul); }
+    .calr-num { display: flex; justify-content: space-between; align-items: center; gap: 4px; font-weight: 700; font-size: .95rem; }
+    .calr-hoje { font-size: .65rem; font-weight: 700; background: var(--azul); color: #fff; padding: 1px 6px; border-radius: 8px; }
+    .calr-chip {
+      display: flex; justify-content: space-between; gap: 4px; align-items: baseline;
+      border-left: 3px solid var(--amar); background: var(--amarP);
+      border-radius: 4px; padding: 1px 4px; line-height: 1.3;
+    }
+    .calr-chip.homolog { border-left-color: var(--verdeC); background: var(--verdeP); }
+    .calr-chip.recus   { border-left-color: var(--verm);   background: var(--vermP); }
+    .calr-chip-tipo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .calr-chip-val { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+    .calr-total { margin-top: auto; text-align: right; font-size: .72rem; font-weight: 700; color: var(--cinzaT); }
+    .calr-rodape { margin-top: .6rem; font-size: .82rem; font-weight: 700; color: var(--cinzaT); }
+    .calr-agenda { display: none; }
+    .calr-ag-dia { border: 1px solid var(--cinzaL); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; font-size: .84rem; }
+    .calr-ag-dia.hoje { border: 2px solid var(--azul); }
+    .calr-ag-tit { font-weight: 700; display: flex; gap: 6px; align-items: center; justify-content: space-between; margin-bottom: 3px; }
+    .calr-ag-dia .calr-chip { margin-top: 3px; }
+    @media (max-width: 700px) {
+      .calr-grade { display: none; }
+      .calr-agenda { display: block; }
+    }
+    @media print {
+      .calr-grade { display: grid; }
+      .calr-agenda { display: none; }
+    }
+
     /* Mini-resumo de fiscais — visível apenas em mobile */
     .admin-mini-resumo { display: none; }
     @media (max-width: 600px) {
@@ -253,9 +299,16 @@
       <div class="card fiscal-resumo">
         <div class="card-title d-flex justify-between align-center">
           <span>📋 Resumo dos Lançamentos</span>
-          <a href="lancamento.html" class="btn btn-primary btn-sm nao-imprimir">+ Nova Atividade</a>
+          <span class="resumo-acoes">
+            <span class="resumo-vista nao-imprimir" role="group" aria-label="Forma de exibição">
+              <button type="button" data-vista="cal" title="Ver em calendário">📅 Calendário</button>
+              <button type="button" data-vista="lista" title="Ver em lista">☰ Lista</button>
+            </span>
+            <a href="lancamento.html" class="btn btn-primary btn-sm nao-imprimir">+ Nova Atividade</a>
+          </span>
         </div>
-        <table>
+        <div id="cal-fiscal"></div>
+        <table id="lista-fiscal">
           <thead>
             <tr>
               <th>Data</th>
@@ -618,12 +671,111 @@
     return { icone: '⏳', titulo: m.status === 'rascunho' ? 'Pendente (rascunho)' : 'Pendente' };
   }
 
+  // ── Resumo em calendário ──────────────────────────────────
+  // Mesmo dado da lista (lançamentos da competência), arrumado na grade do
+  // mês: cada lançamento vira uma etiqueta com a cor do status e o dia traz o
+  // total. Fim de semana e feriado ficam em cinza, mas mostram o que houver
+  // (operação fiscal pode cair no sábado). A escolha Calendário/Lista fica no
+  // localStorage do aparelho.
+  const TIPO_CURTO = {
+    VIS: 'Inspeção', PLT: 'Plantão', OPF: 'Op. fiscal', ARQ: 'Projeto',
+    COL: 'Coleta', MAN: 'Manifest.', CUR: 'Curso', REL: 'Relatório',
+    RLH: 'Rel. harmon.', SRV: 'Serv. técnico', CER: 'Certidão',
+  };
+  const CHAVE_VISTA = 'rmpf_dash_resumo_vista';
+  function vistaResumo() {
+    try { return localStorage.getItem(CHAVE_VISTA) === 'lista' ? 'lista' : 'cal'; }
+    catch (e) { return 'cal'; }
+  }
+  function aplicarVistaResumo(v) {
+    try { localStorage.setItem(CHAVE_VISTA, v); } catch (e) { /* sem storage */ }
+    document.getElementById('cal-fiscal').style.display   = v === 'cal' ? '' : 'none';
+    document.getElementById('lista-fiscal').style.display = v === 'lista' ? '' : 'none';
+    document.querySelectorAll('.resumo-vista button').forEach(b => {
+      const ativo = b.dataset.vista === v;
+      b.classList.toggle('ativo', ativo);
+      b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+    });
+  }
+
+  function hojeISO() {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  }
+
+  function chipLancamento(m) {
+    const st = statusResumo(m);
+    const valor = st.homologado && m.pontos_homologado != null ? m.pontos_homologado : m.pontos;
+    const classe = st.homologado ? 'homolog' : m.status === 'recusado' ? 'recus' : '';
+    const nome = tipoResumo(m.tipo_codigo);
+    const curto = TIPO_CURTO[m.tipo_codigo] || nome;
+    const titulo = `${escHtml(nome)} — ${valor != null ? formatPontos(valor) : '—'} pts — ${st.titulo}`;
+    return `<div class="calr-chip ${classe}" title="${titulo}">
+      <span class="calr-chip-tipo">${escHtml(curto)}</span>
+      <span class="calr-chip-val">${valor != null ? formatPontos(valor) : '—'} ${st.icone}</span>
+    </div>`;
+  }
+  function valorResumo(m) {
+    const st = statusResumo(m);
+    const v = st.homologado && m.pontos_homologado != null ? m.pontos_homologado : m.pontos;
+    return m.status === 'recusado' ? 0 : (Number(v) || 0);
+  }
+
+  async function renderCalendarioFiscal(manuais, mes, ano) {
+    const alvo = document.getElementById('cal-fiscal');
+    const feriados = await (window.carregarFeriadosMunicipais
+      ? window.carregarFeriadosMunicipais() : Promise.resolve(new Set()));
+    const pad = n => String(n).padStart(2, '0');
+    const porDia = {};
+    manuais.forEach(m => {
+      const d = String(m.data || '').slice(0, 10);
+      (porDia[d] = porDia[d] || []).push(m);
+    });
+    const hoje = hojeISO();
+    const ultimo = new Date(ano, mes, 0).getDate();
+    const desloc = (new Date(ano, mes - 1, 1).getDay() + 6) % 7; // seg = 0
+
+    let grade = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom']
+      .map(d => `<div class="calr-dow">${d}</div>`).join('');
+    for (let i = 0; i < desloc; i++) grade += '<div class="calr-dia fora"></div>';
+    let agenda = '';
+    let totalMes = 0, diasComLanc = 0;
+
+    for (let dia = 1; dia <= ultimo; dia++) {
+      const iso = `${ano}-${pad(mes)}-${pad(dia)}`;
+      const lista = (porDia[iso] || []).slice()
+        .sort((a, b) => String(a.controle || '').localeCompare(String(b.controle || '')));
+      const util = window.ehDiaUtil ? window.ehDiaUtil(iso, feriados) : true;
+      const total = lista.reduce((s, m) => s + valorResumo(m), 0);
+      totalMes += total;
+      if (lista.length) diasComLanc++;
+      const classes = ['calr-dia', util ? '' : 'naoutil', iso === hoje ? 'hoje' : ''].join(' ');
+      const selo = iso === hoje ? '<span class="calr-hoje">hoje</span>' : '';
+      const chips = lista.map(chipLancamento).join('');
+      const rodape = lista.length > 1 ? `<div class="calr-total">Σ ${formatPontos(total)}</div>` : '';
+      grade += `<div class="${classes}"><div class="calr-num"><span>${dia}</span>${selo}</div>${chips}${rodape}</div>`;
+      if (lista.length) {
+        const dow = new Date(ano, mes - 1, dia).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '');
+        agenda += `<div class="calr-ag-dia ${iso === hoje ? 'hoje' : ''}">
+          <div class="calr-ag-tit"><span>${pad(dia)}/${pad(mes)} · ${dow}</span>${lista.length > 1 ? `<span class="calr-total">Σ ${formatPontos(total)}</span>` : ''}</div>
+          ${chips}</div>`;
+      }
+    }
+    const resto = (7 - (desloc + ultimo) % 7) % 7;
+    for (let i = 0; i < resto; i++) grade += '<div class="calr-dia fora"></div>';
+
+    alvo.innerHTML = `<div class="calr-grade">${grade}</div>
+      <div class="calr-agenda">${agenda || '<p class="empty-row">Nenhum lançamento nesta competência</p>'}</div>
+      <div class="calr-rodape">${manuais.length} lançamento(s) em ${diasComLanc} dia(s) · ${formatPontos(totalMes)} pontos (recusados não somam)</div>`;
+  }
+
   // ── Fiscal view ───────────────────────────────────────────
   async function loadFiscal(user) {
     const mes = Number(document.getElementById('sel-mes').value);
     const ano = Number(document.getElementById('sel-ano').value);
     const tbody = document.getElementById('tbody-fiscal');
     tbody.innerHTML = '<tr class="empty-row"><td colspan="4"><div class="spinner"></div></td></tr>';
+    const calEl = document.getElementById('cal-fiscal');
+    calEl.innerHTML = '<div class="spinner"></div>';
 
     try {
       const manuais = await db_getManuais(user.email, mes, ano);
@@ -651,8 +803,14 @@
 
       if (!manuais.length) {
         tbody.innerHTML = '<tr class="empty-row"><td colspan="4">Nenhum lançamento nesta competência</td></tr>';
+        renderCalendarioFiscal([], mes, ano).catch(() => { calEl.innerHTML = ''; });
         return;
       }
+
+      renderCalendarioFiscal(manuais, mes, ano).catch(e => {
+        console.warn('[Dashboard] Falha ao montar o calendário:', e);
+        calEl.innerHTML = alerta('danger', 'Não foi possível montar o calendário: ' + escHtml(e.message));
+      });
 
       const ordenados = manuais.slice().sort((a, b) =>
         String(a.data || '').localeCompare(String(b.data || '')) ||
@@ -671,6 +829,7 @@
       }).join('');
     } catch (e) {
       tbody.innerHTML = `<tr class="empty-row"><td colspan="4">${alerta('danger','Erro ao carregar dados: ' + escHtml(e.message))}</td></tr>`;
+      calEl.innerHTML = alerta('danger', 'Erro ao carregar dados: ' + escHtml(e.message));
     }
   }
 
@@ -798,6 +957,9 @@
       document.getElementById('visa-sync-fiscal').style.display = '';
       buildMesSelect('sel-mes');
       buildAnoSelect('sel-ano');
+      aplicarVistaResumo(vistaResumo());
+      document.querySelectorAll('.resumo-vista button').forEach(b =>
+        b.addEventListener('click', () => aplicarVistaResumo(b.dataset.vista)));
       let _um = new Date().getMonth() + 1, _ua = new Date().getFullYear();
       try { ({ mes: _um, ano: _ua } = await db_getProximaCompetencia(user.email)); }
       catch (e) { console.warn('[Dashboard] Falha ao obter próxima competência:', e); }
