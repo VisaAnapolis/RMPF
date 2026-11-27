@@ -370,4 +370,42 @@ test('sem snapshot (falha na leitura do mês) segue o caminho antigo', async () 
   assert.equal(db._col('manuais').get(window.db_visaDocId(1002, A.email, '1111-1/01')).status, 'enviado');
 });
 
+test('3º fiscal autorizado pelo gestor não volta a pendente na reimportação', async () => {
+  const base = await montarBanco();
+  const idC = window.db_visaDocId(1015, C.email, '1111-1/01');
+  const m0 = base._col('manuais');
+  assert.equal(m0.get(idC).status, 'pendente');   // nasce pendente (sem OS/Ofício)
+
+  // Sem a marca (como era antes): a importação devolve para pendente.
+  const semMarca = clonar(base);
+  semMarca._col('manuais').set(idC, { ...m0.get(idC), status: 'enviado', motivo_pendencia: null });
+  window.db = semMarca; servirCSVs(INSP_V2);
+  await rodar(importarNovo);
+  assert.equal(semMarca._col('manuais').get(idC).status, 'pendente');
+
+  // Com a marca gravada pela Conferência: a autorização fica.
+  const comMarca = clonar(base);
+  comMarca._col('manuais').set(idC, {
+    ...m0.get(idC), status: 'enviado', motivo_pendencia: null,
+    terceiro_autorizado: true, terceiro_autorizado_por: 'gestor@teste',
+  });
+  window.db = comMarca; servirCSVs(INSP_V2);
+  await rodar(importarNovo);
+  await rodar(importarNovo);   // e de novo: continua autorizado
+  const dC = comMarca._col('manuais').get(idC);
+  assert.equal(dC.status, 'enviado');
+  assert.equal(dC.motivo_pendencia, null);
+  assert.equal(dC.terceiro_autorizado, true);
+});
+
+test('resumoPontosAguardando separa enviados de aguardando autorização', () => {
+  vm.runInThisContext(fs.readFileSync(path.join(RAIZ, 'js/calculo.js'), 'utf8'), { filename: 'js/calculo.js' });
+  const r = window.resumoPontosAguardando([
+    { status: 'enviado', pontos: 12 }, { status: 'enviado', pontos: 0.1 },
+    { status: 'pendente', pontos: 8 }, { status: 'aceito', pontos: 50 },
+    { status: 'recusado', pontos: 9 }, { status: 'rascunho', pontos: 4 },
+  ]);
+  assert.deepEqual(r, { enviados: 12.1, qtdEnviados: 2, autorizacao: 8, qtdAutorizacao: 1 });
+});
+
 process.on('exit', () => { console.error = _err; });

@@ -42,5 +42,32 @@ function calcular(ativCVS = [], ativManuais = [], pnsExtras = 0) {
   };
 }
 
+/**
+ * Pontos ainda NÃO homologados, separados pelo motivo da espera. Fonte única
+ * dos cartões "Pts Enviados" e "Aguardando Autorização" — Dashboard (fiscal e
+ * administrador), Meus Lançamentos e Conferência usam esta mesma conta, para
+ * que as telas nunca mostrem totais diferentes para a mesma competência.
+ *  - enviados:    status 'enviado'  → aguardam a homologação do gestor;
+ *  - autorizacao: status 'pendente' → 3º fiscal em diante aguardando a
+ *                 autorização do gestor (não entram em "enviados").
+ * Nenhum dos dois entra no PP: só pontua o que foi homologado.
+ */
+function resumoPontosAguardando(ativManuais = []) {
+  let enviados = 0, autorizacao = 0, qtdEnviados = 0, qtdAutorizacao = 0;
+  for (const a of ativManuais) {
+    if (!a) continue;
+    if (a.status === 'enviado') {
+      enviados += Number(a.pontos) || 0; qtdEnviados++;
+    } else if (a.status === 'pendente') {
+      autorizacao += Number(a.pontos) || 0; qtdAutorizacao++;
+    }
+  }
+  return {
+    enviados: round2(enviados), qtdEnviados,
+    autorizacao: round2(autorizacao), qtdAutorizacao,
+  };
+}
+
 window.calcular = calcular;
+window.resumoPontosAguardando = resumoPontosAguardando;
 window.CALC_PARAMS = PARAMS;
