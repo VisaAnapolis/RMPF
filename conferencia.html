@@ -92,6 +92,7 @@
     <!-- Metric summary -->
     <div class="metrics-grid" id="metrics-wrap" style="display:none">
       <div class="metric-card amar"><div class="metric-label">Pts Enviados</div><div class="metric-value" id="m-env">—</div><div class="metric-desc">Aguardando homologação</div></div>
+      <div class="metric-card autorizacao"><div class="metric-label">🔔 Aguardando Autorização</div><div class="metric-value" id="m-aut">—</div><div class="metric-desc">3º fiscal em diante — não somam em Enviados</div></div>
       <div class="metric-card azul"><div class="metric-label">PP</div><div class="metric-value" id="m-pp">—</div></div>
       <div class="metric-card verm"><div class="metric-label">PN</div><div class="metric-value" id="m-pn">—</div></div>
       <div class="metric-card amar"><div class="metric-label">PV</div><div class="metric-value" id="m-pv">—</div></div>
@@ -623,10 +624,10 @@
       document.getElementById('m-pn').textContent   = formatPontos(result.pn);
       document.getElementById('m-pv').textContent   = formatPontos(result.pv);
       document.getElementById('m-apur').textContent = result.apuracao + '%';
-      const ptosEnviados = _manuais
-        .filter(m => m.status === 'enviado')
-        .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
-      document.getElementById('m-env').textContent = formatPontos(ptosEnviados);
+      // Mesma conta do Dashboard e de Meus Lançamentos (js/calculo.js).
+      const aguard = window.resumoPontosAguardando(_manuais);
+      document.getElementById('m-env').textContent = formatPontos(aguard.enviados);
+      document.getElementById('m-aut').textContent = formatPontos(aguard.autorizacao);
       document.getElementById('metrics-wrap').style.display = '';
       // Reaberturas: homologações desfeitas pela reconciliação com o WCVS.
       // Sem este aviso o administrador reconferiria sem entender por que um
@@ -1137,11 +1138,23 @@
               cnae_migrado_motivo: null,
             }
           : {};
+        // Autorização do 3º fiscal em diante: fica GRAVADA no lançamento. Sem a
+        // marca, a importação seguinte do CSV (que não traz a OS/Ofício como
+        // autorizado) voltava o lançamento para 'pendente' e a autorização do
+        // gestor se perdia a cada rodada (RN-RMPF — autorização persistente).
+        const _marcaAutorizacao =
+          (alvo.status === 'pendente' && (statusFinal === 'enviado' || statusFinal === 'aceito'))
+            ? {
+                terceiro_autorizado: true,
+                terceiro_autorizado_em: new Date().toISOString(),
+                terceiro_autorizado_por: (_user && _user.email) || null,
+              }
+            : {};
         return db_updateManual(alvo.id, Object.assign({}, patchComum, {
           // Cada participante recebe o valor sobre a própria base: o fator 30h é
           // do fiscal, e quem está zerado por não cumulatividade continua zerado.
           pontos_homologado: statusFinal === 'aceito' ? _homPontosDoAlvo(alvo, ponHom) : null,
-        }, _limpezaReab, _limpezaCnaeMigrado));
+        }, _marcaAutorizacao, _limpezaReab, _limpezaCnaeMigrado));
       }));
       document.getElementById('modal-hom').style.display = 'none';
       const alcance = varios

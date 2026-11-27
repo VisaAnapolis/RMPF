@@ -379,7 +379,15 @@
         const atual = existente ? await window.db_getManualPorId(id) : null;
         if (!atual) criar.push({ id, data });
         else if (ehTravado(atual)) preservados.push(atual);
-        else atualizar.push({ id, data });
+        else {
+          // 3º fiscal em diante já autorizado pelo gestor: regravar a inspeção
+          // não o devolve para 'pendente' (a autorização é definitiva).
+          if (atual.terceiro_autorizado === true && data.status === 'pendente') {
+            data.status = 'enviado';
+            data.motivo_pendencia = null;
+          }
+          atualizar.push({ id, data });
+        }
       }
     }
     for (const id of ((existente && existente.lancamentos) || [])) {

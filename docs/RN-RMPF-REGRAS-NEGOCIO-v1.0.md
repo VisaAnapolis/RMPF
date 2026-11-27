@@ -208,6 +208,8 @@ Regras **por fiscal**. "Inspeção" = origem `visa_csv`, `sim_csv` ou `insp360`.
 
 **RN-CNF-005** Aceitar documento com 3º fiscal pendente **autoriza** e homologa todos juntos (confirmação explícita). *Evidência: `conferencia.html`.*
 
+**RN-CNF-008** **A autorização do 3º fiscal em diante é definitiva**: "🔔 Autorizar" (ou homologar o documento com pendentes) grava `terceiro_autorizado = true` (+ `_em`, `_por`) em cada lançamento autorizado — no CVS, todos os pendentes do mesmo `visa_controle` (3º, 4º, 5º… e cada CNAE) de uma vez; no 360, o lançamento aberto. A reimportação do CSV e a regravação do 360 respeitam a marca e **não voltam o lançamento a `pendente`**, mesmo sem OS/Ofício autorizado nos CSVs. Lançamento já homologado e depois reaberto conta como autorizado. *Evidência: `conferencia.html` (`homologar`), `js/visa-import.js`, `js/insp360.js` (`salvarInspecao360`); teste em `tests/visa-import-snapshot.test.js`.*
+
 **RN-CNF-006** **Rever** decisão: "↩ Pendente" devolve à fila (zera homologado, apaga motivo, avisa o fiscal); "Aceitar" só grava se os pontos mudarem (notifica "Lançamento Sobrescrito"). *Evidência: `conferencia.html` (v1.33.0).*
 
 **RN-CNF-007** **A recusa é definitiva**: só o gestor a reverte, pelo "Rever". O motivo da recusa aparece ao fiscal (banner e modal), que recebe push e e-mail; a recusa vai também ao WCVS por `data/rmpf_recusas.csv` (VISA). *Evidência: `conferencia.html`, `js/notifications.js`; `VISA/.github/scripts/exportar-recusas-rmpf.js`.*
@@ -221,6 +223,8 @@ Regras **por fiscal**. "Inspeção" = origem `visa_csv`, `sim_csv` ou `insp360`.
 - **PN** = glosas informadas no fechamento;
 - **PV** = máx(0, PP − PN), limitado a **1000** (teto);
 - **Apuração (%)** = ⌈ mín( (PV − 250) × 0,2666 ; **200** ) ⌉, nunca negativa.
+
+**RN-APU-005** **Pontos à espera — conta única** (`resumoPontosAguardando`, `js/calculo.js`), igual no Dashboard (fiscal e administrador), em Meus Lançamentos e na Conferência: **Pts Enviados** = soma de `pontos` dos `enviado` (aguardam homologação); **Aguardando Autorização** = soma dos `pendente` (3º fiscal em diante, aguardam o gestor) — os dois nunca se misturam e nenhum entra no PP. No Dashboard do administrador são as colunas "Pts Req." e "Pts Aut."; o rodapé do calendário do fiscal (que soma tudo, menos recusados) informa quanto dele aguarda autorização.
 
 **RN-APU-002** **Fechamento** (Administrador, por fiscal ou em lote): os aceitos viram `fechado`, o registro fica em `fechamentos` (com PN e observação) e o PDF do relatório sai com o brasão do município. *Evidência: `fechamento.html`.*
 

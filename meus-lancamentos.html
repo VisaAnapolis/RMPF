@@ -53,6 +53,14 @@
       <button class="btn btn-primary btn-sm" id="btn-nova-atividade">+ Nova Atividade</button>
     </div>
 
+    <!-- Totais da competência — mesma conta do Dashboard e da Conferência
+         (window.resumoPontosAguardando / window.calcular, js/calculo.js). -->
+    <div class="metrics-grid" id="metrics-wrap" style="display:none">
+      <div class="metric-card amar"><div class="metric-label">Pts Enviados</div><div class="metric-value" id="m-env">—</div><div class="metric-desc">Aguardando homologação</div></div>
+      <div class="metric-card autorizacao"><div class="metric-label">🔔 Aguardando Autorização</div><div class="metric-value" id="m-aut">—</div><div class="metric-desc">3º fiscal em diante — não somam em Enviados</div></div>
+      <div class="metric-card verde"><div class="metric-label">PP — Homologados</div><div class="metric-value" id="m-pp">—</div><div class="metric-desc">Total apurado no período</div></div>
+    </div>
+
     <div class="card">
       <div class="table-wrap">
         <table class="rmpf-table rmpf-table--lancamentos">
@@ -337,6 +345,11 @@
         Promise.all([db_getManuais(_user.email, mes, ano), db_getFechamento(_user.email, mes, ano)]),
         _timeout,
       ]);
+      const _aguard = window.resumoPontosAguardando(_manuais);
+      document.getElementById('m-env').textContent = formatPontos(_aguard.enviados);
+      document.getElementById('m-aut').textContent = formatPontos(_aguard.autorizacao);
+      document.getElementById('m-pp').textContent  = formatPontos(window.calcular([], _manuais, 0).pp);
+      document.getElementById('metrics-wrap').style.display = '';
       // Lançamento reaberto: já foi homologado e voltou à conferência porque a
       // inspeção foi alterada no WCVS depois da homologação, ou ficou
       // incompatível com outra do mesmo dia. Explica a queda de pontuação que o

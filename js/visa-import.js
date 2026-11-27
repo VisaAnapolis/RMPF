@@ -2083,7 +2083,19 @@ async function importarInspecoesVISA({ fiscalEmail, fiscalNome, mes, ano, allFis
 
               // Verificação de autorização (inspeção com mais de dois fiscais) na atualização
               if (isTerceiro) {
-                const autorizado = isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);
+                // Autorizado pelo gestor na Conferência: a decisão é definitiva
+                // e prevalece sobre os CSVs de OS/Ofício — reimportar não a desfaz.
+                // Já homologado (e agora reaberto) também conta: homologar o
+                // documento autoriza os pendentes — vale para os lançamentos
+                // decididos antes de a marca existir.
+                const autorizadoGestor = existing.terceiro_autorizado === true || _homologado;
+                const autorizado = autorizadoGestor ||
+                  isTerceiroFiscalAutorizado(os, oficio, requerimentoMap, oficioMap);
+                if (autorizadoGestor && existing.terceiro_autorizado !== true) {
+                  updateData.terceiro_autorizado = true;
+                  updateData.terceiro_autorizado_em = new Date().toISOString();
+                  updateData.terceiro_autorizado_por = 'homologação anterior';
+                }
                 if (!autorizado) {
                   updateData.status = 'pendente';
                   updateData.motivo_pendencia = 'Inspeção com mais de dois fiscais sem autorização prévia (OS/Ofício não consta como autorizado)';

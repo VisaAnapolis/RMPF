@@ -204,6 +204,10 @@ input, select, textarea { font-family: var(--font); }
 .metric-card.azul   { border-top-color: var(--azul); }
 .metric-card.amar   { border-top-color: var(--amar); }
 .metric-card.verm   { border-top-color: var(--verm); }
+/* Pontos do 3º fiscal em diante aguardando autorização do gestor: mesmo tom do
+   selo azul "pendente" da tabela, com fundo para se distinguir do cartão PP. */
+.metric-card.autorizacao { background: var(--azulP); border-top-color: var(--azul); }
+.metric-card.autorizacao .metric-value { color: var(--azul); }
 .metric-label {
   font-size: .75rem;
   font-weight: 600;

@@ -272,6 +272,11 @@
           <div class="metric-value" id="m-env">—</div>
           <div class="metric-desc">Aguardando homologação</div>
         </div>
+        <div class="metric-card autorizacao">
+          <div class="metric-label">🔔 Aguardando Autorização</div>
+          <div class="metric-value" id="m-aut">—</div>
+          <div class="metric-desc">3º fiscal em diante — não somam em Enviados</div>
+        </div>
         <div class="metric-card azul">
           <div class="metric-label">PP — Pontos Positivos</div>
           <div class="metric-value" id="m-pp">—</div>
@@ -287,7 +292,7 @@
           <div class="metric-value" id="m-pv">—</div>
           <div class="metric-desc" id="m-pv-desc">PP − PN</div>
         </div>
-        <div class="metric-card verde metric-card-wide">
+        <div class="metric-card verde">
           <div class="metric-label">Apuração Final</div>
           <div class="metric-value" id="m-apur">—</div>
           <div class="metric-desc">% da produtividade</div>
@@ -357,6 +362,21 @@
         </div>
       </div>
 
+      <!-- Totais da competência (todos os fiscais) — mesma conta da tabela
+           abaixo e das telas do fiscal (resumoPontosAguardando, js/calculo.js). -->
+      <div class="metrics-grid" id="admin-metrics" style="display:none">
+        <div class="metric-card amar">
+          <div class="metric-label">Pts Enviados</div>
+          <div class="metric-value" id="adm-env">—</div>
+          <div class="metric-desc" id="adm-env-desc">Aguardando homologação</div>
+        </div>
+        <div class="metric-card autorizacao">
+          <div class="metric-label">🔔 Aguardando Autorização</div>
+          <div class="metric-value" id="adm-aut">—</div>
+          <div class="metric-desc" id="adm-aut-desc">3º fiscal em diante — não somam em Enviados</div>
+        </div>
+      </div>
+
       <!-- Mini-resumo compacto (visível apenas em mobile) -->
       <div class="card admin-mini-resumo" id="admin-mini-resumo">
         <div class="card-title">📋 Visão Geral</div>
@@ -384,6 +404,7 @@
               <tr>
                 <th>Fiscal</th>
                 <th class="td-num">Pts Req.</th>
+                <th class="td-num" title="Aguardando autorização do 3º fiscal em diante">Pts Aut.</th>
                 <th class="td-num">PP</th>
                 <th class="td-num">PN</th>
                 <th class="td-num">PV</th>
@@ -393,7 +414,7 @@
               </tr>
             </thead>
             <tbody id="tbody-admin">
-              <tr class="empty-row"><td colspan="8">Selecione uma competência e clique em Carregar</td></tr>
+              <tr class="empty-row"><td colspan="9">Selecione uma competência e clique em Carregar</td></tr>
             </tbody>
           </table>
         </div>
@@ -739,6 +760,7 @@
     for (let i = 0; i < desloc; i++) grade += '<div class="calr-dia fora"></div>';
     let agenda = '';
     let totalMes = 0, diasComLanc = 0;
+    const _aguardCal = window.resumoPontosAguardando(manuais);
 
     for (let dia = 1; dia <= ultimo; dia++) {
       const iso = `${ano}-${pad(mes)}-${pad(dia)}`;
@@ -765,7 +787,10 @@
 
     alvo.innerHTML = `<div class="calr-grade">${grade}</div>
       <div class="calr-agenda">${agenda || '<p class="empty-row">Nenhum lançamento nesta competência</p>'}</div>
-      <div class="calr-rodape">${manuais.length} lançamento(s) em ${diasComLanc} dia(s) · ${formatPontos(totalMes)} pontos (recusados não somam)</div>`;
+      <div class="calr-rodape">${manuais.length} lançamento(s) em ${diasComLanc} dia(s) · ${formatPontos(totalMes)} pontos (recusados não somam)${
+        _aguardCal.autorizacao > 0
+          ? ` — inclui ${formatPontos(_aguardCal.autorizacao)} pts aguardando autorização do 3º fiscal`
+          : ''}</div>`;
   }
 
   // ── Fiscal view ───────────────────────────────────────────
@@ -787,18 +812,18 @@
       document.getElementById('m-pv').textContent   = formatPontos(result.pv);
       document.getElementById('m-apur').textContent = result.apuracao + '%';
 
-      const ptosEnviados = manuais
-        .filter(m => m.status === 'enviado')
-        .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
-      document.getElementById('m-env').textContent = formatPontos(ptosEnviados);
+      // Mesma conta das outras telas (js/calculo.js): enviados × aguardando
+      // autorização do 3º fiscal, nunca misturados.
+      const aguard = window.resumoPontosAguardando(manuais);
+      document.getElementById('m-env').textContent = formatPontos(aguard.enviados);
+      document.getElementById('m-aut').textContent = formatPontos(aguard.autorizacao);
 
       let alerts = '';
       if (result.atingiuTetoPV)    alerts += alerta('info',  'PV atingiu o teto de 1.000 pontos — excedente descartado.');
       if (result.atingiuTetoFinal) alerts += alerta('info',  'Apuração atingiu o teto de 200%.');
       const pendentes = manuais.filter(m => m.status === 'enviado').length;
       if (pendentes > 0)           alerts += alerta('warn',  `Você tem <strong>${pendentes}</strong> lançamento(s) aguardando homologação.`);
-      const pendentesVisa = manuais.filter(m => m.status === 'pendente' && m.origem === 'visa_csv');
-      if (pendentesVisa.length > 0) alerts += alerta('warn', `Você tem <strong>${pendentesVisa.length}</strong> lançamento(s) importado(s) do VISA pendente(s) por falta de autorização do terceiro.`);
+      if (aguard.qtdAutorizacao > 0) alerts += alerta('warn', `Você tem <strong>${aguard.qtdAutorizacao}</strong> lançamento(s) (<strong>${formatPontos(aguard.autorizacao)}</strong> pts) aguardando a autorização do gestor para o 3º fiscal em diante.`);
       document.getElementById('alert-fiscal').innerHTML = alerts;
 
       if (!manuais.length) {
@@ -853,7 +878,7 @@
     const ano = Number(document.getElementById('admin-sel-ano').value);
     const tbody    = document.getElementById('tbody-admin');
     const tbodyMini = document.getElementById('tbody-admin-mini');
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="8"><div class="spinner"></div></td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="9"><div class="spinner"></div></td></tr>';
     tbodyMini.innerHTML = '<tr class="empty-row"><td colspan="5"><div class="spinner"></div></td></tr>';
 
     try {
@@ -863,21 +888,34 @@
       ]);
 
       if (!fiscais.length) {
-        tbody.innerHTML = '<tr class="empty-row"><td colspan="8">Nenhum fiscal cadastrado</td></tr>';
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="9">Nenhum fiscal cadastrado</td></tr>';
         tbodyMini.innerHTML = '<tr class="empty-row"><td colspan="5">Nenhum fiscal cadastrado</td></tr>';
         return;
       }
 
+      // Totais do topo: só os lançamentos dos fiscais listados, para a soma
+      // bater com as colunas "Pts Req." e "Pts Aut." da tabela.
+      const _chavesFiscais = new Set(fiscais.flatMap(f => [f.email, f.id]).filter(Boolean));
+      const _aguardTodos = window.resumoPontosAguardando(
+        todosManuais.filter(m => _chavesFiscais.has(m.fiscal_email)));
+      document.getElementById('adm-env').textContent = formatPontos(_aguardTodos.enviados);
+      document.getElementById('adm-aut').textContent = formatPontos(_aguardTodos.autorizacao);
+      document.getElementById('adm-env-desc').textContent =
+        `Aguardando homologação · ${_aguardTodos.qtdEnviados} lançamento(s)`;
+      document.getElementById('adm-aut-desc').textContent =
+        `3º fiscal em diante · ${_aguardTodos.qtdAutorizacao} lançamento(s) — não somam em Enviados`;
+      document.getElementById('admin-metrics').style.display = '';
+
       tbody.innerHTML = fiscais.map(f => {
         const manuais   = todosManuais.filter(m => m.fiscal_email === f.email || m.fiscal_email === f.id);
         const result    = calcular([], manuais, 0);
-        const ptosReq   = manuais
-          .filter(m => m.status === 'enviado')
-          .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
-        const pendentes = manuais.filter(m => m.status === 'enviado' || m.status === 'pendente').length;
+        const aguard    = window.resumoPontosAguardando(manuais);
+        const ptosReq   = aguard.enviados;
+        const pendentes = aguard.qtdEnviados + aguard.qtdAutorizacao;
         return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td data-label="Fiscal">${escHtml(f.nome || f.id)}</td>
           <td data-label="Pts Req." class="td-num">${ptosReq > 0 ? formatPontos(ptosReq) : '—'}</td>
+          <td data-label="Pts Aut." class="td-num">${aguard.autorizacao > 0 ? formatPontos(aguard.autorizacao) : '—'}</td>
           <td data-label="PP" class="td-num">${formatPontos(result.pp)}</td>
           <td data-label="PN" class="td-num">${formatPontos(result.pn)}</td>
           <td data-label="PV" class="td-num">${formatPontos(result.pv)}</td>
@@ -892,9 +930,7 @@
       tbodyMini.innerHTML = fiscais.map(f => {
         const manuais   = todosManuais.filter(m => m.fiscal_email === f.email || m.fiscal_email === f.id);
         const result    = calcular([], manuais, 0);
-        const ptosReq   = manuais
-          .filter(m => m.status === 'enviado')
-          .reduce((s, m) => s + (Number(m.pontos) || 0), 0);
+        const ptosReq   = window.resumoPontosAguardando(manuais).enviados;
         const temRecusado  = manuais.some(m => m.status === 'recusado');
         const temPendente  = manuais.some(m => m.status === 'enviado' || m.status === 'pendente');
         const statusIcon   = temRecusado ? '⚠️' : temPendente ? '⏳' : manuais.length ? '✅' : '—';
@@ -907,7 +943,7 @@
         </tr>`;
       }).join('');
     } catch (e) {
-      tbody.innerHTML = `<tr class="empty-row"><td colspan="8">${alerta('danger','Erro: ' + e.message)}</td></tr>`;
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="9">${alerta('danger','Erro: ' + e.message)}</td></tr>`;
       tbodyMini.innerHTML = `<tr class="empty-row"><td colspan="5">Erro</td></tr>`;
     }
   }
