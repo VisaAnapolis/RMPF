@@ -162,7 +162,7 @@ Regras **por fiscal**. "Inspeção" = origem `visa_csv`, `sim_csv` ou `insp360`.
 
 **RN-360-003** CVS e 360 **convivem**: a mesma inspeção pelos dois caminhos recebe o alerta **CVS×360** na Conferência e o gestor homologa um e recusa o outro. *Evidência: `js/utils.js` (`idsDuplicidade360`).*
 
-**RN-360-004** O fiscal edita/exclui até a homologação; homologado, fechado e recusado nunca mudam. O prazo do lançamento manual não se aplica; 3º fiscal em diante entra pendente. *Evidência: `js/insp360.js`.*
+**RN-360-004** O fiscal edita/exclui **até a decisão do gestor**; decidido algum lançamento da inspeção (homologado, recusado ou fechado), a inspeção inteira fica **só leitura**, como o lançamento manual — para corrigir, o gestor a devolve à fila ("↩ Pendente"). O prazo do lançamento manual não se aplica; 3º fiscal em diante entra pendente. *Evidência: `js/insp360.js`.*
 
 ---
 
@@ -200,7 +200,7 @@ Regras **por fiscal**. "Inspeção" = origem `visa_csv`, `sim_csv` ou `insp360`.
 
 **RN-CNF-001** Ciclo de status: `rascunho` → `enviado` → (`pendente` se falta autorização de fiscal) → **`aceito`** ou **`recusado`** → `fechado` (no fechamento). `homologado` é o status dos lançamentos de ocorrência. *Evidência: `js/utils.js` (`badge`), `conferencia.html`.*
 
-**RN-CNF-002** **A homologação é do documento**: aceitar, recusar ou devolver alcança todos os lançamentos do mesmo `visa_controle` (todos os fiscais e CNAEs). O modal mostra antes o alcance (quem recebe quanto). Não se aceita um CNAE e recusa outro do mesmo documento. Lançamentos sem controle (manual, SIM) são grupo de um. *Evidência: `conferencia.html`, `js/firestore.js` (`db_getManuaisPorVisaControle`).*
+**RN-CNF-002** **A homologação é do documento**: aceitar, recusar ou devolver alcança todos os lançamentos do mesmo `visa_controle` (todos os fiscais e CNAEs). O modal mostra antes o alcance (quem recebe quanto). Não se aceita um CNAE e recusa outro do mesmo documento. No **Lançamento 360** o documento é a inspeção (`insp360_numero`: todos os fiscais-360 e CNAEs). Lançamentos sem controle (manual, SIM) são grupo de um. *Evidência: `conferencia.html`, `js/firestore.js` (`db_getManuaisPorVisaControle`, `db_getManuaisPorInsp360`).*
 
 **RN-CNF-003** **Replicação proporcional**: o administrador decide quanto do valor padrão homologa; a mesma proporção vale para cada participante sobre a base dele (respeita fator 30 h e zeragens). *Evidência: `js/utils.js` (`pontosHomologadosReplicados`).*
 
@@ -208,7 +208,7 @@ Regras **por fiscal**. "Inspeção" = origem `visa_csv`, `sim_csv` ou `insp360`.
 
 **RN-CNF-005** Aceitar documento com 3º fiscal pendente **autoriza** e homologa todos juntos (confirmação explícita). *Evidência: `conferencia.html`.*
 
-**RN-CNF-008** **A autorização do 3º fiscal em diante é definitiva**: "🔔 Autorizar" (ou homologar o documento com pendentes) grava `terceiro_autorizado = true` (+ `_em`, `_por`) em cada lançamento autorizado — no CVS, todos os pendentes do mesmo `visa_controle` (3º, 4º, 5º… e cada CNAE) de uma vez; no 360, o lançamento aberto. A reimportação do CSV e a regravação do 360 respeitam a marca e **não voltam o lançamento a `pendente`**, mesmo sem OS/Ofício autorizado nos CSVs. Lançamento já homologado e depois reaberto conta como autorizado. *Evidência: `conferencia.html` (`homologar`), `js/visa-import.js`, `js/insp360.js` (`salvarInspecao360`); teste em `tests/visa-import-snapshot.test.js`.*
+**RN-CNF-008** **A autorização do 3º fiscal em diante é definitiva**: "🔔 Autorizar" (ou homologar o documento com pendentes) grava `terceiro_autorizado = true` (+ `_em`, `_por`) em cada lançamento autorizado — todos os pendentes do mesmo documento (3º, 4º, 5º… e cada CNAE) de uma vez — `visa_controle` no CVS, `insp360_numero` no 360. A reimportação do CSV e a regravação do 360 respeitam a marca e **não voltam o lançamento a `pendente`**, mesmo sem OS/Ofício autorizado nos CSVs. Lançamento já homologado e depois reaberto conta como autorizado. *Evidência: `conferencia.html` (`homologar`), `js/visa-import.js`, `js/insp360.js` (`salvarInspecao360`); teste em `tests/visa-import-snapshot.test.js`.*
 
 **RN-CNF-006** **Rever** decisão: "↩ Pendente" devolve à fila (zera homologado, apaga motivo, avisa o fiscal); "Aceitar" só grava se os pontos mudarem (notifica "Lançamento Sobrescrito"). *Evidência: `conferencia.html` (v1.33.0).*
 

@@ -236,20 +236,42 @@ test('salvar: inspeção + lançamentos só para participantes 360; edição res
   assert.deepEqual(insp360.editores, [A.email, C.email]);
   assert.equal((await db_getInsp360Fiscal(C.email, MES, ANO)).length, 1);
   assert.equal((await db_getInsp360Fiscal(B.email, MES, ANO)).length, 0);
+  // Conferência: o "documento" do 360 reúne todos os lançamentos da inspeção
+  // (todos os fiscais-360 e CNAEs) — "Autorizar"/homologar vale para o grupo.
+  const grupo = await db_getManuaisPorInsp360(r.numero);
+  assert.equal(grupo.length, manuais.length);
+  assert.ok(grupo.some(m => m.status === 'pendente') && grupo.some(m => m.status === 'enviado'));
 
-  // Gestor homologa um lançamento da Ana; Ana tira um CNAE extra e corrige o nº.
-  const homologado = manuais.find(m => m.fiscal_email === A.email && m.visa_cnae === '1111-1/01');
-  db._col('manuais').set(homologado.id, { ...db._col('manuais').get(homologado.id), status: 'aceito' });
+  // Antes da decisão do gestor: Ana tira um CNAE extra e corrige o nº.
   const insp2 = { ...insp, numeroDoc: '999', cnaesExtras: ['2222-2/02'] };
   const calc2 = await calcularInspecao360(insp2, ctx);
   const r2 = await salvarInspecao360({ insp: insp2, calc: calc2, existente: insp360, usuario: A });
   assert.equal(r2.numero, r.numero);
-  assert.equal(r2.preservados.length, 1);
   const depois = db.todos('manuais');
-  assert.equal(db._col('manuais').get(homologado.id).status, 'aceito');
-  assert.equal(db._col('manuais').get(homologado.id).numero, '1' + CASOS[1].ctrl, 'travado: intocado');
   assert.ok(!depois.some(m => m.visa_cnae === '6666-6/06'), 'CNAE retirado: lançamentos removidos');
-  assert.ok(depois.filter(m => m.id !== homologado.id).every(m => m.numero === '999'));
+  assert.ok(depois.every(m => m.numero === '999'));
+
+  // Gestor homologa: a inspeção fica só leitura, como o lançamento manual —
+  // nada muda, nem nasce lançamento novo (p.ex. CNAE incluído).
+  const homologado = depois.find(m => m.fiscal_email === A.email && m.visa_cnae === '1111-1/01');
+  db._col('manuais').set(homologado.id, { ...db._col('manuais').get(homologado.id), status: 'aceito' });
+  const insp3 = { ...insp2, numeroDoc: '777', cnaesExtras: ['2222-2/02', '6666-6/06'] };
+  const calc3 = await calcularInspecao360(insp3, ctx);
+  await assert.rejects(
+    salvarInspecao360({ insp: insp3, calc: calc3, existente: await db_getInsp360(r.numero), usuario: A }),
+    /já foi homologada/);
+  assert.equal(db.todos('manuais').length, depois.length, 'nenhum lançamento novo');
+  assert.ok(db.todos('manuais').every(m => m.numero === '999'), 'nada alterado');
+  assert.equal(db._col('manuais').get(homologado.id).status, 'aceito');
+
+  // Recusa também trava; devolvido à fila ("↩ Pendente"), volta a editar.
+  db._col('manuais').set(homologado.id, { ...db._col('manuais').get(homologado.id), status: 'recusado' });
+  await assert.rejects(
+    salvarInspecao360({ insp: insp3, calc: calc3, existente: await db_getInsp360(r.numero), usuario: A }),
+    /já foi recusada/);
+  db._col('manuais').set(homologado.id, { ...db._col('manuais').get(homologado.id), status: 'enviado' });
+  await salvarInspecao360({ insp: insp2, calc: calc2, existente: await db_getInsp360(r.numero), usuario: A });
+  db._col('manuais').set(homologado.id, { ...db._col('manuais').get(homologado.id), status: 'aceito' });
 
   // Exclusão bloqueada enquanto houver lançamento travado.
   await assert.rejects(excluirInspecao360(await db_getInsp360(r.numero)), /aceito/);

@@ -337,6 +337,10 @@
   let _homGrupoForaDoDoc = [];
   let _homAbertoForaDoDoc = false;
 
+  // Identificação da inspeção no texto do modal: CONTROLE do CVS ou número
+  // do Lançamento 360 (360-AAAA-NNNNN).
+  const _homRefInspecao = (d) => String((d && (d.visa_controle || d.insp360_numero)) || '');
+
   const _homForaDoDocumento = (d) =>
     !!d && (d.reaberto_tipo === 'orfao' || d.reaberto_tipo === 'fiscal_removido');
 
@@ -370,6 +374,9 @@
         return `dia coberto por ocorrência aceita (${rotulo}) — dia de afastamento não admite lançamento`;
       }
     } catch (_) { /* idem */ }
+    if (m.origem === 'insp360') {
+      return 'não participa da Transição 360 — a pontuação dele nesta inspeção vem pelo CVS';
+    }
     return 'sem lançamento deste documento nesta competência — confira a importação do VISA';
   }
 
@@ -461,7 +468,7 @@
       wrap.style.display = '';
       document.getElementById('hom-grupo-escopo').innerHTML =
         `Este lançamento <strong>não faz mais parte deste documento</strong> ` +
-        `(inspeção ${escHtml(String(_homDocAberto.visa_controle || ''))}): a decisão vale ` +
+        `(inspeção ${escHtml(_homRefInspecao(_homDocAberto))}): a decisão vale ` +
         `apenas para ele, não altera os demais participantes e <strong>não admite ` +
         `pontuação</strong> — aceite com zero para encerrá-lo, ou recuse.`;
       document.getElementById('hom-grupo-corpo').innerHTML = '';
@@ -488,14 +495,14 @@
     const num = (_homDocAberto.numero == null) ? '' : String(_homDocAberto.numero).trim();
     const refDoc = doc
       ? escHtml(doc) + (num ? ' nº ' + escHtml(num) : '')
-      : 'CONTROLE ' + escHtml(String(_homDocAberto.visa_controle || ''));
+      : (_homDocAberto.origem === 'insp360' ? 'inspeção 360 ' : 'CONTROLE ') + escHtml(_homRefInspecao(_homDocAberto));
     document.getElementById('hom-grupo-escopo').innerHTML = _homPendente
       ? `Esta autorização vale para os <strong>${linhas.length}</strong> lançamento(s) ` +
         `pendente(s) do documento <strong>${refDoc}</strong> ` +
-        `(inspeção ${escHtml(String(_homDocAberto.visa_controle || ''))}), de ` +
+        `(inspeção ${escHtml(_homRefInspecao(_homDocAberto))}), de ` +
         `<strong>${fiscais.size}</strong> fiscal(is).`
       : `Esta decisão vale para o documento <strong>${refDoc}</strong> ` +
-        `(inspeção ${escHtml(String(_homDocAberto.visa_controle || ''))}): ` +
+        `(inspeção ${escHtml(_homRefInspecao(_homDocAberto))}): ` +
         `<strong>${linhas.length}</strong> lançamento(s) de <strong>${fiscais.size}</strong> fiscal(is).`;
     const valor = document.getElementById('hom-pts-hom').value;
     document.getElementById('hom-grupo-corpo').innerHTML = linhas.map(alvo => {
@@ -809,10 +816,18 @@
     // para ele. Puxar os demais seria deixar quem saiu da inspeção comandar a
     // homologação de quem continua nela.
     if (_homAbertoForaDoDoc) return;
-    if (m.origem !== 'visa_csv' || !m.visa_controle ||
-        typeof window.db_getManuaisPorVisaControle !== 'function') return;
+    // Documento = inspeção: CONTROLE do CVS ou número do Lançamento 360. Os
+    // dois nunca se misturam (CVS × 360 da mesma visita são decididos à parte,
+    // pelo alerta de duplicidade).
+    const _eh360 = m.origem === 'insp360' && !!m.insp360_numero &&
+      typeof window.db_getManuaisPorInsp360 === 'function';
+    const _ehCvs = m.origem === 'visa_csv' && !!m.visa_controle &&
+      typeof window.db_getManuaisPorVisaControle === 'function';
+    if (!_eh360 && !_ehCvs) return;
     try {
-      const irmaos = await window.db_getManuaisPorVisaControle(m.visa_controle);
+      const irmaos = _eh360
+        ? await window.db_getManuaisPorInsp360(m.insp360_numero)
+        : await window.db_getManuaisPorVisaControle(m.visa_controle);
       const alteraveis = [], fechados = [], foraDoDoc = [];
       for (const d of irmaos) {
         if (d.status === 'rascunho') continue;

@@ -360,7 +360,32 @@
   // Só cria/atualiza/apaga lançamentos editáveis (enviado/pendente); os
   // travados (homologado, fechado, recusado) ficam intocados e continuam
   // ligados à inspeção. Retorna { numero, criados, atualizados, removidos, preservados }.
+  // Inspeção já DECIDIDA pelo gestor: algum lançamento dela foi homologado,
+  // recusado ou fechado. Como no lançamento manual, depois da decisão o
+  // fiscal não altera mais nada — nem os lançamentos decididos (rules) nem a
+  // inspeção (que geraria lançamentos novos, p.ex. ao incluir CNAE ou fiscal,
+  // num documento já homologado). Para corrigir, o gestor devolve o documento
+  // à fila ("↩ Pendente" na Conferência) e a edição volta a ser possível.
+  // Retorna o primeiro lançamento travado, ou null.
+  async function lancamentoDecidido360(existente) {
+    for (const id of ((existente && existente.lancamentos) || [])) {
+      const atual = await window.db_getManualPorId(id);
+      if (ehTravado(atual)) return atual;
+    }
+    return null;
+  }
+  function msgDecidida360(lanc) {
+    const st = lanc.status === 'aceito' || lanc.status === 'homologado' ? 'homologada'
+      : lanc.status === 'recusado' ? 'recusada' : 'fechada';
+    return `Esta inspeção já foi ${st} pelo gestor e não pode mais ser alterada. ` +
+      `Para corrigir, peça ao gestor que a devolva para a fila ("↩ Pendente") na Conferência.`;
+  }
+
   async function salvarInspecao360({ insp, calc, existente, usuario }) {
+    if (existente) {
+      const decidido = await lancamentoDecidido360(existente);
+      if (decidido) throw new Error(msgDecidida360(decidido));
+    }
     const [ano, mes] = String(insp.data).split('-').map(Number);
     const numero = existente ? existente.numero : await window.db_proximoNumeroInsp360(ano);
     const editores = calc.porFiscal.filter(f => f.eh360 && f.email).map(f => f.email);
@@ -448,6 +473,8 @@
   window.DATA_INICIO_360       = DATA_INICIO_360;
   window.validarInspecao360        = validarInspecao360;
   window.insp360EhTravado      = ehTravado;
+  window.insp360LancamentoDecidido = lancamentoDecidido360;
+  window.insp360MsgDecidida        = msgDecidida360;
   window.ehParticipante360     = ehParticipante360;
   window.insp360CarregarCnaeMap          = carregarCnaeMap;
   window.insp360CarregarIndiceRegulados  = carregarIndiceRegulados;
