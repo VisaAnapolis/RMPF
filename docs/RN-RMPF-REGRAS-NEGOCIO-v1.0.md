@@ -38,6 +38,8 @@ Todas as regras deste documento são **[C]**, salvo indicação.
 
 **RN-ACE-004** O salvamento no **Lançamento 360** exige a marcação **"Participante da Transição 360"** (`usuarios.transicao360`, feita no Admin do VISA). Sem ela a página só calcula. *Evidência: `lancamento-360.html`, `js/insp360.js`.*
 
+**RN-ACE-005** **O que o fiscal pode gravar em `manuais`** (garantido no servidor pelas rules, não só pela tela): só o **próprio lançamento manual** — cria em rascunho/enviado (nunca com decisão do gestor, pontos homologados ou autorização de 3º fiscal); edita enquanto rascunho; "Corrigir e Reenviar" do recusado (volta a enviado); troca anexo só em rascunho/enviado; exclui em rascunho/enviado/recusado. **Importados (CVS/SIM) e ocorrências são somente leitura** para o fiscal (importar é só do Administrador). Lançamento 360: só o fiscal-360 da inspeção, até a homologação. Homologar, recusar, autorizar e fechar são do Administrador. *Evidência: VISA `firestore.rules` (bloco `manuais`, **deploy manual**); teste no emulador em VISA `scripts/rules-test/`.*
+
 ---
 
 ## 2. TABELA DE PONTUAÇÃO (RN-PTS)
