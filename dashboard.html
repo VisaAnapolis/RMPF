@@ -111,6 +111,13 @@
       .calr-agenda { display: none; }
     }
 
+    /* Linha do total aguardando autorização (Dashboard do administrador). */
+    .adm-aut-linha {
+      margin: 0 0 14px; padding: 8px 12px; border-radius: var(--radius);
+      background: var(--azulP); color: var(--azul); border-left: 4px solid var(--azul);
+      font-size: .9rem;
+    }
+    .adm-aut-linha.zero { background: transparent; color: var(--cinzaT); border-left-color: var(--cinzaL); }
     /* Mini-resumo de fiscais — visível apenas em mobile */
     .admin-mini-resumo { display: none; }
     @media (max-width: 600px) {
@@ -371,20 +378,10 @@
         </div>
       </div>
 
-      <!-- Totais da competência (todos os fiscais) — mesma conta da tabela
-           abaixo e das telas do fiscal (resumoPontosAguardando, js/calculo.js). -->
-      <div class="metrics-grid" id="admin-metrics" style="display:none">
-        <div class="metric-card amar">
-          <div class="metric-label">Pts Enviados</div>
-          <div class="metric-value" id="adm-env">—</div>
-          <div class="metric-desc" id="adm-env-desc">Aguardando homologação</div>
-        </div>
-        <div class="metric-card autorizacao">
-          <div class="metric-label">🔔 Aguardando Autorização</div>
-          <div class="metric-value" id="adm-aut">—</div>
-          <div class="metric-desc" id="adm-aut-desc">3º fiscal em diante — não somam em Enviados</div>
-        </div>
-      </div>
+      <!-- Total da competência aguardando autorização de 3º fiscal (todos os
+           fiscais) — uma linha só; mesma conta da coluna "Pts Aut." e das
+           telas do fiscal (resumoPontosAguardando, js/calculo.js). -->
+      <div class="adm-aut-linha" id="adm-aut-linha" style="display:none"></div>
 
       <!-- Mini-resumo compacto (visível apenas em mobile) -->
       <div class="card admin-mini-resumo" id="admin-mini-resumo">
@@ -908,13 +905,13 @@
       const _chavesFiscais = new Set(fiscais.flatMap(f => [f.email, f.id]).filter(Boolean));
       const _aguardTodos = window.resumoPontosAguardando(
         todosManuais.filter(m => _chavesFiscais.has(m.fiscal_email)));
-      document.getElementById('adm-env').textContent = formatPontos(_aguardTodos.enviados);
-      document.getElementById('adm-aut').textContent = formatPontos(_aguardTodos.autorizacao);
-      document.getElementById('adm-env-desc').textContent =
-        `Aguardando homologação · ${_aguardTodos.qtdEnviados} lançamento(s)`;
-      document.getElementById('adm-aut-desc').textContent =
-        `3º fiscal em diante · ${_aguardTodos.qtdAutorizacao} lançamento(s) — não somam em Enviados`;
-      document.getElementById('admin-metrics').style.display = '';
+      const _linhaAut = document.getElementById('adm-aut-linha');
+      _linhaAut.classList.toggle('zero', !_aguardTodos.qtdAutorizacao);
+      _linhaAut.innerHTML = _aguardTodos.qtdAutorizacao
+        ? `🔔 Autorização pendente: <strong>${formatPontos(_aguardTodos.autorizacao)}</strong> pts · ${_aguardTodos.qtdAutorizacao} lanç.`
+        : '🔔 Nenhuma autorização de 3º fiscal pendente';
+      _linhaAut.title = 'Pontos do 3º fiscal em diante aguardando a sua autorização (não somam em Enviados)';
+      _linhaAut.style.display = '';
 
       tbody.innerHTML = fiscais.map(f => {
         const manuais   = todosManuais.filter(m => m.fiscal_email === f.email || m.fiscal_email === f.id);
