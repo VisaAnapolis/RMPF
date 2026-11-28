@@ -551,6 +551,15 @@
   async function editar(numero) {
     const i = await db_getInsp360(numero);
     if (!i) { showAlert('warn', 'Inspeção não encontrada.'); return; }
+    // Decidida pelo gestor (homologada/recusada/fechada): só leitura, como o
+    // lançamento manual. salvarInspecao360 confere de novo ao gravar.
+    try {
+      const decidido = await window.insp360LancamentoDecidido(i);
+      if (decidido) { showAlert('info', '🔒 ' + escHtml(window.insp360MsgDecidida(decidido))); return; }
+    } catch (e) {
+      showAlert('danger', 'Não foi possível conferir a situação da inspeção: ' + escHtml(e.message));
+      return;
+    }
     editando = i;
     $('titulo-form').textContent = `✏️ Editando ${i.numero}`;
     await selecionarRegulado(i.codigo);
@@ -569,7 +578,7 @@
     for (const f of (i.fiscais || [])) addLinhaFiscal(f.email, false);
     if ((i.fiscais || []).length < 2) addLinhaFiscal('');
     $('alert-area').innerHTML = alerta('info', `Editando a inspeção <strong>${escHtml(i.numero)}</strong>. ` +
-      'Lançamentos já homologados, fechados ou recusados não são alterados.');
+      'Depois que o gestor homologar ou recusar, a inspeção não poderá mais ser alterada.');
     window.scrollTo({ top: 0, behavior: 'smooth' });
     calcular();
   }
