@@ -542,13 +542,32 @@
   function parsearTimestamp(txt) {
     const v = (txt || '').trim();
     if (!v) return null;
+    const fmt = d => d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
     const matchBR = v.match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
     if (matchBR) {
       const d = new Date(+matchBR[3], +matchBR[2]-1, +matchBR[1], +matchBR[4], +matchBR[5]);
-      if (!isNaN(d.getTime())) return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      if (!isNaN(d.getTime())) return fmt(d);
     }
-    const d = new Date(v);
-    if (!isNaN(d.getTime())) return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+    // Windows em região inglesa: o %date% do exportador sai "Sat 11/28/  1:34"
+    // (mês/dia, às vezes SEM ano). O VISA normaliza isso só no artefato do
+    // Pages; o RMPF lê o arquivo cru de main. Antes caía no new Date(), que
+    // inventava o ano 2001. Sem ano, vale o ano corrente de Brasília — ou o
+    // anterior, se a data ficaria no futuro (virada de ano).
+    const matchUS = v.match(/^(?:[A-Za-z]{3}\s+)?(\d{1,2})\/(\d{1,2})\/\s*(\d{4})?\s+(\d{1,2}):(\d{2})/);
+    if (matchUS) {
+      const agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }));
+      const mk = ano => new Date(ano, +matchUS[1]-1, +matchUS[2], +matchUS[4], +matchUS[5]);
+      let d = mk(matchUS[3] ? +matchUS[3] : agora.getFullYear());
+      if (!matchUS[3] && d - agora > 24 * 3600 * 1000) d = mk(agora.getFullYear() - 1);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+      }
+    }
+    // ISO (com ano explícito). Nada de new Date() em texto livre: ele chuta o ano.
+    if (/^\d{4}-\d{2}-\d{2}/.test(v)) {
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) return fmt(d);
+    }
     return v;
   }
 
@@ -908,9 +927,15 @@
       const _linhaAut = document.getElementById('adm-aut-linha');
       _linhaAut.classList.toggle('zero', !_aguardTodos.qtdAutorizacao);
       _linhaAut.innerHTML = _aguardTodos.qtdAutorizacao
-        ? `🔔 Autorização pendente: <strong>${formatPontos(_aguardTodos.autorizacao)}</strong> pts · ${_aguardTodos.qtdAutorizacao} lanç.`
+        // Lançamento pendente pode valer zero (vistoria zerada pela regra do
+        // dia, OS de Plantão Fiscal…) e ainda assim esperar a autorização.
+        ? (_aguardTodos.autorizacao > 0
+            ? `🔔 Autorização pendente: <strong>${formatPontos(_aguardTodos.autorizacao)}</strong> pts · ${_aguardTodos.qtdAutorizacao} lanç.`
+            : `🔔 Autorização pendente: <strong>${_aguardTodos.qtdAutorizacao} lanç.</strong> (sem pontos)`)
         : '🔔 Nenhuma autorização de 3º fiscal pendente';
-      _linhaAut.title = 'Pontos do 3º fiscal em diante aguardando a sua autorização (não somam em Enviados)';
+      _linhaAut.title = 'Lançamentos do 3º fiscal em diante aguardando a sua autorização (não somam em Enviados). ' +
+        'Um lançamento pode valer zero (ex.: vistoria zerada pela regra do dia) e ainda assim precisar ser decidido. ' +
+        'Os fiscais estão marcados com a ampulheta vermelha.';
       _linhaAut.style.display = '';
 
       tbody.innerHTML = fiscais.map(f => {
