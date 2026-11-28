@@ -145,6 +145,15 @@
       .admin-mini-resumo tbody td.td-num { text-align: right; font-variant-numeric: tabular-nums; }
       .admin-mini-resumo tbody td.td-status { text-align: center; font-size: 1rem; }
       .admin-mini-resumo tbody tr:last-child td { border-bottom: none; }
+      /* Autorização de 3º fiscal pendente: emoji não aceita cor, então a
+         ampulheta vai dentro de um círculo vermelho. */
+      .st-aut {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1.75em; height: 1.75em; border-radius: 50%;
+        background: var(--vermP); box-shadow: 0 0 0 2px var(--verm);
+      }
+      .mini-resumo-legenda { margin-top: .45rem; font-size: .72rem; color: var(--cinzaT); }
+      .mini-resumo-legenda .st-aut { width: 1.45em; height: 1.45em; font-size: .85em; }
       .mini-resumo-link {
         color: inherit;
         text-decoration: underline dotted;
@@ -394,6 +403,7 @@
             <tr class="empty-row"><td colspan="5">—</td></tr>
           </tbody>
         </table>
+        <div class="mini-resumo-legenda">✅ Homologado · ⏳ Aguardando homologação · <span class="st-aut">⏳</span> Autorização de 3º fiscal pendente · ⚠️ Tem recusado</div>
       </div>
 
       <div class="card admin-resumo-fiscal">
@@ -933,7 +943,12 @@
         const ptosReq   = window.resumoPontosAguardando(manuais).enviados;
         const temRecusado  = manuais.some(m => m.status === 'recusado');
         const temPendente  = manuais.some(m => m.status === 'enviado' || m.status === 'pendente');
-        const statusIcon   = temRecusado ? '⚠️' : temPendente ? '⏳' : manuais.length ? '✅' : '—';
+        // Autorização de 3º fiscal pendente vem primeiro: é a única situação
+        // que espera uma ação do gestor antes mesmo da homologação.
+        const temAutorizacao = manuais.some(m => m.status === 'pendente');
+        const statusIcon   = temAutorizacao
+          ? '<span class="st-aut" title="Autorização de 3º fiscal pendente" aria-label="Autorização de 3º fiscal pendente">⏳</span>'
+          : temRecusado ? '⚠️' : temPendente ? '⏳' : manuais.length ? '✅' : '—';
         return `<tr${result.apuracao < 200 ? ' class="tr-lara"' : ''}>
           <td><a href="${linkConferencia(f, mes, ano)}" class="mini-resumo-link" title="Conferir">${escHtml(nomeAbrev(f.nome || f.id))}</a></td>
           <td class="td-num">${ptosReq > 0 ? formatPontos(ptosReq) : '—'}</td>
